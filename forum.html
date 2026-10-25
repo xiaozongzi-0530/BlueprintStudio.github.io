@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>论坛 · BlueprintStudio</title>
+<style>
+  :root { --bg:#0b1020; --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; }
+  .grid-bg {
+    position:fixed; inset:0; z-index:0;
+    background-image:
+      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+    background-size:40px 40px;
+  }
+  header {
+    position:sticky; top:0; z-index:10;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:1rem 2rem;
+    background:rgba(11,16,32,.85); backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(79,124,255,.15);
+  }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav a { color:var(--muted); text-decoration:none; margin-left:1.5rem; font-size:.95rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+  main { position:relative; z-index:1; max-width:800px; margin:0 auto; padding:2.5rem 1.5rem; }
+  h1 { font-size:1.7rem; margin-bottom:.4rem; }
+  h1 em {
+    font-style:normal;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .sub { color:var(--muted); font-size:.92rem; margin-bottom:1.8rem; }
+  .card {
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(79,124,255,.25);
+    border-radius:16px; padding:1.5rem; margin-bottom:1.2rem;
+  }
+  textarea, input[type="text"] {
+    width:100%;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(79,124,255,.3);
+    border-radius:10px; color:var(--text);
+    padding:.7rem .9rem; font-size:.95rem;
+    outline:none; font-family:inherit;
+  }
+  textarea { min-height:90px; resize:vertical; margin-bottom:.8rem; }
+  textarea:focus, input:focus { border-color:var(--accent2); }
+  .btn {
+    display:inline-block; text-decoration:none; border:none; cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#fff; padding:.6rem 1.5rem; border-radius:10px;
+    font-size:.92rem; font-weight:600;
+  }
+  .btn.ghost { background:transparent; border:1px solid rgba(79,124,255,.5); color:var(--accent2); }
+  .file-label {
+    display:inline-block; cursor:pointer;
+    border:1px dashed rgba(79,124,255,.5); color:var(--accent2);
+    padding:.45rem 1rem; border-radius:10px; font-size:.85rem; margin-right:.8rem;
+  }
+  input[type="file"] { display:none; }
+  .file-hint { color:var(--muted); font-size:.8rem; margin-top:.5rem; }
+  .post-head { display:flex; align-items:center; gap:.6rem; margin-bottom:.7rem; flex-wrap:wrap; }
+  .post-head .nick { font-weight:700; }
+  .badge-title, .badge-admin {
+    background:#f5b301; color:#1a1a1a;
+    font-size:.68rem; font-weight:700;
+    padding:.15rem .5rem; border-radius:999px;
+  }
+  .post-head .time { color:var(--muted); font-size:.8rem; margin-left:auto; }
+  .post-body { color:var(--text); font-size:.95rem; line-height:1.9; white-space:pre-wrap; word-break:break-word; }
+  .post-files { margin-top:.8rem; display:flex; flex-wrap:wrap; gap:.6rem; }
+  .post-files a {
+    color:var(--accent2); text-decoration:none; font-size:.85rem;
+    border:1px solid rgba(79,124,255,.4);
+    padding:.35rem .8rem; border-radius:8px;
+  }
+  .post-foot { margin-top:.8rem; display:flex; gap:1.2rem; align-items:center; }
+  .post-foot a { color:var(--muted); font-size:.8rem; text-decoration:none; cursor:pointer; }
+  .post-foot a:hover { color:#ff6b6b; }
+  .report-badge { color:#ff6b6b; font-size:.8rem; }
+  .del-btn { color:#ff6b6b; }
+  .empty { color:var(--muted); text-align:center; padding:2rem; }
+  .tip { color:var(--muted); font-size:.85rem; margin-bottom:1.5rem; line-height:1.8; }
+  .tip a { color:var(--accent2); }
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="forum.html" class="active">论坛</a>
+      <a href="join.html">加入我们</a>
+    </nav>
+  </header>
+  <main>
+    <h1>工作坊<em>论坛</em></h1>
+    <p class="sub">分享作品、交流想法、发布文件。违规内容可举报，管理员会处理。</p>
+
+    <div class="tip" id="loginTip">
+      ⚠️ 发帖前请先 <a href="index.html">登录 / 注册</a>（首页右上角）。
+    </div>
+
+    <div class="card" id="postBox" style="display:none;">
+      <textarea id="postText" placeholder="说点什么…（文明发言，禁止违规内容）"></textarea>
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:.6rem;">
+        <label class="file-label">📎 添加文件<input type="file" id="postFiles" multiple></label>
+        <button class="btn" id="sendBtn">发布</button>
+      </div>
+      <div class="file-hint">支持多个文件，单个文件最大 300KB（小图片、文档、代码等）</div>
+      <div class="file-hint" id="fileList"></div>
+    </div>
+
+    <div id="postList"></div>
+  </main>
+  <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+
+  <script>
+    (function () {
+      var DB = "https://textdb.dev/api/data/blueprintstudio-forum-2026";
+      var KEY = "bs_auth";
+      var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
+      var MAX_FILE = 300 * 1024; /* 单文件300KB */
+      var me = null, myInfo = null, filesData = [];
+
+      try { myInfo = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
+      if (myInfo && myInfo.email) {
+        me = myInfo.email;
+        document.getElementById("loginTip").style.display = "none";
+        document.getElementById("postBox").style.display = "block";
+      }
+
+      function getDB() {
+        return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
+          .catch(function () { return { posts: [] }; });
+      }
+      function saveDB(db) {
+        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+      }
+      function esc(t) {
+        return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+      function fmtTime(iso) {
+        try { return new Date(iso).toLocaleString("zh-CN", { hour12: false }); } catch (e) { return iso; }
+      }
+
+      /* ===== 文件选择 ===== */
+      document.getElementById("postFiles").addEventListener("change", function (e) {
+        var fs = Array.prototype.slice.call(e.target.files);
+        filesData = [];
+        var pending = fs.length, done = 0;
+        if (!fs.length) { document.getElementById("fileList").textContent = ""; return; }
+        fs.forEach(function (f) {
+          if (f.size > MAX_FILE) {
+            document.getElementById("fileList").textContent = "「" + f.name + "」超过 300KB，已被忽略";
+            done++;
+            return;
+          }
+          var r = new FileReader();
+          r.onload = function () {
+            filesData.push({ name: f.name, type: f.type || "application/octet-stream", data: r.result });
+            done++;
+            if (done === pending) {
+              document.getElementById("fileList").textContent =
+                "已添加 " + filesData.length + " 个文件：" + filesData.map(function (x) { return x.name; }).join("、");
+            }
+          };
+          r.readAsDataURL(f);
+        });
+      });
+
+      /* ===== 发布 ===== */
+      document.getElementById("sendBtn").addEventListener("click", function () {
+        var text = document.getElementById("postText").value.trim();
+        if (!text && !filesData.length) { alert("内容不能为空"); return; }
+        var btn = this;
+        btn.disabled = true; btn.textContent = "发布中…";
+        getDB().then(function (db) {
+          db.posts = db.posts || [];
+          db.posts.unshift({
+            id: Date.now() + "_" + Math.random().toString(36).slice(2, 8),
+            author: myInfo.email,
+            nick: localStorage.getItem("bs_nick") || myInfo.email.split("@")[0],
+            uid: localStorage.getItem("bs_uid") || "",
+            title: localStorage.getItem("bs_title") || "",
+            content: text.slice(0, 5000),
+            files: filesData,
+            time: new Date().toISOString(),
+            reports: []
+          });
+          return saveDB(db).then(function () {
+            document.getElementById("postText").value = "";
+            filesData = [];
+            document.getElementById("postFiles").value = "";
+            document.getElementById("fileList").textContent = "";
+            btn.disabled = false; btn.textContent = "发布";
+            render();
+          });
+        }).catch(function () { alert("发布失败，请稍后再试"); btn.disabled = false; btn.textContent = "发布"; });
+      });
+
+      /* ===== 渲染帖子 ===== */
+      function render() {
+        getDB().then(function (db) {
+          var box = document.getElementById("postList");
+          var isAdmin = me === ADMIN_EMAIL;
+          var list = (db.posts || []);
+          if (!list.length) { box.innerHTML = '<div class="card empty">还没有帖子，来发第一帖吧！</div>'; return; }
+          box.innerHTML = list.map(function (p) {
+            var badge = "";
+            if (p.author === ADMIN_EMAIL) badge = '<span class="badge-admin">官方管理员</span>';
+            else if (p.title) badge = '<span class="badge-title">' + esc(p.title) + "</span>";
+            var files = (p.files || []).map(function (f) {
+              return '<a href="' + f.data + '" download="' + esc(f.name) + '">📎 ' + esc(f.name) + "</a>";
+            }).join("");
+            var reportN = (p.reports || []).length;
+            var repTxt = isAdmin && reportN ? '<span class="report-badge">被举报 ' + reportN + ' 次</span>' : "";
+            var del = isAdmin ? '<a class="del-btn" data-del="' + p.id + '">删除</a>' : "";
+            return '<div class="card">'
+              + '<div class="post-head"><span class="nick">' + esc(p.nick) + "</span>" + badge
+              + '<span class="time">' + fmtTime(p.time) + "</span></div>"
+              + '<div class="post-body">' + esc(p.content) + "</div>"
+              + (files ? '<div class="post-files">' + files + "</div>" : "")
+              + '<div class="post-foot">'
+              + '<a data-report="' + p.id + '">举报</a>' + repTxt + del
+              + "</div></div>";
+          }).join("");
+        });
+      }
+      document.getElementById("postList").addEventListener("click", function (e) {
+        var rep = e.target.getAttribute("data-report");
+        var del = e.target.getAttribute("data-del");
+        if (rep) {
+          if (!me) { alert("请先登录再举报"); return; }
+          var reason = prompt("举报理由（将提交给管理员）：");
+          if (reason === null) return;
+          getDB().then(function (db) {
+            var p = (db.posts || []).find(function (x) { return x.id === rep; });
+            if (!p) return;
+            p.reports = p.reports || [];
+            if (p.reports.indexOf(me) !== -1) { alert("你已举报过该帖"); return; }
+            p.reports.push(me + ": " + (reason || "无"));
+            return saveDB(db).then(function () { alert("举报已提交，管理员会尽快处理"); render(); });
+          });
+        }
+        if (del) {
+          if (!confirm("确定删除该帖？")) return;
+          getDB().then(function (db) {
+            db.posts = (db.posts || []).filter(function (x) { return x.id !== del; });
+            return saveDB(db).then(render);
+          });
+        }
+      });
+
+      /* 登录用户昵称/头衔从云端刷新，用于帖子署名 */
+      if (me) {
+        fetch("https://textdb.dev/api/data/blueprintstudio-users-2026?t=" + Date.now())
+          .then(function (r) { return r.json(); })
+          .then(function (db) {
+            var u = db.users && db.users[me];
+            if (u) {
+              localStorage.setItem("bs_nick", u.nick || "");
+              localStorage.setItem("bs_uid", u.uid || "");
+              localStorage.setItem("bs_title", u.title || "");
+              if (u.banned) { location.href = "ban.html?email=" + encodeURIComponent(me); return; }
+            }
+            render();
+          }).catch(render);
+      } else render();
+    })();
+  </script>
+</body>
+</html>
