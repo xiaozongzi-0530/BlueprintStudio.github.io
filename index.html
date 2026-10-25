@@ -13,19 +13,14 @@
     --muted: #8a93a8;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     background: var(--bg);
     color: var(--text);
     font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
-    overflow: hidden;
   }
-  /* 蓝图网格背景 */
   .grid-bg {
-    position: fixed; inset: 0;
+    position: fixed; inset: 0; z-index: 0;
     background-image:
       linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
       linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
@@ -33,113 +28,21 @@
     animation: drift 20s linear infinite;
   }
   @keyframes drift { to { background-position: 40px 40px; } }
-  .glow {
-    position: fixed; width: 60vw; height: 60vw; border-radius: 50%;
-    background: radial-gradient(circle, rgba(79,124,255,.18), transparent 60%);
-    top: -20vw; right: -20vw; pointer-events: none;
+
+  header {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1rem 2rem;
+    background: rgba(11,16,32,.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(79,124,255,.15);
   }
-  main {
-    position: relative;
-    text-align: center;
-    padding: 2rem;
-    max-width: 640px;
-  }
-  h1 {
-    font-size: clamp(1.8rem, 5vw, 2.6rem);
-    font-weight: 700;
-    letter-spacing: .05em;
-  }
-  h1 span {
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-  .badge {
-    display: inline-flex; align-items: center; gap: .5rem;
-    margin: 1.2rem 0 .6rem;
-    padding: .4rem 1rem;
-    border: 1px solid rgba(79,124,255,.4);
-    border-radius: 999px;
-    color: var(--accent2);
-    font-size: .9rem;
-    background: rgba(79,124,255,.08);
-  }
-  .badge .dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--accent2);
-    animation: blink 1.4s ease-in-out infinite;
-  }
-  @keyframes blink { 50% { opacity: .2; } }
-  p.desc { color: var(--muted); line-height: 1.8; font-size: 1rem; }
-  .progress {
-    margin: 2rem auto 1rem;
-    max-width: 360px;
-    height: 8px;
-    border-radius: 999px;
-    background: rgba(255,255,255,.08);
-    overflow: hidden;
-  }
-  .progress .bar {
-    height: 100%; width: 60%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    animation: load 2.4s ease-in-out infinite alternate;
-  }
-  @keyframes load { from { width: 35%; } to { width: 72%; } }
-  .percent { color: var(--muted); font-size: .85rem; letter-spacing: .1em; }
-  footer { margin-top: 2.5rem; color: var(--muted); font-size: .85rem; }
-  .leader {
-    margin-top: 1.6rem;
-    color: var(--muted);
-    font-size: .95rem;
-  }
-  .leader a { color: var(--accent2); text-decoration: none; }
-  .leader a:hover { text-decoration: underline; }
-  .actions { margin-top: 1.4rem; }
-  .btn {
-    display: inline-block;
-    text-decoration: none;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    color: #fff;
-    padding: .6rem 1.6rem;
-    border-radius: 10px;
-    font-size: .95rem;
-    font-weight: 600;
-    transition: opacity .2s, transform .2s;
-  }
-  .btn:hover { opacity: .85; transform: translateY(-2px); }
-  .whip {
-    margin-top: 2rem;
-  }
-  .whip-btn {
-    display: inline-block;
-    border: 1px solid rgba(79,124,255,.5);
-    background: rgba(79,124,255,.08);
-    color: var(--accent2);
-    font-size: 1rem;
-    font-weight: 600;
-    padding: .8rem 1.8rem;
-    border-radius: 999px;
-    cursor: pointer;
-    transition: transform .1s, box-shadow .2s;
-    user-select: none;
-  }
-  .whip-btn:hover { box-shadow: 0 4px 24px rgba(79,124,255,.35); }
-  .whip-btn:active { transform: scale(.92); }
-  .whip-btn:disabled { opacity: .6; cursor: not-allowed; }
-  .whip-count {
-    margin-top: .8rem;
-    color: var(--muted);
-    font-size: .95rem;
-  }
-  .whip-count strong { color: var(--accent2); font-size: 1.3rem; }
-  .whip-tip { margin-top: .4rem; color: var(--muted); font-size: .8rem; }
-  /* 登录区 */
-  .auth-area {
-    position: fixed; top: 1.2rem; right: 1.4rem; z-index: 10;
-    display: flex; align-items: center; gap: .6rem;
-  }
+  .brand { font-weight: 700; letter-spacing: .05em; font-size: 1.1rem; text-decoration: none; color: var(--text); }
+  .brand span { color: var(--accent2); }
+  nav a { color: var(--muted); text-decoration: none; margin-left: 1.5rem; font-size: .95rem; transition: color .2s; }
+  nav a:hover { color: var(--accent2); }
+
+  .auth-area { display: flex; align-items: center; gap: .6rem; }
   .auth-btn {
     border: 1px solid rgba(79,124,255,.5);
     background: rgba(79,124,255,.08);
@@ -148,27 +51,96 @@
     padding: .45rem 1rem;
     border-radius: 999px;
     cursor: pointer;
-    transition: box-shadow .2s, opacity .2s;
+    transition: box-shadow .2s;
   }
   .auth-btn:hover { box-shadow: 0 4px 20px rgba(79,124,255,.3); }
   .user-chip {
-    display: flex; align-items: center; gap: .5rem;
+    display: none; align-items: center; gap: .5rem;
     background: rgba(255,255,255,.05);
     border: 1px solid rgba(255,255,255,.12);
     border-radius: 999px;
     padding: .3rem .9rem .3rem .35rem;
     font-size: .85rem;
   }
-  .user-chip img { width: 26px; height: 26px; border-radius: 50%; }
-  .user-chip a { color: var(--text); text-decoration: none; }
-  .user-chip .logout { color: var(--muted); cursor: pointer; font-size: .8rem; }
   .badge-admin {
     background: #f5b301; color: #1a1a1a;
     font-size: .68rem; font-weight: 700;
     padding: .15rem .5rem; border-radius: 999px;
   }
-  .user-chip .logout:hover { color: var(--accent2); }
-  /* 登录弹窗 */
+  .user-chip .logout { color: var(--muted); cursor: pointer; font-size: .8rem; }
+
+  main { position: relative; z-index: 1; }
+  section { max-width: 1000px; margin: 0 auto; padding: 4.5rem 1.5rem; }
+  h2.sec { text-align: center; font-size: 1.7rem; margin-bottom: .6rem; }
+  h2.sec em {
+    font-style: normal;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .sec-sub { text-align: center; color: var(--muted); margin-bottom: 2.5rem; font-size: .95rem; }
+  .card {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(79,124,255,.25);
+    border-radius: 16px;
+    padding: 1.8rem;
+    transition: transform .2s, box-shadow .2s;
+  }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(79,124,255,.18); }
+
+  .hero { text-align: center; padding-top: 7rem !important; padding-bottom: 5rem !important; }
+  .hero h1 { font-size: clamp(2.2rem, 6vw, 3.4rem); font-weight: 800; letter-spacing: .04em; }
+  .hero h1 em {
+    font-style: normal;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero .slogan { color: var(--muted); font-size: 1.1rem; line-height: 2; margin: 1.4rem 0 2.2rem; }
+  .hero .btns { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; text-decoration: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; padding: .7rem 1.8rem; border-radius: 10px;
+    font-size: .95rem; font-weight: 600; transition: opacity .2s, transform .2s;
+  }
+  .btn:hover { opacity: .85; transform: translateY(-2px); }
+  .btn.ghost { background: transparent; border: 1px solid rgba(79,124,255,.5); color: var(--accent2); }
+  .leader-line { margin-top: 2.2rem; color: var(--muted); font-size: .92rem; }
+  .leader-line a { color: var(--accent2); text-decoration: none; }
+  .leader-line a:hover { text-decoration: underline; }
+
+  .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.2rem; }
+  .feat .ico { font-size: 1.8rem; margin-bottom: .7rem; }
+  .feat h3 { font-size: 1.05rem; margin-bottom: .5rem; }
+  .feat p { color: var(--muted); font-size: .9rem; line-height: 1.8; }
+
+  .member { display: flex; align-items: center; gap: 1.1rem; }
+  .avatar {
+    width: 58px; height: 58px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; font-weight: 700; color: #fff; flex-shrink: 0;
+  }
+  .member h3 { font-size: 1.05rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+  .member p { color: var(--muted); font-size: .88rem; margin-top: .3rem; line-height: 1.7; }
+  .badge-open { background: rgba(79,124,255,.15); color: var(--accent2); font-size: .68rem; padding: .15rem .5rem; border-radius: 999px; text-decoration: none; }
+
+  .interact { text-align: center; }
+    .contact-line { color: var(--muted); line-height: 2.2; }
+  .contact-line .email {
+    font-family: ui-monospace, Consolas, monospace;
+    background: rgba(79,124,255,.1);
+    border: 1px solid rgba(79,124,255,.4);
+    color: var(--accent2);
+    padding: .4rem .9rem; border-radius: 10px;
+  }
+
+  footer {
+    position: relative; z-index: 1;
+    text-align: center; padding: 2rem;
+    color: var(--muted); font-size: .85rem;
+    border-top: 1px solid rgba(79,124,255,.12);
+  }
+
   .modal-mask {
     position: fixed; inset: 0; z-index: 20;
     background: rgba(0,0,0,.6);
@@ -184,25 +156,7 @@
     text-align: center;
   }
   .modal h3 { margin-bottom: 1rem; }
-  .modal .code {
-    font-family: ui-monospace, Consolas, monospace;
-    font-size: 1.5rem;
-    letter-spacing: .2em;
-    color: var(--accent2);
-    background: rgba(79,124,255,.1);
-    border-radius: 10px;
-    padding: .8rem;
-    margin-bottom: 1rem;
-    user-select: all;
-  }
   .modal p { color: var(--muted); font-size: .9rem; line-height: 1.7; }
-  .modal a { color: var(--accent2); }
-  .modal .close {
-    margin-top: 1.2rem; cursor: pointer;
-    color: var(--muted); font-size: .85rem;
-    background: none; border: none;
-  }
-  .modal .close:hover { color: var(--text); }
   .auth-input {
     width: 100%;
     background: rgba(255,255,255,.06);
@@ -215,30 +169,42 @@
     outline: none;
   }
   .auth-input:focus { border-color: var(--accent2); }
-  #authStatus { color: var(--muted); font-size: .85rem; }
+  #authStatus { color: var(--muted); font-size: .85rem; min-height: 1.2em; }
   #authStatus.err { color: #ff6b6b; }
-  #authStatus.ok { color: var(--accent2); }
   .auth-btns { display: flex; gap: .8rem; justify-content: center; }
+  .modal .close {
+    margin-top: 1.2rem; cursor: pointer;
+    color: var(--muted); font-size: .85rem;
+    background: none; border: none;
+  }
+  .modal .close:hover { color: var(--text); }
 </style>
 </head>
 <body>
   <div class="grid-bg"></div>
-  <div class="glow"></div>
-  <div class="auth-area">
-    <button class="auth-btn" id="ghBtn">GitHub 登录</button>
-    <button class="auth-btn" id="adminBtn" style="display:none;">管理</button>
-    <button class="auth-btn" id="loginBtn" style="display:none;">登录 / 注册</button>
-    <div class="user-chip" id="userChip" style="display:none;">
-      <img id="userAvatar" src="" alt="">
-      <span class="badge-admin" id="adminBadge" style="display:none;">官方管理员</span>
-      <a id="userName" href="#" target="_blank" rel="noopener"></a>
-      <span class="logout" id="deleteBtn">注销账号</span>
-      <span class="logout" id="logoutBtn">退出</span>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="#about">关于</a>
+      <a href="#team">成员</a>
+      <a href="join.html">加入我们</a>
+    </nav>
+    <div class="auth-area">
+      <button class="auth-btn" id="adminBtn" style="display:none;">管理</button>
+      <button class="auth-btn" id="ghBtn">GitHub 登录</button>
+      <button class="auth-btn" id="loginBtn" style="display:none;">登录 / 注册</button>
+      <div class="user-chip" id="userChip" style="display:none;">
+        <span class="badge-admin" id="adminBadge" style="display:none;">官方管理员</span>
+        <a id="userName" href="#" target="_blank" rel="noopener"></a>
+        <span class="logout" id="deleteBtn">注销账号</span>
+        <span class="logout" id="logoutBtn">退出</span>
+      </div>
     </div>
-  </div>
+  </header>
+
   <div class="modal-mask" id="adminModal">
     <div class="modal" style="max-width:520px; text-align:left;">
-      <h3 style="text-align:center;">🛠 账号管理</h3>
+      <h3 style="text-align:center;">账号管理</h3>
       <div id="adminList" style="max-height:260px; overflow:auto; font-size:.85rem; line-height:2;"></div>
       <hr style="border:none; border-top:1px solid rgba(255,255,255,.12); margin:1rem 0;">
       <h3 style="font-size:1rem; text-align:center;">分发新账号</h3>
@@ -251,13 +217,14 @@
       <button class="close" id="admClose" style="display:block; margin:1rem auto 0;">关闭</button>
     </div>
   </div>
+
   <div class="modal-mask" id="authModal">
     <div class="modal">
-      <h3>🔐 账号注册 / 登录</h3>
+      <h3>账号注册 / 登录</h3>
       <input class="auth-input" id="nickInput" type="text" placeholder="昵称（注册后可修改）" maxlength="20">
       <input class="auth-input" id="emailInput" type="email" placeholder="邮箱" autocomplete="email">
       <input class="auth-input" id="passInput" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
-      <p id="authStatus" style="min-height:1.2em;"></p>
+      <p id="authStatus"></p>
       <div class="auth-btns">
         <button class="auth-btn" id="registerBtn">注 册</button>
         <button class="auth-btn" id="doLoginBtn">登 录</button>
@@ -265,66 +232,72 @@
       <button class="close" id="modalClose">取消</button>
     </div>
   </div>
+
   <main>
-    <h1><span>BlueprintStudio</span> · 蓝图工作室</h1>
-    <div class="badge"><span class="dot"></span>网站正在开发中</div>
-    <p class="desc">我们正在精心绘制属于你的蓝图，<br>一个更好的站点即将上线，敬请期待。</p>
-    <div class="progress"><div class="bar"></div></div>
-    <div class="percent">CONSTRUCTING…</div>
-    <p class="leader">工作室室长：小粽子（GitHub: <a href="https://github.com/xiaozongzi-0530" target="_blank" rel="noopener">xiaozongzi-0530</a>）</p>
-    <div class="actions"><a class="btn" href="join.html">加入我们 →</a></div>
-    <div class="whip">
-      <button class="whip-btn" id="whipBtn">鞭策开发者，催他干活！</button>
-      <div class="whip-count">开发者已被鞭策 <strong id="whipCount">…</strong> 次</div>
-      <div class="whip-tip">可以连点，但手速太快会被限流哦～</div>
-    </div>
-    <footer>© 2026 BlueprintStudio · 保留所有权利</footer>
+    <section class="hero">
+      <h1>Blueprint<em>Studio</em> · 蓝图工作室</h1>
+      <p class="slogan">以兴趣为纸，以热爱为笔，<br>一起绘制属于我们的蓝图。</p>
+      <div class="btns">
+        <a class="btn" href="join.html">加入我们</a>
+        <a class="btn ghost" href="#about">了解工作室</a>
+      </div>
+      <p class="leader-line">工作室室长：小粽子（GitHub: <a href="https://github.com/xiaozongzi-0530" target="_blank" rel="noopener">xiaozongzi-0530</a>）</p>
+    </section>
+
+    <section id="about">
+      <h2 class="sec">关于<em>我们</em></h2>
+      <p class="sec-sub">非商业性质的兴趣工作室，一切活动均为兴趣驱动、免费参与</p>
+      <div class="grid3">
+        <div class="card feat">
+          <div class="ico">📐</div>
+          <h3>从蓝图开始</h3>
+          <p>每一个项目都从一张蓝图起步：先想清楚，再动手做。我们重视想法和规划，也享受把想法变成现实的过程。</p>
+        </div>
+        <div class="card feat">
+          <div class="ico">🧩</div>
+          <h3>多元的方向</h3>
+          <p>设计、开发、写作、运营……不设门槛，欢迎任何方向的伙伴。你的特长就是工作室拼图中的一块。</p>
+        </div>
+        <div class="card feat">
+          <div class="ico">🌱</div>
+          <h3>纯粹的氛围</h3>
+          <p>非商业、无 KPI、不内卷。我们因为热爱聚在一起，作品就是最好的回报。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="team">
+      <h2 class="sec">工作室<em>成员</em></h2>
+      <p class="sec-sub">目前的核心成员，下一个位置留给你</p>
+      <div class="grid3">
+        <div class="card member">
+          <div class="avatar">粽</div>
+          <div>
+            <h3>小粽子 <span class="badge-admin">官方管理员</span></h3>
+            <p>工作室室长<br>GitHub: xiaozongzi-0530</p>
+          </div>
+        </div>
+        <div class="card member">
+          <div class="avatar">?</div>
+          <div>
+            <h3>虚位以待 <a class="badge-open" href="join.html">申请加入</a></h3>
+            <p>也许就是你<br>把你的简介和作品发给我们</p>
+          </div>
+        </div>
+        <div class="card member">
+          <div class="avatar">?</div>
+          <div>
+            <h3>虚位以待 <a class="badge-open" href="join.html">申请加入</a></h3>
+            <p>也许就是你<br>设计 / 开发 / 写作 / 运营均可</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </main>
-  <script>
-    (function () {
-      var NS = "blueprintstudio", KEY = "whip";
-      var HIT = "https://abacus.jasoncameron.dev/hit/" + NS + "/" + KEY;
-      var countEl = document.getElementById("whipCount");
-      var btn = document.getElementById("whipBtn");
-      var base = 0, localDelta = 0, queue = 0, sending = false;
-      function render() { countEl.textContent = base + localDelta; }
-      function fetchTotal() {
-        fetch("https://abacus.jasoncameron.dev/get/" + NS + "/" + KEY)
-          .then(function (r) { return r.text(); })
-          .then(function (t) {
-            var n = parseInt(t, 10);
-            if (!isNaN(n)) { base = n; localDelta = 0; render(); }
-          }).catch(function () {});
-      }
-      function flush() {
-        if (sending || queue <= 0) return;
-        sending = true;
-        var batch = Math.min(queue, 5);
-        queue -= batch;
-        var chain = Promise.resolve();
-        for (var i = 0; i < batch; i++) {
-          chain = chain.then(function () {
-            return fetch(HIT).catch(function () {});
-          });
-        }
-        chain.then(function () {
-          sending = false;
-          if (queue > 0) setTimeout(flush, 1000);
-        });
-      }
-      btn.addEventListener("click", function () {
-        localDelta++;
-        render();
-        if (window.bsSaveWhip) window.bsSaveWhip();
-        btn.disabled = true;
-        setTimeout(function () { btn.disabled = false; }, 700); /* 节流：最快0.7秒一次 */
-        queue++;
-        setTimeout(flush, 300);
-      });
-      fetchTotal();
-      setInterval(fetchTotal, 30000); /* 每30秒同步一次全站总数 */
-    })();
-  </script>
+
+  <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+
   <script>
     /* ===== 账号系统：注册/登录/管理员/封禁/注销 ===== */
     (function () {
@@ -373,6 +346,7 @@
         me = info.email; myInfo = info;
         nameLink.textContent = info.nick || info.email.split("@")[0];
         nameLink.title = info.uid ? ("UID: " + info.uid) : "";
+        nameLink.onclick = function (e) { e.preventDefault(); changeNick(); };
         var admin = isAdmin();
         adminBadge.style.display = admin ? "inline-block" : "none";
         adminBtn.style.display = admin ? "inline-block" : "none";
@@ -383,7 +357,6 @@
       function valid(email, pass) {
         return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && pass.length >= 6;
       }
-      /* 封禁检查：被封禁的账号强制跳转封禁页 */
       function enforceBan() {
         if (!me) return Promise.resolve();
         return getDB().then(function (db) {
@@ -396,15 +369,6 @@
           return false;
         });
       }
-      window.bsSaveWhip = function () {
-        if (!me) return;
-        getDB().then(function (db) {
-          if (db.users && db.users[me]) {
-            db.users[me].whips = (db.users[me].whips || 0) + 1;
-            saveDB(db);
-          }
-        });
-      };
       function tryAuth(mode) {
         var email = emailIn.value.trim().toLowerCase();
         var pass = passIn.value;
@@ -443,10 +407,24 @@
           });
         }).catch(function () { setStatus("网络异常，请稍后再试", "err"); });
       }
+      function changeNick() {
+        var nick = prompt("修改昵称（最长20字）：", myInfo.nick || "");
+        if (nick === null) return;
+        nick = nick.trim();
+        if (!nick) { alert("昵称不能为空"); return; }
+        getDB().then(function (db) {
+          if (db.users && db.users[me]) {
+            db.users[me].nick = nick.slice(0, 20);
+            saveDB(db).then(function () {
+              myInfo.nick = db.users[me].nick;
+              nameLink.textContent = myInfo.nick;
+            });
+          }
+        });
+      }
       function logout() { localStorage.removeItem(KEY); showLogin(); }
-      /* 注销账号：输入密码确认后从云端彻底删除 */
       deleteBtn.addEventListener("click", function () {
-        var pass = prompt("⚠️ 注销后账号数据将永久删除且无法恢复！\n请输入密码确认：");
+        var pass = prompt("注销后账号数据将永久删除且无法恢复！\n请输入密码确认：");
         if (pass === null) return;
         hash(me, pass).then(function (h) {
           return getDB().then(function (db) {
@@ -460,14 +438,13 @@
           });
         });
       });
-      /* ===== 管理员面板 ===== */
       function renderAdmin() {
         getDB().then(function (db) {
           var box = document.getElementById("adminList");
           var rows = Object.keys(db.users || {}).map(function (email) {
             var u = db.users[email];
             var banTxt = u.banned ? "解封" : "封禁";
-            return "<div>💬 <b>" + (u.nick || "-") + "</b>（UID: " + (u.uid || "-") + "）"
+            return "<div><b>" + (u.nick || "-") + "</b>（UID: " + (u.uid || "-") + "）"
               + " <span style=\"color:var(--muted);\">" + email + "</span>"
               + (u.banned ? " <span style=\"color:#ff6b6b;\">[已封禁]</span>" : "")
               + " <a href=\"javascript:void(0)\" data-act=\"ban\" data-e=\"" + email + "\" style=\"color:var(--accent2); margin-left:.5rem;\">" + banTxt + "</a>"
@@ -521,7 +498,7 @@
             }
             db.users[email] = { id: email, hash: h, nick: nick, uid: uid || genUID(db), whips: 0, joined: new Date().toISOString() };
             return saveDB(db).then(function () {
-              st.textContent = "✅ 账号已创建：" + email;
+              st.textContent = "账号已创建：" + email;
               document.getElementById("admEmail").value = "";
               document.getElementById("admPass").value = "";
               document.getElementById("admNick").value = "";
@@ -538,8 +515,11 @@
       document.getElementById("doLoginBtn").addEventListener("click", function () { tryAuth("login"); });
       loginBtn.addEventListener("click", function () { mask.classList.add("show"); emailIn.focus(); });
       document.getElementById("modalClose").addEventListener("click", function () { mask.classList.remove("show"); });
+      document.getElementById("ghBtn").addEventListener("click", function () {
+        alert("GitHub 登录正在开发中，敬请期待！");
+      });
       logoutBtn.addEventListener("click", logout);
-      setInterval(enforceBan, 30000); /* 每30秒检查一次封禁状态 */
+      setInterval(enforceBan, 30000);
       (function init() {
         try {
           var s = JSON.parse(localStorage.getItem(KEY) || "null");
