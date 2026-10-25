@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlueprintStudio · 蓝图工作室</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --accent: #4f7cff;
+    --accent2: #22d3ee;
+    --text: #e6ebf5;
+    --muted: #8a93a8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
+    overflow: hidden;
+  }
+  /* 蓝图网格背景 */
+  .grid-bg {
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: drift 20s linear infinite;
+  }
+  @keyframes drift { to { background-position: 40px 40px; } }
+  .glow {
+    position: fixed; width: 60vw; height: 60vw; border-radius: 50%;
+    background: radial-gradient(circle, rgba(79,124,255,.18), transparent 60%);
+    top: -20vw; right: -20vw; pointer-events: none;
+  }
+  main {
+    position: relative;
+    text-align: center;
+    padding: 2rem;
+    max-width: 640px;
+  }
+  h1 {
+    font-size: clamp(1.8rem, 5vw, 2.6rem);
+    font-weight: 700;
+    letter-spacing: .05em;
+  }
+  h1 span {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: .5rem;
+    margin: 1.2rem 0 .6rem;
+    padding: .4rem 1rem;
+    border: 1px solid rgba(79,124,255,.4);
+    border-radius: 999px;
+    color: var(--accent2);
+    font-size: .9rem;
+    background: rgba(79,124,255,.08);
+  }
+  .badge .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent2);
+    animation: blink 1.4s ease-in-out infinite;
+  }
+  @keyframes blink { 50% { opacity: .2; } }
+  p.desc { color: var(--muted); line-height: 1.8; font-size: 1rem; }
+  .progress {
+    margin: 2rem auto 1rem;
+    max-width: 360px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.08);
+    overflow: hidden;
+  }
+  .progress .bar {
+    height: 100%; width: 60%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    animation: load 2.4s ease-in-out infinite alternate;
+  }
+  @keyframes load { from { width: 35%; } to { width: 72%; } }
+  .percent { color: var(--muted); font-size: .85rem; letter-spacing: .1em; }
+  footer { margin-top: 2.5rem; color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <div class="glow"></div>
+  <main>
+    <h1><span>BlueprintStudio</span> · 蓝图工作室</h1>
+    <div class="badge"><span class="dot"></span>网站正在开发中</div>
+    <p class="desc">我们正在精心绘制属于你的蓝图，<br>一个更好的站点即将上线，敬请期待。</p>
+    <div class="progress"><div class="bar"></div></div>
+    <div class="percent">CONSTRUCTING…</div>
+    <footer>© 2025 BlueprintStudio · 保留所有权利</footer>
+  </main>
+</body>
+</html>
