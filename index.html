@@ -220,6 +220,7 @@
   <div class="grid-bg"></div>
   <div class="glow"></div>
   <div class="auth-area">
+    <button class="auth-btn" id="ghBtn">🐙 GitHub 登录</button>
     <button class="auth-btn" id="loginBtn" style="display:none;">登录 / 注册</button>
     <div class="user-chip" id="userChip" style="display:none;">
       <img id="userAvatar" src="" alt="">
@@ -390,6 +391,10 @@
       document.getElementById("doLoginBtn").addEventListener("click", function () { tryAuth("login"); });
       loginBtn.addEventListener("click", function () { mask.classList.add("show"); emailIn.focus(); });
       document.getElementById("modalClose").addEventListener("click", function () { mask.classList.remove("show"); });
+      document.getElementById("ghBtn").addEventListener("click", function () {
+        setStatus("");
+        alert("🐙 GitHub 登录正在开发中，敬请期待！");
+      });
       logoutBtn.addEventListener("click", function () {
         localStorage.removeItem(KEY);
         showLogin();
