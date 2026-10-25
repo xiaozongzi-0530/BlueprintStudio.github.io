@@ -83,6 +83,14 @@
   .post-foot a:hover { color:#ff6b6b; }
   .report-badge { color:#ff6b6b; font-size:.8rem; }
   .del-btn { color:#ff6b6b; }
+  .cmt-area { margin-top:.8rem; border-top:1px solid rgba(255,255,255,.1); padding-top:.8rem; display:none; }
+  .cmt-area.open { display:block; }
+  .cmt { font-size:.88rem; line-height:1.8; padding:.4rem 0; border-bottom:1px solid rgba(255,255,255,.06); }
+  .cmt .who { color:var(--accent2); font-weight:600; }
+  .cmt .t { color:var(--muted); font-size:.75rem; margin-left:.5rem; }
+  .cmt-row { display:flex; gap:.6rem; margin-top:.7rem; }
+  .cmt-row input { flex:1; }
+  .cmt-send { border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; padding:.5rem 1.1rem; border-radius:10px; font-size:.85rem; }
   .empty { color:var(--muted); text-align:center; padding:2rem; }
   .tip { color:var(--muted); font-size:.85rem; margin-bottom:1.5rem; line-height:1.8; }
   .tip a { color:var(--accent2); }
@@ -230,12 +238,43 @@
               + '<div class="post-body">' + esc(p.content) + "</div>"
               + (files ? '<div class="post-files">' + files + "</div>" : "")
               + '<div class="post-foot">'
+              + '<a data-cmt="' + p.id + '">💬 评论（' + (p.comments || []).length + '）</a>'
               + '<a data-report="' + p.id + '">举报</a>' + repTxt + del
+              + "</div>"
+              + '<div class="cmt-area" id="cmt-' + p.id + '">'
+              + (p.comments || []).map(function (c) {
+                  return '<div class="cmt"><span class="who">' + esc(c.nick) + '</span>' + esc(c.text) + '<span class="t">' + fmt(c.time) + "</span></div>";
+                }).join("")
+              + '<div class="cmt-row"><input type="text" placeholder="写评论…（输入 @昵称 可回复某人）" maxlength="500" data-cmtinput="' + p.id + '"><button class="cmt-send" data-cmtsend="' + p.id + '">发送</button></div>'
               + "</div></div>";
           }).join("");
         });
       }
       document.getElementById("postList").addEventListener("click", function (e) {
+        var cmtT = e.target.getAttribute("data-cmt");
+        if (cmtT) {
+          var area = document.getElementById("cmt-" + cmtT);
+          area.classList.toggle("open");
+          return;
+        }
+        var cmtSend = e.target.getAttribute("data-cmtsend");
+        if (cmtSend) {
+          var input = document.querySelector('[data-cmtinput="' + cmtSend + '"]');
+          var text = input.value.trim();
+          if (!text) { alert("评论不能为空"); return; }
+          var nick = me ? (localStorage.getItem("bs_nick") || me.split("@")[0]) : (localStorage.getItem("bs_guest_nick") || (function () {
+            var n = prompt("游客请输入昵称："); if (n) localStorage.setItem("bs_guest_nick", n); return n;
+          })());
+          if (!nick) return;
+          getDB().then(function (db) {
+            var p = (db.posts || []).find(function (x) { return x.id === cmtSend; });
+            if (!p) return;
+            p.comments = p.comments || [];
+            p.comments.push({ nick: nick, author: me ? me : "", text: text.slice(0, 500), time: new Date().toISOString() });
+            return saveDB(db).then(render);
+          });
+          return;
+        }
         var rep = e.target.getAttribute("data-report");
         var del = e.target.getAttribute("data-del");
         if (rep) {
