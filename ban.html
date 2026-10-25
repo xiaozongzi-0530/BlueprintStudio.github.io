@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>账号已被封禁 · BlueprintStudio</title>
+<style>
+  :root { --bg:#0b1020; --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--bg); color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;
+  }
+  .grid-bg {
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+    background-size:40px 40px;
+  }
+  main { position:relative; text-align:center; padding:2rem; max-width:520px; }
+  .icon { font-size:3.5rem; margin-bottom:1rem; }
+  h1 { font-size:1.8rem; margin-bottom:.8rem; color:#ff6b6b; }
+  p { color:var(--muted); line-height:1.9; font-size:.95rem; }
+  .email {
+    font-family:ui-monospace,Consolas,monospace;
+    background:rgba(79,124,255,.1);
+    border:1px solid rgba(79,124,255,.4);
+    color:var(--accent2);
+    padding:.5rem 1rem; border-radius:10px;
+    display:inline-block; margin:.8rem 0;
+    word-break:break-all;
+  }
+  .btn {
+    display:inline-block; text-decoration:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#fff; padding:.6rem 1.6rem; border-radius:10px;
+    font-size:.95rem; font-weight:600; margin-top:1rem;
+  }
+  footer { margin-top:2rem; color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <main>
+    <div class="icon">⛔</div>
+    <h1>账号已被封禁</h1>
+    <p>你的账号违反了社区规则，已被管理员封禁，<br>无法使用本站相关功能。</p>
+    <p id="banEmailWrap" style="display:none;">被封禁的账号：<br><span class="email" id="banEmail"></span></p>
+    <p>如有异议，请联系管理员申诉：<br><span class="email">zhouxinyuan0530@qq.com</span></p>
+    <a class="btn" href="index.html">返回首页</a>
+    <footer>© 2026 BlueprintStudio · 保留所有权利</footer>
+  </main>
+  <script>
+    var e = new URLSearchParams(location.search).get("email");
+    if (e) {
+      document.getElementById("banEmail").textContent = e;
+      document.getElementById("banEmailWrap").style.display = "block";
+    }
+  </script>
+</body>
+</html>
