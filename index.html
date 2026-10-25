@@ -211,6 +211,7 @@
       <input class="auth-input" id="admEmail" type="email" placeholder="邮箱（ID）">
       <input class="auth-input" id="admPass" type="password" placeholder="初始密码（至少6位）">
       <input class="auth-input" id="admNick" type="text" placeholder="昵称">
+      <input class="auth-input" id="admTitle" type="text" placeholder="头衔（可选，输入文字，如：成员 / 设计师）" maxlength="10">
       <input class="auth-input" id="admUID" type="text" placeholder="UID（8位数字，留空自动生成）" maxlength="8">
       <p id="admStatus" style="color:var(--muted); font-size:.85rem; min-height:1.2em;"></p>
       <div class="auth-btns"><button class="auth-btn" id="admCreate">创建账号</button></div>
@@ -275,20 +276,6 @@
           <div>
             <h3>小粽子 <span class="badge-admin">官方管理员</span></h3>
             <p>工作室室长<br>GitHub: xiaozongzi-0530</p>
-          </div>
-        </div>
-        <div class="card member">
-          <div class="avatar">?</div>
-          <div>
-            <h3>虚位以待 <a class="badge-open" href="join.html">申请加入</a></h3>
-            <p>也许就是你<br>把你的简介和作品发给我们</p>
-          </div>
-        </div>
-        <div class="card member">
-          <div class="avatar">?</div>
-          <div>
-            <h3>虚位以待 <a class="badge-open" href="join.html">申请加入</a></h3>
-            <p>也许就是你<br>设计 / 开发 / 写作 / 运营均可</p>
           </div>
         </div>
       </div>
@@ -444,7 +431,8 @@
           var rows = Object.keys(db.users || {}).map(function (email) {
             var u = db.users[email];
             var banTxt = u.banned ? "解封" : "封禁";
-            return "<div><b>" + (u.nick || "-") + "</b>（UID: " + (u.uid || "-") + "）"
+            var titleHtml = u.title ? " <span style=\"background:#f5b301; color:#1a1a1a; font-size:.68rem; padding:.1rem .4rem; border-radius:999px;\">" + u.title + "</span>" : "";
+            return "<div><b>" + (u.nick || "-") + "</b>" + titleHtml + "（UID: " + (u.uid || "-") + "）"
               + " <span style=\"color:var(--muted);\">" + email + "</span>"
               + (u.banned ? " <span style=\"color:#ff6b6b;\">[已封禁]</span>" : "")
               + " <a href=\"javascript:void(0)\" data-act=\"ban\" data-e=\"" + email + "\" style=\"color:var(--accent2); margin-left:.5rem;\">" + banTxt + "</a>"
@@ -496,12 +484,16 @@
               var dup = Object.keys(db.users).some(function (k) { return db.users[k].uid === uid; });
               if (dup) { st.textContent = "UID 已被占用"; return; }
             }
-            db.users[email] = { id: email, hash: h, nick: nick, uid: uid || genUID(db), whips: 0, joined: new Date().toISOString() };
+            var rec = { id: email, hash: h, nick: nick, uid: uid || genUID(db), whips: 0, joined: new Date().toISOString() };
+            var title = document.getElementById("admTitle").value.trim().slice(0, 10);
+            if (title) rec.title = title;
+            db.users[email] = rec;
             return saveDB(db).then(function () {
               st.textContent = "账号已创建：" + email;
               document.getElementById("admEmail").value = "";
               document.getElementById("admPass").value = "";
               document.getElementById("admNick").value = "";
+              document.getElementById("admTitle").value = "";
               document.getElementById("admUID").value = "";
               renderAdmin();
             });
