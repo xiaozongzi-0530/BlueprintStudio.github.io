@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>聊天 · BlueprintStudio</title>
+<style>
+  :root { --bg:#0b1020; --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; }
+  .grid-bg {
+    position:fixed; inset:0; z-index:0;
+    background-image:
+      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+    background-size:40px 40px;
+  }
+  header {
+    position:sticky; top:0; z-index:10;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:1rem 2rem;
+    background:rgba(11,16,32,.85); backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(79,124,255,.15);
+  }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav a { color:var(--muted); text-decoration:none; margin-left:1.5rem; font-size:.95rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+  main { position:relative; z-index:1; max-width:700px; margin:0 auto; padding:2.5rem 1.5rem; }
+  h1 { font-size:1.7rem; margin-bottom:.4rem; }
+  h1 em {
+    font-style:normal;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .sub { color:var(--muted); font-size:.92rem; margin-bottom:1.8rem; }
+  .card {
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(79,124,255,.25);
+    border-radius:16px; padding:1.5rem; margin-bottom:1.2rem;
+  }
+  input[type="text"] {
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(79,124,255,.3);
+    border-radius:10px; color:var(--text);
+    padding:.65rem .9rem; font-size:.95rem; outline:none; font-family:inherit;
+  }
+  input:focus { border-color:var(--accent2); }
+  .btn {
+    display:inline-block; border:none; cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#fff; padding:.6rem 1.5rem; border-radius:10px;
+    font-size:.92rem; font-weight:600;
+  }
+  .btn.ghost { background:transparent; border:1px solid rgba(79,124,255,.5); color:var(--accent2); }
+  .row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; }
+  .tip { color:var(--muted); font-size:.85rem; line-height:1.8; }
+  .tip a { color:var(--accent2); }
+  .myuid { color:var(--accent2); font-family:ui-monospace,Consolas,monospace; }
+  /* 会话列表 */
+  .conv {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:.7rem .4rem; border-bottom:1px solid rgba(255,255,255,.08);
+    cursor:pointer; border-radius:8px; transition:background .2s;
+  }
+  .conv:hover { background:rgba(79,124,255,.08); }
+  .conv .u { font-weight:700; }
+  .conv .last { color:var(--muted); font-size:.85rem; max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* 聊天窗口 */
+  #chatWin { max-height:380px; overflow:auto; display:flex; flex-direction:column; gap:.6rem; padding:.5rem 0; }
+  .msg { max-width:75%; padding:.55rem .9rem; border-radius:14px; font-size:.92rem; line-height:1.6; word-break:break-word; }
+  .msg .meta { font-size:.7rem; opacity:.7; margin-bottom:.15rem; }
+  .msg.me { align-self:flex-end; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border-bottom-right-radius:4px; }
+  .msg.other { align-self:flex-start; background:rgba(255,255,255,.08); border-bottom-left-radius:4px; }
+  .back { color:var(--muted); cursor:pointer; font-size:.85rem; }
+  .back:hover { color:var(--accent2); }
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="forum.html">论坛</a>
+      <a href="chat.html" class="active">聊天</a>
+      <a href="join.html">加入我们</a>
+    </nav>
+  </header>
+  <main>
+    <h1>UID<em> 聊天</em></h1>
+    <p class="sub">知道对方的 UID 就能私聊。你的 UID：<span class="myuid" id="myUID">…</span></p>
+
+    <div class="tip" id="loginTip" style="margin-bottom:1.5rem;">
+      ⚠️ 聊天前请先 <a href="index.html">登录 / 注册</a>（首页右上角），你的 UID 在登录后可见。
+    </div>
+
+    <div class="card" id="startBox" style="display:none;">
+      <div class="row">
+        <input type="text" id="targetUID" placeholder="输入对方 UID（8位数字）" maxlength="8" style="flex:1; min-width:180px;">
+        <button class="btn" id="openBtn">开始聊天</button>
+      </div>
+      <p class="tip" style="margin-top:.6rem;">文明聊天，禁止发送违规内容。消息 3 秒自动刷新。</p>
+    </div>
+
+    <div class="card" id="listBox" style="display:none;">
+      <h3 style="margin-bottom:.8rem;">我的会话</h3>
+      <div id="convList"></div>
+    </div>
+
+    <div class="card" id="chatBox" style="display:none;">
+      <div class="row" style="justify-content:space-between; margin-bottom:.6rem;">
+        <b>与 <span id="chatWith" style="color:var(--accent2);"></span> 的对话</b>
+        <span class="back" id="backBtn">← 返回会话列表</span>
+      </div>
+      <div id="chatWin"></div>
+      <div class="row" style="margin-top:.8rem;">
+        <input type="text" id="msgInput" placeholder="输入消息…" style="flex:1;" maxlength="1000">
+        <button class="btn" id="sendBtn">发送</button>
+      </div>
+    </div>
+  </main>
+  <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+
+  <script>
+    (function () {
+      var DB = "https://textdb.dev/api/data/blueprintstudio-chat-2026";
+      var USER_DB = "https://textdb.dev/api/data/blueprintstudio-users-2026";
+      var me = null, myUID = "", myNick = "", chatting = null, timer = null;
+
+      try { me = JSON.parse(localStorage.getItem("bs_auth") || "null"); } catch (e) {}
+      myUID = localStorage.getItem("bs_uid") || "";
+      myNick = localStorage.getItem("bs_nick") || "";
+
+      if (!me || !myUID) {
+        document.getElementById("myUID").textContent = "请先登录";
+        return;
+      }
+      document.getElementById("myUID").textContent = myUID;
+      document.getElementById("loginTip").style.display = "none";
+      document.getElementById("startBox").style.display = "block";
+      document.getElementById("listBox").style.display = "block";
+
+      function getDB() {
+        return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
+          .catch(function () { return { msgs: [] }; });
+      }
+      function saveDB(db) {
+        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+      }
+      function pairKey(a, b) { return [a, b].sort().join("|"); }
+      function esc(t) {
+        return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+      function fmt(t) {
+        try { return new Date(t).toLocaleString("zh-CN", { hour12: false }); } catch (e) { return t; }
+      }
+
+      /* ===== 会话列表 ===== */
+      function renderList() {
+        getDB().then(function (db) {
+          var msgs = db.msgs || [];
+          var convs = {};
+          msgs.forEach(function (m) {
+            var other = m.from === myUID ? m.to : (m.to === myUID ? m.from : null);
+            if (!other) return;
+            if (!convs[other] || convs[other].time < m.time) {
+              convs[other] = { last: (m.from === myUID ? "我: " : "") + m.text, time: m.time };
+            }
+          });
+          var keys = Object.keys(convs).sort(function (a, b) { return convs[b].time < convs[a].time ? -1 : 1; });
+          var box = document.getElementById("convList");
+          box.innerHTML = keys.length ? keys.map(function (uid) {
+            return '<div class="conv" data-uid="' + uid + '"><span class="u">UID: ' + uid + "</span><span class='last'>" + esc(convs[uid].last).slice(0, 40) + "</span></div>";
+          }).join("") : '<p class="tip">暂无会话，输入对方 UID 开始聊天</p>';
+        });
+      }
+      document.getElementById("convList").addEventListener("click", function (e) {
+        var c = e.target.closest(".conv");
+        if (c) openChat(c.getAttribute("data-uid"));
+      });
+
+      /* ===== 聊天窗口 ===== */
+      function openChat(uid) {
+        if (!/^\d{8}$/.test(uid)) { alert("UID 必须是8位数字"); return; }
+        if (uid === myUID) { alert("不能和自己聊天"); return; }
+        chatting = uid;
+        document.getElementById("chatWith").textContent = "UID: " + uid;
+        document.getElementById("listBox").style.display = "none";
+        document.getElementById("chatBox").style.display = "block";
+        renderChat();
+        if (timer) clearInterval(timer);
+        timer = setInterval(renderChat, 3000);
+      }
+      function backToList() {
+        chatting = null;
+        if (timer) clearInterval(timer);
+        document.getElementById("chatBox").style.display = "none";
+        document.getElementById("listBox").style.display = "block";
+        renderList();
+      }
+      document.getElementById("backBtn").addEventListener("click", backToList);
+      function renderChat() {
+        if (!chatting) return;
+        getDB().then(function (db) {
+          var key = pairKey(myUID, chatting);
+          var list = (db.msgs || []).filter(function (m) { return pairKey(m.from, m.to) === key; });
+          var win = document.getElementById("chatWin");
+          win.innerHTML = list.map(function (m) {
+            var mine = m.from === myUID;
+            return '<div class="msg ' + (mine ? "me" : "other") + '">'
+              + '<div class="meta">' + (mine ? "我" : "对方") + " · " + fmt(m.time) + "</div>"
+              + esc(m.text) + "</div>";
+          }).join("") || '<p class="tip" style="text-align:center;">开始你们的对话吧</p>';
+          win.scrollTop = win.scrollHeight;
+        });
+      }
+      function send() {
+        var input = document.getElementById("msgInput");
+        var text = input.value.trim();
+        if (!text || !chatting) return;
+        input.disabled = true;
+        getDB().then(function (db) {
+          db.msgs = db.msgs || [];
+          db.msgs.push({ from: myUID, to: chatting, nick: myNick, text: text.slice(0, 1000), time: new Date().toISOString() });
+          return saveDB(db).then(function () {
+            input.value = "";
+            input.disabled = false;
+            renderChat();
+          });
+        }).catch(function () { alert("发送失败"); input.disabled = false; });
+      }
+      document.getElementById("sendBtn").addEventListener("click", send);
+      document.getElementById("msgInput").addEventListener("keydown", function (e) { if (e.key === "Enter") send(); });
+      document.getElementById("openBtn").addEventListener("click", function () {
+        openChat(document.getElementById("targetUID").value.trim());
+      });
+      document.getElementById("targetUID").addEventListener("keydown", function (e) { if (e.key === "Enter") document.getElementById("openBtn").click(); });
+
+      renderList();
+      setInterval(renderList, 5000);
+    })();
+  </script>
+</body>
+</html>
