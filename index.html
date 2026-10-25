@@ -202,6 +202,7 @@
       <div class="user-chip" id="userChip" style="display:none;">
         <span class="badge-admin" id="adminBadge" style="display:none;">官方管理员</span>
         <a id="userName" href="#" target="_blank" rel="noopener"></a>
+        <span id="userUID" style="color:var(--muted); font-size:.75rem;"></span>
         <span class="logout" id="deleteBtn">注销账号</span>
         <span class="logout" id="logoutBtn">退出</span>
       </div>
@@ -361,6 +362,7 @@
         } catch (e) {}
         nameLink.textContent = info.nick || info.email.split("@")[0];
         nameLink.title = info.uid ? ("UID: " + info.uid) : "";
+        document.getElementById("userUID").textContent = info.uid ? ("UID: " + info.uid) : "";
         nameLink.onclick = function (e) { e.preventDefault(); changeNick(); };
         var admin = isAdmin();
         adminBadge.style.display = admin ? "inline-block" : "none";
