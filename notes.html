@@ -78,6 +78,14 @@
   .vote.on-up { background:rgba(34,211,238,.25); border-color:var(--accent2); color:var(--accent2); }
   .vote.on-down { background:rgba(255,107,107,.2); border-color:#ff6b6b; color:#ff6b6b; }
   .note-foot .del { color:#ff6b6b; font-size:.8rem; cursor:pointer; text-decoration:none; margin-left:auto; }
+  .cmt-area { margin-top:.8rem; border-top:1px solid rgba(255,255,255,.1); padding-top:.8rem; display:none; }
+  .cmt-area.open { display:block; }
+  .cmt { font-size:.88rem; line-height:1.8; padding:.4rem 0; border-bottom:1px solid rgba(255,255,255,.06); }
+  .cmt .who { color:var(--accent2); font-weight:600; }
+  .cmt .t { color:var(--muted); font-size:.75rem; margin-left:.5rem; }
+  .cmt-row { display:flex; gap:.6rem; margin-top:.7rem; }
+  .cmt-row input { flex:1; }
+  .cmt-send { border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; padding:.5rem 1.1rem; border-radius:10px; font-size:.85rem; }
   .empty { color:var(--muted); text-align:center; padding:2rem; }
   .tip { color:var(--muted); font-size:.85rem; }
   .tip a { color:var(--accent2); }
@@ -210,12 +218,43 @@
               + '<div class="note-foot">'
               + '<button class="vote ' + (myVote === "up" ? "on-up" : "") + '" data-vote="up" data-id="' + n.id + '">👍 ' + (n.likes || []).length + "</button>"
               + '<button class="vote ' + (myVote === "down" ? "on-down" : "") + '" data-vote="down" data-id="' + n.id + '">👎 ' + (n.dislikes || []).length + "</button>"
+              + '<a class="vote-plain" data-cmt="' + n.id + '" style="color:var(--muted); font-size:.85rem; cursor:pointer; margin-left:.6rem;">💬 评论（' + (n.comments || []).length + '）</a>'
               + (canDel ? '<a class="del" data-del="' + n.id + '">删除</a>' : "")
+              + "</div>"
+              + '<div class="cmt-area" id="cmt-' + n.id + '">'
+              + (n.comments || []).map(function (c) {
+                  return '<div class="cmt"><span class="who">' + esc(c.nick) + '</span>' + esc(c.text) + '<span class="t">' + fmt(c.time) + "</span></div>";
+                }).join("")
+              + '<div class="cmt-row"><input type="text" placeholder="写评论…（输入 @昵称 可回复某人）" maxlength="500" data-cmtinput="' + n.id + '"><button class="cmt-send" data-cmtsend="' + n.id + '">发送</button></div>'
               + "</div></div>";
           }).join("");
         });
       }
       document.getElementById("noteList").addEventListener("click", function (e) {
+        var cmtT = e.target.getAttribute("data-cmt");
+        if (cmtT) {
+          var area = document.getElementById("cmt-" + cmtT);
+          area.classList.toggle("open");
+          return;
+        }
+        var cmtSend = e.target.getAttribute("data-cmtsend");
+        if (cmtSend) {
+          var input = document.querySelector('[data-cmtinput="' + cmtSend + '"]');
+          var text = input.value.trim();
+          if (!text) { alert("评论不能为空"); return; }
+          var nick = me ? (myNick || me.email.split("@")[0]) : (localStorage.getItem("bs_guest_nick") || (function () {
+            var n = prompt("游客请输入昵称："); if (n) localStorage.setItem("bs_guest_nick", n); return n;
+          })());
+          if (!nick) return;
+          getDB().then(function (db) {
+            var n = (db.notes || []).find(function (x) { return x.id === cmtSend; });
+            if (!n) return;
+            n.comments = n.comments || [];
+            n.comments.push({ nick: nick, author: me ? me.email : "", text: text.slice(0, 500), time: new Date().toISOString() });
+            return saveDB(db).then(render);
+          });
+          return;
+        }
         var vote = e.target.getAttribute("data-vote");
         var del = e.target.getAttribute("data-del");
         if (vote) {
