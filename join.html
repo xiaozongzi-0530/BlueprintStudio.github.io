@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>加入我们 · BlueprintStudio</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --accent: #4f7cff;
+    --accent2: #22d3ee;
+    --text: #e6ebf5;
+    --muted: #8a93a8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
+  }
+  .grid-bg {
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: drift 20s linear infinite;
+  }
+  @keyframes drift { to { background-position: 40px 40px; } }
+  header {
+    position: relative; z-index: 1;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1.2rem 2rem;
+  }
+  .brand { font-weight: 700; letter-spacing: .05em; font-size: 1.1rem; text-decoration: none; color: var(--text); }
+  .brand span { color: var(--accent2); }
+  nav a {
+    color: var(--muted); text-decoration: none; margin-left: 1.5rem; font-size: .95rem;
+    transition: color .2s;
+  }
+  nav a:hover, nav a.active { color: var(--accent2); }
+  main {
+    position: relative; z-index: 1;
+    flex: 1;
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 3rem 1.5rem;
+  }
+  h1 { font-size: clamp(1.6rem, 4.5vw, 2.2rem); }
+  h1 span {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .intro { color: var(--muted); line-height: 1.9; margin: 1rem 0 2rem; }
+  .card {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(79,124,255,.25);
+    border-radius: 16px;
+    padding: 1.8rem;
+    margin-bottom: 1.4rem;
+  }
+  .card h2 { font-size: 1.1rem; margin-bottom: .8rem; color: var(--accent2); }
+  .card p, .card li { color: var(--muted); line-height: 1.9; font-size: .95rem; }
+  .card ul { padding-left: 1.2rem; }
+  .email-box {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .8rem;
+    margin-top: .6rem;
+  }
+  .email {
+    font-family: ui-monospace, Consolas, monospace;
+    background: rgba(79,124,255,.1);
+    border: 1px solid rgba(79,124,255,.4);
+    color: var(--accent2);
+    padding: .6rem 1rem;
+    border-radius: 10px;
+    font-size: 1rem;
+    word-break: break-all;
+  }
+  .btn {
+    display: inline-block;
+    text-decoration: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    padding: .6rem 1.4rem;
+    border-radius: 10px;
+    font-size: .95rem;
+    font-weight: 600;
+    transition: opacity .2s, transform .2s;
+  }
+  .btn:hover { opacity: .85; transform: translateY(-2px); }
+  .btn.ghost {
+    background: transparent;
+    border: 1px solid rgba(79,124,255,.5);
+    color: var(--accent2);
+  }
+  footer {
+    position: relative; z-index: 1;
+    text-align: center;
+    padding: 1.5rem;
+    color: var(--muted);
+    font-size: .85rem;
+  }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="join.html" class="active">加入我们</a>
+    </nav>
+  </header>
+  <main>
+    <h1>加入 <span>BlueprintStudio</span></h1>
+    <p class="intro">蓝图工作室正在寻找志同道合的伙伴。无论你是设计、开发、写作还是运营，只要你有一颗想把事情做好的心，欢迎加入我们。</p>
+
+    <div class="card">
+      <h2>📮 如何申请</h2>
+      <p>请将你的<strong>个人简介 / 作品 / 想加入的方向</strong>整理成文件，发送邮件至：</p>
+      <div class="email-box">
+        <span class="email">zhouxinyuan0530@qq.com</span>
+        <a class="btn" href="mailto:zhouxinyuan0530@qq.com?subject=申请加入%20BlueprintStudio">发送申请邮件</a>
+      </div>
+      <p style="margin-top:.8rem;">邮件标题请注明：<strong>「申请加入 BlueprintStudio + 你的方向」</strong>，我们会在收到后尽快回复。</p>
+    </div>
+
+    <div class="card">
+      <h2>💡 你可以准备</h2>
+      <ul>
+        <li>一段简单的自我介绍（姓名 / 昵称、擅长领域）</li>
+        <li>你参与过的作品或项目（链接 / 截图 / 文档均可）</li>
+        <li>你想加入的原因和期望</li>
+      </ul>
+    </div>
+
+    <a class="btn ghost" href="index.html">← 返回首页</a>
+  </main>
+  <footer>© 2025 BlueprintStudio · 保留所有权利</footer>
+</body>
+</html>
