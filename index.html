@@ -346,8 +346,8 @@
         pollTimer = setInterval(function () {
           fetch("https://github.com/login/oauth/access_token", {
             method: "POST",
-            headers: { "Content-Type": "application/json", "Accept": "application/json" },
-            body: JSON.stringify({ client_id: GH_CLIENT_ID, device_code: deviceCode, grant_type: "urn:ietf:params:oauth:grant-type:device_code" })
+            headers: { "Accept": "application/json" },
+            body: new URLSearchParams({ client_id: GH_CLIENT_ID, device_code: deviceCode, grant_type: "urn:ietf:params:oauth:grant-type:device_code" })
           }).then(function (r) { return r.json(); }).then(function (d) {
             if (d.access_token) {
               clearInterval(pollTimer);
@@ -374,8 +374,8 @@
         mask.classList.add("show");
         fetch("https://github.com/login/device/code", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body: JSON.stringify({ client_id: GH_CLIENT_ID, scope: "gist" })
+          headers: { "Accept": "application/json" },
+          body: new URLSearchParams({ client_id: GH_CLIENT_ID, scope: "gist" })
         }).then(function (r) { return r.json(); }).then(function (d) {
           if (d.user_code) {
             codeEl.textContent = d.user_code;
