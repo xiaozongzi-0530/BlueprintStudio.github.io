@@ -220,7 +220,7 @@
   <div class="grid-bg"></div>
   <div class="glow"></div>
   <div class="auth-area">
-    <button class="auth-btn" id="ghBtn">🐙 GitHub 登录</button>
+    <button class="auth-btn" id="ghBtn">GitHub 登录</button>
     <button class="auth-btn" id="loginBtn" style="display:none;">登录 / 注册</button>
     <div class="user-chip" id="userChip" style="display:none;">
       <img id="userAvatar" src="" alt="">
@@ -238,7 +238,6 @@
         <button class="auth-btn" id="registerBtn">注 册</button>
         <button class="auth-btn" id="doLoginBtn">登 录</button>
       </div>
-      <p style="font-size:.78rem;">密码仅保存加密指纹，不存明文。<br>本站为非商业性质，账号数据仅用于同步鞭策次数。</p>
       <button class="close" id="modalClose">取消</button>
     </div>
   </div>
@@ -251,7 +250,7 @@
     <p class="leader">工作室室长：小粽子（GitHub: <a href="https://github.com/xiaozongzi-0530" target="_blank" rel="noopener">xiaozongzi-0530</a>）</p>
     <div class="actions"><a class="btn" href="join.html">加入我们 →</a></div>
     <div class="whip">
-      <button class="whip-btn" id="whipBtn">👊 鞭策开发者，催他干活！</button>
+      <button class="whip-btn" id="whipBtn">鞭策开发者，催他干活！</button>
       <div class="whip-count">开发者已被鞭策 <strong id="whipCount">…</strong> 次</div>
       <div class="whip-tip">可以连点，但手速太快会被限流哦～</div>
     </div>
@@ -393,7 +392,7 @@
       document.getElementById("modalClose").addEventListener("click", function () { mask.classList.remove("show"); });
       document.getElementById("ghBtn").addEventListener("click", function () {
         setStatus("");
-        alert("🐙 GitHub 登录正在开发中，敬请期待！");
+        alert("GitHub 登录正在开发中，敬请期待！");
       });
       logoutBtn.addEventListener("click", function () {
         localStorage.removeItem(KEY);
