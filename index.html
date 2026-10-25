@@ -198,6 +198,22 @@
     background: none; border: none;
   }
   .modal .close:hover { color: var(--text); }
+  .auth-input {
+    width: 100%;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(79,124,255,.3);
+    border-radius: 10px;
+    color: var(--text);
+    padding: .7rem .9rem;
+    font-size: .95rem;
+    margin-bottom: .8rem;
+    outline: none;
+  }
+  .auth-input:focus { border-color: var(--accent2); }
+  #authStatus { color: var(--muted); font-size: .85rem; }
+  #authStatus.err { color: #ff6b6b; }
+  #authStatus.ok { color: var(--accent2); }
+  .auth-btns { display: flex; gap: .8rem; justify-content: center; }
 </style>
 </head>
 <body>
@@ -211,12 +227,17 @@
       <span class="logout" id="logoutBtn">退出</span>
     </div>
   </div>
-  <div class="modal-mask" id="deviceModal">
+  <div class="modal-mask" id="authModal">
     <div class="modal">
-      <h3>🔐 GitHub 设备登录</h3>
-      <div class="code" id="userCode">---- ----</div>
-      <p>1. 复制上方代码<br>2. 打开 <a href="https://github.com/login/device" target="_blank" rel="noopener">github.com/login/device</a><br>3. 粘贴代码并授权</p>
-      <p id="modalStatus">等待授权中…</p>
+      <h3>🔐 账号注册 / 登录</h3>
+      <input class="auth-input" id="emailInput" type="email" placeholder="邮箱" autocomplete="email">
+      <input class="auth-input" id="passInput" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
+      <p id="authStatus" style="min-height:1.2em;"></p>
+      <div class="auth-btns">
+        <button class="auth-btn" id="registerBtn">注 册</button>
+        <button class="auth-btn" id="doLoginBtn">登 录</button>
+      </div>
+      <p style="font-size:.78rem;">密码仅保存加密指纹，不存明文。<br>本站为非商业性质，账号数据仅用于同步鞭策次数。</p>
       <button class="close" id="modalClose">取消</button>
     </div>
   </div>
@@ -270,7 +291,7 @@
       btn.addEventListener("click", function () {
         localDelta++;
         render();
-        if (window.bsUserData) { window.bsUserData.whips = (window.bsUserData.whips || 0) + 1; if (window.bsSaveCloud) window.bsSaveCloud(); }
+        if (window.bsSaveWhip) window.bsSaveWhip();
         btn.disabled = true;
         setTimeout(function () { btn.disabled = false; }, 700); /* 节流：最快0.7秒一次 */
         queue++;
@@ -281,128 +302,103 @@
     })();
   </script>
   <script>
-    /* ===== GitHub 登录（Device Flow，无需后端） ===== */
-    var GH_CLIENT_ID = "Ov23liJ3DryZghydeNX2"; /* GitHub OAuth App Client ID */
+    /* ===== 邮箱注册/登录（云端存储，无需后端） ===== */
     (function () {
-      var TOKEN_KEY = "bs_gh_token";
+      var DB = "https://textdb.dev/api/data/blueprintstudio-users-2026";
+      var KEY = "bs_auth";
       var loginBtn = document.getElementById("loginBtn");
       var chip = document.getElementById("userChip");
       var avatar = document.getElementById("userAvatar");
       var nameLink = document.getElementById("userName");
       var logoutBtn = document.getElementById("logoutBtn");
-      var mask = document.getElementById("deviceModal");
-      var codeEl = document.getElementById("userCode");
-      var statusEl = document.getElementById("modalStatus");
-      var pollTimer = null, ghToken = null, ghUser = null, cloudGistId = null;
+      var mask = document.getElementById("authModal");
+      var emailIn = document.getElementById("emailInput");
+      var passIn = document.getElementById("passInput");
+      var statusEl = document.getElementById("authStatus");
+      var me = null; /* 当前登录用户 {email} */
 
-      function showLogged(user) {
-        ghUser = user;
-        avatar.src = user.avatar_url;
-        nameLink.textContent = user.login;
-        nameLink.href = user.html_url;
+      function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = cls || ""; }
+      function showLogged(email) {
+        me = email;
+        avatar.style.display = "none";
+        nameLink.textContent = email.split("@")[0];
+        nameLink.href = "javascript:void(0)";
+        nameLink.onclick = function (e) { e.preventDefault(); };
         loginBtn.style.display = "none";
         chip.style.display = "flex";
       }
-      function showLogin() { loginBtn.style.display = "inline-block"; chip.style.display = "none"; }
-      function api(method, url, body) {
-        return fetch(url, {
-          method: method,
-          headers: {
-            "Authorization": "Bearer " + ghToken,
-            "Accept": "application/vnd.github+json",
-            "Content-Type": "application/json"
-          },
-          body: body ? JSON.stringify(body) : undefined
-        }).then(function (r) { return r.json(); });
+      function showLogin() { me = null; loginBtn.style.display = "inline-block"; chip.style.display = "none"; }
+      function valid(email, pass) {
+        return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && pass.length >= 6;
       }
-      /* 云端存储：用户数据存到自己的私密 Gist */
-      function loadCloud() {
-        api("GET", "https://api.github.com/user/gists").then(function (gists) {
-          var mine = (gists || []).find(function (g) { return g.description === "BlueprintStudio 用户数据"; });
-          if (mine) {
-            cloudGistId = mine.id;
-            var f = mine.files["profile.json"];
-            if (f && f.raw_url) fetch(f.raw_url).then(function (r) { return r.json(); }).then(function (d) {
-              window.bsUserData = d; document.dispatchEvent(new Event("bs-cloud"));
-            });
-          } else {
-            api("POST", "https://api.github.com/gists", {
-              description: "BlueprintStudio 用户数据",
-              public: false,
-              files: { "profile.json": { content: JSON.stringify({ user: ghUser.login, whips: 0, joined: new Date().toISOString() }) } }
-            }).then(function (g) { if (g && g.id) { cloudGistId = g.id; window.bsUserData = JSON.parse(g.files["profile.json"].content); } });
+      function hash(email, pass) {
+        /* SHA-256 加密指纹，不存明文密码 */
+        return crypto.subtle.digest("SHA-256", new TextEncoder().encode("bs-salt::" + email + "::" + pass))
+          .then(function (b) {
+            return Array.prototype.map.call(new Uint8Array(b), function (x) {
+              return ("0" + x.toString(16)).slice(-2);
+            }).join("");
+          });
+      }
+      function getDB() {
+        return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
+          .catch(function () { return { users: {} }; });
+      }
+      function saveDB(db) {
+        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+      }
+      /* 供鞭策计数器调用：登录用户鞭策次数 +1 */
+      window.bsSaveWhip = function () {
+        if (!me) return;
+        getDB().then(function (db) {
+          if (db.users && db.users[me]) {
+            db.users[me].whips = (db.users[me].whips || 0) + 1;
+            saveDB(db);
           }
-        }).catch(function () {});
-      }
-      function saveCloud() {
-        if (!cloudGistId || !window.bsUserData) return;
-        api("PATCH", "https://api.github.com/gists/" + cloudGistId, {
-          files: { "profile.json": { content: JSON.stringify(window.bsUserData) } }
         });
-      }
-      window.bsSaveCloud = saveCloud;
-
-      function poll(deviceCode, interval) {
-        pollTimer = setInterval(function () {
-          fetch("https://github.com/login/oauth/access_token", {
-            method: "POST",
-            headers: { "Accept": "application/json" },
-            body: new URLSearchParams({ client_id: GH_CLIENT_ID, device_code: deviceCode, grant_type: "urn:ietf:params:oauth:grant-type:device_code" })
-          }).then(function (r) { return r.json(); }).then(function (d) {
-            if (d.access_token) {
-              clearInterval(pollTimer);
-              mask.classList.remove("show");
-              localStorage.setItem(TOKEN_KEY, d.access_token);
-              ghToken = d.access_token;
-              fetch("https://api.github.com/user", { headers: { "Authorization": "Bearer " + ghToken, "Accept": "application/vnd.github+json" } })
-                .then(function (r) { return r.json(); })
-                .then(function (u) { showLogged(u); loadCloud(); });
-            } else if (d.error === "authorization_pending") {
-              /* 继续等待 */
-            } else if (d.error === "slow_down") {
-              clearInterval(pollTimer); poll(deviceCode, interval + 5000);
+      };
+      function tryAuth(mode) {
+        var email = emailIn.value.trim().toLowerCase();
+        var pass = passIn.value;
+        if (!valid(email, pass)) { setStatus("邮箱格式不正确，或密码少于6位", "err"); return; }
+        setStatus(mode === "register" ? "注册中…" : "登录中…");
+        hash(email, pass).then(function (h) {
+          return getDB().then(function (db) {
+            db.users = db.users || {};
+            var u = db.users[email];
+            if (mode === "register") {
+              if (u) { setStatus("该邮箱已注册，请直接登录", "err"); return; }
+              db.users[email] = { hash: h, whips: 0, joined: new Date().toISOString() };
+              return saveDB(db).then(function () {
+                localStorage.setItem(KEY, JSON.stringify({ email: email, hash: h }));
+                showLogged(email);
+                mask.classList.remove("show");
+                setStatus("", "");
+              });
             } else {
-              clearInterval(pollTimer);
-              statusEl.textContent = "登录失败：" + (d.error_description || d.error);
+              if (!u) { setStatus("该邮箱未注册", "err"); return; }
+              if (u.hash !== h) { setStatus("密码错误", "err"); return; }
+              localStorage.setItem(KEY, JSON.stringify({ email: email, hash: h }));
+              showLogged(email);
+              mask.classList.remove("show");
+              setStatus("", "");
             }
-          }).catch(function () {});
-        }, interval || 5000);
+          });
+        }).catch(function () { setStatus("网络异常，请稍后再试", "err"); });
       }
-      loginBtn.addEventListener("click", function () {
-        if (!GH_CLIENT_ID) { alert("站长还没配置 GitHub OAuth App 的 Client ID。"); return; }
-        statusEl.textContent = "等待授权中…";
-        mask.classList.add("show");
-        fetch("https://github.com/login/device/code", {
-          method: "POST",
-          headers: { "Accept": "application/json" },
-          body: new URLSearchParams({ client_id: GH_CLIENT_ID, scope: "gist" })
-        }).then(function (r) { return r.json(); }).then(function (d) {
-          if (d.user_code) {
-            codeEl.textContent = d.user_code;
-            poll(d.device_code, d.interval ? d.interval * 1000 : 5000);
-          } else {
-            statusEl.textContent = "获取设备码失败：" + (d.error_description || "未知错误");
-          }
-        }).catch(function () { statusEl.textContent = "网络错误，请稍后再试"; });
-      });
-      document.getElementById("modalClose").addEventListener("click", function () {
-        mask.classList.remove("show");
-        if (pollTimer) clearInterval(pollTimer);
-      });
+      document.getElementById("registerBtn").addEventListener("click", function () { tryAuth("register"); });
+      document.getElementById("doLoginBtn").addEventListener("click", function () { tryAuth("login"); });
+      loginBtn.addEventListener("click", function () { mask.classList.add("show"); emailIn.focus(); });
+      document.getElementById("modalClose").addEventListener("click", function () { mask.classList.remove("show"); });
       logoutBtn.addEventListener("click", function () {
-        localStorage.removeItem(TOKEN_KEY);
-        ghToken = null; ghUser = null; cloudGistId = null; window.bsUserData = null;
+        localStorage.removeItem(KEY);
         showLogin();
       });
       (function init() {
-        var t = localStorage.getItem(TOKEN_KEY);
-        if (t) {
-          ghToken = t;
-          fetch("https://api.github.com/user", { headers: { "Authorization": "Bearer " + ghToken, "Accept": "application/vnd.github+json" } })
-            .then(function (r) { if (!r.ok) throw 0; return r.json(); })
-            .then(function (u) { showLogged(u); loadCloud(); })
-            .catch(function () { localStorage.removeItem(TOKEN_KEY); showLogin(); });
-        } else showLogin();
+        try {
+          var s = JSON.parse(localStorage.getItem(KEY) || "null");
+          if (s && s.email) showLogged(s.email); else showLogin();
+        } catch (e) { showLogin(); }
       })();
     })();
   </script>
