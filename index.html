@@ -122,6 +122,11 @@
   }
   .member h3 { font-size: 1.05rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
   .member p { color: var(--muted); font-size: .88rem; margin-top: .3rem; line-height: 1.7; }
+  .badge-title {
+    background: #f5b301; color: #1a1a1a;
+    font-size: .68rem; font-weight: 700;
+    padding: .15rem .5rem; border-radius: 999px;
+  }
   .badge-open { background: rgba(79,124,255,.15); color: var(--accent2); font-size: .68rem; padding: .15rem .5rem; border-radius: 999px; text-decoration: none; }
 
   .interact { text-align: center; }
@@ -269,8 +274,8 @@
 
     <section id="team">
       <h2 class="sec">工作室<em>成员</em></h2>
-      <p class="sec-sub">目前的核心成员，下一个位置留给你</p>
-      <div class="grid3">
+      <p class="sec-sub">目前的核心成员</p>
+      <div class="grid3" id="memberGrid">
         <div class="card member">
           <div class="avatar">粽</div>
           <div>
@@ -410,6 +415,26 @@
         });
       }
       function logout() { localStorage.removeItem(KEY); showLogin(); }
+      /* 带头衔的账号自动进入首页成员名单 */
+      function renderMembers() {
+        getDB().then(function (db) {
+          var grid = document.getElementById("memberGrid");
+          if (!grid) return;
+          Object.keys(db.users || {}).forEach(function (email) {
+            var u = db.users[email];
+            if (!u.title) return;
+            if (grid.querySelector('[data-uid="' + u.uid + '"]')) return;
+            var card = document.createElement("div");
+            card.className = "card member";
+            card.setAttribute("data-uid", u.uid || "");
+            card.innerHTML = '<div class="avatar">' + (u.nick || "?").charAt(0).toUpperCase() + "</div>"
+              + '<div><h3>' + (u.nick || "-")
+              + ' <span class="badge-title">' + u.title + "</span></h3>"
+              + "<p>UID: " + (u.uid || "-") + "</p></div>";
+            grid.appendChild(card);
+          });
+        });
+      }
       deleteBtn.addEventListener("click", function () {
         var pass = prompt("注销后账号数据将永久删除且无法恢复！\n请输入密码确认：");
         if (pass === null) return;
@@ -512,6 +537,7 @@
       });
       logoutBtn.addEventListener("click", logout);
       setInterval(enforceBan, 30000);
+      renderMembers();
       (function init() {
         try {
           var s = JSON.parse(localStorage.getItem(KEY) || "null");
