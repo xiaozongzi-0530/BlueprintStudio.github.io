@@ -99,6 +99,31 @@
     border: 1px solid rgba(79,124,255,.5);
     color: var(--accent2);
   }
+  .whip {
+    margin-top: 2.2rem;
+    text-align: center;
+  }
+  .whip-btn {
+    display: inline-block;
+    border: 1px solid rgba(79,124,255,.5);
+    background: rgba(79,124,255,.08);
+    color: var(--accent2);
+    font-size: 1rem;
+    font-weight: 600;
+    padding: .8rem 1.8rem;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform .1s, box-shadow .2s;
+    user-select: none;
+  }
+  .whip-btn:hover { box-shadow: 0 4px 24px rgba(79,124,255,.35); }
+  .whip-btn:active { transform: scale(.92); }
+  .whip-count {
+    margin-top: .8rem;
+    color: var(--muted);
+    font-size: .95rem;
+  }
+  .whip-count strong { color: var(--accent2); font-size: 1.3rem; }
   footer {
     position: relative; z-index: 1;
     text-align: center;
@@ -119,7 +144,7 @@
   </header>
   <main>
     <h1>加入 <span>BlueprintStudio</span></h1>
-    <p class="intro">蓝图工作室正在寻找志同道合的伙伴。无论你是设计、开发、写作还是运营，只要你有一颗想把事情做好的心，欢迎加入我们。</p>
+    <p class="intro">蓝图工作室正在寻找志同道合的伙伴。无论你是设计、开发、写作还是运营，只要你有一颗想把事情做好的心，欢迎加入我们。<br><strong style="color:var(--accent2);">本工作室为非商业性质工作室</strong>，一切活动均为兴趣驱动、免费参与。</p>
 
     <div class="card">
       <h2>📮 如何申请</h2>
@@ -150,7 +175,38 @@
     </div>
 
     <a class="btn ghost" href="index.html">← 返回首页</a>
+
+    <div class="whip">
+      <button class="whip-btn" id="whipBtn">👊 鞭策一下开发者</button>
+      <div class="whip-count">已被鞭策 <strong id="whipCount">…</strong> 次</div>
+    </div>
   </main>
   <footer>© 2026 BlueprintStudio · 保留所有权利</footer>
+  <script>
+    (function () {
+      var NS = "blueprintstudio", KEY = "whip";
+      var url = "https://abacus.jasoncameron.dev/hit/" + NS + "/" + KEY;
+      var countEl = document.getElementById("whipCount");
+      var shown = 0, clicked = false;
+      function render(n) {
+        shown = n;
+        countEl.textContent = clicked ? n + "（+1，开发者已收到！）" : n;
+      }
+      fetch(url).then(function (r) { return r.text(); }).then(function (t) {
+        var n = parseInt(t, 10);
+        if (!isNaN(n)) render(n);
+        else throw 0;
+      }).catch(function () {
+        render(parseInt(localStorage.getItem(NS + "_whip") || "0", 10));
+      });
+      document.getElementById("whipBtn").addEventListener("click", function () {
+        if (clicked) return;
+        clicked = true;
+        var local = parseInt(localStorage.getItem(NS + "_whip") || "0", 10) + 1;
+        localStorage.setItem(NS + "_whip", String(local));
+        render(shown + 1);
+      });
+    })();
+  </script>
 </body>
 </html>
