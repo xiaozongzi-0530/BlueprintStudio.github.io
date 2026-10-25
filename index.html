@@ -192,6 +192,7 @@
     <nav>
       <a href="#about">关于</a>
       <a href="#team">成员</a>
+      <a href="forum.html">论坛</a>
       <a href="join.html">加入我们</a>
     </nav>
     <div class="auth-area">
@@ -336,6 +337,11 @@
       }
       function showLogged(info) {
         me = info.email; myInfo = info;
+        try {
+          localStorage.setItem("bs_nick", info.nick || "");
+          localStorage.setItem("bs_uid", info.uid || "");
+          localStorage.setItem("bs_title", info.title || "");
+        } catch (e) {}
         nameLink.textContent = info.nick || info.email.split("@")[0];
         nameLink.title = info.uid ? ("UID: " + info.uid) : "";
         nameLink.onclick = function (e) { e.preventDefault(); changeNick(); };
@@ -410,6 +416,7 @@
             saveDB(db).then(function () {
               myInfo.nick = db.users[me].nick;
               nameLink.textContent = myInfo.nick;
+              localStorage.setItem("bs_nick", myInfo.nick);
             });
           }
         });
@@ -547,7 +554,7 @@
               var u = db.users && db.users[s.email];
               if (!u) { logout(); return; }
               if (u.banned) { location.href = BAN_PAGE + encodeURIComponent(s.email); return; }
-              showLogged({ email: s.email, nick: u.nick, uid: u.uid });
+              showLogged({ email: s.email, nick: u.nick, uid: u.uid, title: u.title });
             });
           } else showLogin();
         } catch (e) { showLogin(); }
