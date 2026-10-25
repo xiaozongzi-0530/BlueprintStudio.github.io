@@ -226,6 +226,14 @@
       <p id="admStatus" style="color:var(--muted); font-size:.85rem; min-height:1.2em;"></p>
       <div class="auth-btns"><button class="auth-btn" id="admCreate">创建账号</button></div>
       <hr style="border:none; border-top:1px solid rgba(255,255,255,.12); margin:1rem 0;">
+      <h3 style="font-size:1rem; text-align:center;">公告管理</h3>
+      <div style="display:flex; gap:.8rem; margin-bottom:.8rem;">
+        <input class="auth-input" id="annInput" type="text" placeholder="输入公告内容（发布后全站显示）" style="flex:1; margin-bottom:0;">
+        <button class="auth-btn" id="annPublish">发布公告</button>
+      </div>
+      <div id="annList" style="max-height:130px; overflow:auto; font-size:.85rem; line-height:1.9; margin-bottom:1rem;"></div>
+      <h3 style="font-size:1rem; text-align:center;">聊天管理</h3>
+      <div id="chatAdminList" style="max-height:130px; overflow:auto; font-size:.85rem; line-height:1.9;"></div>
       <h3 style="font-size:1rem; text-align:center;">Bug 反馈列表</h3>
       <div id="bugList" style="max-height:200px; overflow:auto; font-size:.85rem; line-height:1.9;"></div>
       <button class="close" id="admClose" style="display:block; margin:1rem auto 0;">关闭</button>
@@ -247,6 +255,10 @@
     </div>
   </div>
 
+    <div id="annBar" style="display:none; position:relative; z-index:1; max-width:1000px; margin:1rem auto 0; padding:.9rem 1.4rem; background:rgba(245,179,1,.12); border:1px solid rgba(245,179,1,.45); border-radius:12px; font-size:.92rem; line-height:1.7;">
+      <b style="color:#f5b301;">📢 公告：</b><span id="annText"></span>
+    </div>
+  </main>
   <main>
     <section class="hero">
       <h1>Blueprint<em>Studio</em> · 蓝图工作室</h1>
@@ -554,7 +566,81 @@
           });
         });
       });
-      adminBtn.addEventListener("click", function () { renderAdmin(); renderBugList(); adminMask.classList.add("show"); });
+      adminBtn.addEventListener("click", function () { renderAdmin(); renderBugList(); renderAnn(); renderChatAdmin(); adminMask.classList.add("show"); });
+      /* ===== 公告 ===== */
+      var ANN_DB = "https://textdb.dev/api/data/blueprintstudio-announce-2026";
+      function getAnns() {
+        return fetch(ANN_DB + "?t=" + Date.now()).then(function (r) { return r.json(); }).catch(function () { return { anns: [] }; });
+      }
+      function showAnnBanner() {
+        getAnns().then(function (db) {
+          var a = (db.anns || [])[0];
+          if (a) {
+            document.getElementById("annText").textContent = a.text;
+            document.getElementById("annBar").style.display = "block";
+          }
+        });
+      }
+      showAnnBanner();
+      function renderAnn() {
+        getAnns().then(function (db) {
+          var box = document.getElementById("annList");
+          var list = db.anns || [];
+          box.innerHTML = list.length ? list.map(function (a, i) {
+            return '<div style="border-bottom:1px solid rgba(255,255,255,.08);">' + a.text.replace(/</g, "&lt;")
+              + ' <a href="javascript:void(0)" data-anndel="' + i + '" style="color:#ff6b6b;">删除</a></div>';
+          }).join("") : '<p style="color:var(--muted);">暂无公告</p>';
+        });
+      }
+      document.getElementById("annPublish").addEventListener("click", function () {
+        var text = document.getElementById("annInput").value.trim();
+        if (!text) { alert("公告内容不能为空"); return; }
+        getAnns().then(function (db) {
+          db.anns = db.anns || [];
+          db.anns.unshift({ text: text.slice(0, 300), time: new Date().toISOString() });
+          return fetch(ANN_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(function () {
+            document.getElementById("annInput").value = "";
+            renderAnn();
+            showAnnBanner();
+          });
+        });
+      });
+      document.getElementById("annList").addEventListener("click", function (e) {
+        var i = e.target.getAttribute("data-anndel");
+        if (i === null) return;
+        getAnns().then(function (db) {
+          db.anns.splice(parseInt(i, 10), 1);
+          return fetch(ANN_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(renderAnn);
+        });
+      });
+      /* ===== 聊天管理（删除会话） ===== */
+      var CHAT_DB = "https://textdb.dev/api/data/blueprintstudio-chat-2026";
+      function getChats() {
+        return fetch(CHAT_DB + "?t=" + Date.now()).then(function (r) { return r.json(); }).catch(function () { return { msgs: [], sessions: {} }; });
+      }
+      function renderChatAdmin() {
+        getChats().then(function (db) {
+          var box = document.getElementById("chatAdminList");
+          var sess = db.sessions || {};
+          var keys = Object.keys(sess);
+          var total = (db.msgs || []).length;
+          box.innerHTML = (keys.length ? keys.map(function (k) {
+            return '<div>编号 <b style="color:var(--accent2);">' + sess[k].id + "</b>（" + k.split("|").join(" / ") + "）"
+              + ' <a href="javascript:void(0)" data-chatdel="' + k + '" style="color:#ff6b6b;">删除会话</a></div>';
+          }).join("") : '<p style="color:var(--muted);">暂无归档会话</p>')
+            + '<p style="color:var(--muted); font-size:.78rem;">当前消息总数：' + total + '</p>';
+        });
+      }
+      document.getElementById("chatAdminList").addEventListener("click", function (e) {
+        var k = e.target.getAttribute("data-chatdel");
+        if (k === null) return;
+        if (!confirm("确定删除该会话及全部消息？")) return;
+        getChats().then(function (db) {
+          delete db.sessions[k];
+          db.msgs = (db.msgs || []).filter(function (m) { return (m.from + "|" + m.to) !== k && (m.to + "|" + m.from) !== k; });
+          return fetch(CHAT_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(renderChatAdmin);
+        });
+      });
       /* ===== Bug 反馈 ===== */
       var BUG_DB = "https://textdb.dev/api/data/blueprintstudio-bugs-2026";
       function getBugs() {
@@ -564,19 +650,23 @@
         var st = document.getElementById("bugStatus");
         var text = document.getElementById("bugText").value.trim();
         if (!text) { st.textContent = "请描述问题内容"; return; }
-        this.disabled = true; st.textContent = "提交中…";
+        var bugBtn = this;
+        bugBtn.disabled = true; st.textContent = "提交中…";
         var contact = document.getElementById("bugContact").value.trim();
         var who = me ? (myInfo.nick || me) : "游客";
         getBugs().then(function (db) {
           db.bugs = db.bugs || [];
           db.bugs.unshift({ who: who, contact: contact, text: text.slice(0, 3000), time: new Date().toISOString() });
-          return fetch(BUG_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(function () {
-            document.getElementById("bugText").value = "";
-            document.getElementById("bugContact").value = "";
-            st.textContent = "✅ 反馈已提交，感谢你的帮助！";
-            this.disabled = false;
-          }.bind(this));
-        }.bind(this)).catch(function () { st.textContent = "提交失败，请稍后再试"; this.disabled = false; }.bind(this));
+          return fetch(BUG_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+        }).then(function () {
+          document.getElementById("bugText").value = "";
+          document.getElementById("bugContact").value = "";
+          st.textContent = "反馈已提交，感谢你的帮助！";
+          bugBtn.disabled = false;
+        }).catch(function (err) {
+          st.textContent = "提交失败：" + err;
+          bugBtn.disabled = false;
+        });
       });
       function renderBugList() {
         getBugs().then(function (db) {
