@@ -109,10 +109,21 @@
       <div id="convList"></div>
     </div>
 
+    <div class="card">
+      <h3 style="margin-bottom:.8rem;">通过编号查询聊天记录</h3>
+      <div class="row">
+        <input type="text" id="queryID" placeholder="输入10位聊天编号" maxlength="10" style="flex:1; min-width:180px;">
+        <button class="btn ghost" id="queryBtn">查询</button>
+      </div>
+      <div id="queryResult" style="margin-top:1rem;"></div>
+    </div>
+
     <div class="card" id="chatBox" style="display:none;">
       <div class="row" style="justify-content:space-between; margin-bottom:.6rem;">
         <b>与 <span id="chatWith" style="color:var(--accent2);"></span> 的对话</b>
-        <span class="back" id="backBtn">← 返回会话列表</span>
+        <span style="flex:1;"></span>
+        <a class="back" id="endBtn" style="color:#ff6b6b;">结束聊天</a>
+        <span class="back" id="backBtn">← 返回</span>
       </div>
       <div id="chatWin"></div>
       <div class="row" style="margin-top:.8rem;">
@@ -193,6 +204,55 @@
         if (timer) clearInterval(timer);
         timer = setInterval(renderChat, 3000);
       }
+      /* 结束聊天：生成10位编号归档，全站可查 */
+      document.getElementById("endBtn").addEventListener("click", function () {
+        if (!chatting) return;
+        if (!confirm("结束后对话将归档为全站可见的公开记录，且不能再发送消息。确定结束？")) return;
+        getDB().then(function (db) {
+          db.sessions = db.sessions || {};
+          var key = pairKey(myUID, chatting);
+          if (db.sessions[key] && db.sessions[key].id) {
+            alert("该对话已结束，编号：" + db.sessions[key].id);
+            return;
+          }
+          var id;
+          do { id = String(Math.floor(1000000000 + Math.random() * 9000000000)); }
+          while (Object.keys(db.sessions).some(function (k) { return db.sessions[k].id === id; }));
+          db.sessions[key] = { id: id, uids: [myUID, chatting], ended: true, time: new Date().toISOString() };
+          return saveDB(db).then(function () {
+            alert("对话已结束并归档！\n聊天编号：" + id + "\n任何人可在聊天页输入此编号查看记录。");
+            endedState = true;
+            renderChat();
+          });
+        });
+      });
+      var endedState = false;
+      function isEnded(db, uidA, uidB) {
+        var s = (db.sessions || {})[pairKey(uidA, uidB)];
+        return s ? s : null;
+      }
+      document.getElementById("queryBtn").addEventListener("click", function () {
+        var id = document.getElementById("queryID").value.trim();
+        var box = document.getElementById("queryResult");
+        if (!/^\d{10}$/.test(id)) { box.innerHTML = '<p class="tip" style="color:#ff6b6b;">编号必须是10位数字</p>'; return; }
+        getDB().then(function (db) {
+          var hit = null, pair = null;
+          Object.keys(db.sessions || {}).forEach(function (k) {
+            if (db.sessions[k].id === id) { hit = db.sessions[k]; pair = k; }
+          });
+          if (!hit) { box.innerHTML = '<p class="tip" style="color:#ff6b6b;">未找到该编号对应的聊天记录</p>'; return; }
+          var uidA = pair.split("|")[0], uidB = pair.split("|")[1];
+          var list = (db.msgs || []).filter(function (m) { return pairKey(m.from, m.to) === pair; });
+          box.innerHTML = '<p class="tip">编号 <b style="color:var(--accent2);">' + id + '</b> 的聊天记录（'
+            + uidA + ' 与 ' + uidB + '，' + list.length + ' 条消息）：</p>'
+            + '<div id="qWin" style="max-height:300px; overflow:auto; display:flex; flex-direction:column; gap:.5rem; margin-top:.6rem;">'
+            + (list.map(function (m) {
+                var mine = m.from === myUID;
+                return '<div class="msg ' + (mine ? "me" : "other") + '"><div class="meta">UID:' + m.from + " · " + fmt(m.time) + "</div>" + esc(m.text) + "</div>";
+              }).join("") || '<p class="tip">该对话没有消息</p>')
+            + "</div>";
+        });
+      });
       function backToList() {
         chatting = null;
         if (timer) clearInterval(timer);
@@ -204,15 +264,21 @@
       function renderChat() {
         if (!chatting) return;
         getDB().then(function (db) {
+          var sess = isEnded(db, myUID, chatting);
+          endedState = !!(sess && sess.id);
+          document.getElementById("endBtn").style.display = endedState ? "none" : "inline";
+          document.getElementById("msgInput").disabled = endedState;
+          document.getElementById("sendBtn").disabled = endedState;
+          var notice = endedState ? '<p class="tip" style="text-align:center; color:#f5b301;">此对话已结束归档 · 编号 ' + sess.id + ' · 全站可查询</p>' : "";
           var key = pairKey(myUID, chatting);
           var list = (db.msgs || []).filter(function (m) { return pairKey(m.from, m.to) === key; });
           var win = document.getElementById("chatWin");
-          win.innerHTML = list.map(function (m) {
+          win.innerHTML = notice + (list.map(function (m) {
             var mine = m.from === myUID;
             return '<div class="msg ' + (mine ? "me" : "other") + '">'
               + '<div class="meta">' + (mine ? "我" : "对方") + " · " + fmt(m.time) + "</div>"
               + esc(m.text) + "</div>";
-          }).join("") || '<p class="tip" style="text-align:center;">开始你们的对话吧</p>';
+          }).join("") || '<p class="tip" style="text-align:center;">开始你们的对话吧</p>');
           win.scrollTop = win.scrollHeight;
         });
       }
@@ -220,6 +286,7 @@
         var input = document.getElementById("msgInput");
         var text = input.value.trim();
         if (!text || !chatting) return;
+        if (endedState) { alert("该对话已结束归档，不能再发送消息"); return; }
         input.disabled = true;
         getDB().then(function (db) {
           db.msgs = db.msgs || [];
