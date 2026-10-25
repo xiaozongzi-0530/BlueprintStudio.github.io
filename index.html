@@ -162,6 +162,11 @@
   .user-chip img { width: 26px; height: 26px; border-radius: 50%; }
   .user-chip a { color: var(--text); text-decoration: none; }
   .user-chip .logout { color: var(--muted); cursor: pointer; font-size: .8rem; }
+  .badge-admin {
+    background: #f5b301; color: #1a1a1a;
+    font-size: .68rem; font-weight: 700;
+    padding: .15rem .5rem; border-radius: 999px;
+  }
   .user-chip .logout:hover { color: var(--accent2); }
   /* 登录弹窗 */
   .modal-mask {
@@ -221,11 +226,29 @@
   <div class="glow"></div>
   <div class="auth-area">
     <button class="auth-btn" id="ghBtn">GitHub 登录</button>
+    <button class="auth-btn" id="adminBtn" style="display:none;">管理</button>
     <button class="auth-btn" id="loginBtn" style="display:none;">登录 / 注册</button>
     <div class="user-chip" id="userChip" style="display:none;">
       <img id="userAvatar" src="" alt="">
+      <span class="badge-admin" id="adminBadge" style="display:none;">官方管理员</span>
       <a id="userName" href="#" target="_blank" rel="noopener"></a>
+      <span class="logout" id="deleteBtn">注销账号</span>
       <span class="logout" id="logoutBtn">退出</span>
+    </div>
+  </div>
+  <div class="modal-mask" id="adminModal">
+    <div class="modal" style="max-width:520px; text-align:left;">
+      <h3 style="text-align:center;">🛠 账号管理</h3>
+      <div id="adminList" style="max-height:260px; overflow:auto; font-size:.85rem; line-height:2;"></div>
+      <hr style="border:none; border-top:1px solid rgba(255,255,255,.12); margin:1rem 0;">
+      <h3 style="font-size:1rem; text-align:center;">分发新账号</h3>
+      <input class="auth-input" id="admEmail" type="email" placeholder="邮箱（ID）">
+      <input class="auth-input" id="admPass" type="password" placeholder="初始密码（至少6位）">
+      <input class="auth-input" id="admNick" type="text" placeholder="昵称">
+      <input class="auth-input" id="admUID" type="text" placeholder="UID（8位数字，留空自动生成）" maxlength="8">
+      <p id="admStatus" style="color:var(--muted); font-size:.85rem; min-height:1.2em;"></p>
+      <div class="auth-btns"><button class="auth-btn" id="admCreate">创建账号</button></div>
+      <button class="close" id="admClose" style="display:block; margin:1rem auto 0;">关闭</button>
     </div>
   </div>
   <div class="modal-mask" id="authModal">
@@ -303,69 +326,30 @@
     })();
   </script>
   <script>
-    /* ===== 邮箱注册/登录（云端存储，无需后端） ===== */
+    /* ===== 账号系统：注册/登录/管理员/封禁/注销 ===== */
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-users-2026";
       var KEY = "bs_auth";
+      var ADMIN_EMAIL = "zhouxinyuan@qq.com";
+      var ADMIN_UID = "00000000";
+      var BAN_PAGE = "ban.html?email=";
       var loginBtn = document.getElementById("loginBtn");
       var chip = document.getElementById("userChip");
-      var avatar = document.getElementById("userAvatar");
       var nameLink = document.getElementById("userName");
+      var adminBadge = document.getElementById("adminBadge");
+      var adminBtn = document.getElementById("adminBtn");
       var logoutBtn = document.getElementById("logoutBtn");
+      var deleteBtn = document.getElementById("deleteBtn");
       var mask = document.getElementById("authModal");
+      var adminMask = document.getElementById("adminModal");
       var emailIn = document.getElementById("emailInput");
       var nickIn = document.getElementById("nickInput");
       var passIn = document.getElementById("passInput");
       var statusEl = document.getElementById("authStatus");
-      var me = null, myInfo = {}; /* 当前登录用户 */
+      var me = null, myInfo = {};
 
       function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = cls || ""; }
-      function showLogged(info) {
-        /* info: {email, nick, uid} */
-        me = info.email;
-        myInfo = info;
-        avatar.style.display = "none";
-        nameLink.textContent = info.nick || info.email.split("@")[0];
-        nameLink.title = info.uid ? ("UID: " + info.uid) : "";
-        nameLink.href = "javascript:void(0)";
-        nameLink.onclick = function (e) { e.preventDefault(); changeNick(); };
-        loginBtn.style.display = "none";
-        chip.style.display = "flex";
-      }
-      function changeNick() {
-        var nick = prompt("修改昵称（最长20字）：", myInfo.nick || "");
-        if (nick === null) return;
-        nick = nick.trim();
-        if (!nick) { alert("昵称不能为空"); return; }
-        getDB().then(function (db) {
-          if (db.users && db.users[me]) {
-            db.users[me].nick = nick.slice(0, 20);
-            saveDB(db).then(function () {
-              myInfo.nick = db.users[me].nick;
-              nameLink.textContent = myInfo.nick;
-            });
-          }
-        });
-      }
-      function showLogin() { me = null; loginBtn.style.display = "inline-block"; chip.style.display = "none"; }
-      function valid(email, pass) {
-        return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && pass.length >= 6;
-      }
-      function hash(email, pass) {
-        /* SHA-256 加密指纹，不存明文密码 */
-        return crypto.subtle.digest("SHA-256", new TextEncoder().encode("bs-salt::" + email + "::" + pass))
-          .then(function (b) {
-            return Array.prototype.map.call(new Uint8Array(b), function (x) {
-              return ("0" + x.toString(16)).slice(-2);
-            }).join("");
-          });
-      }
-      function genUID(db) {
-        var used = Object.keys((db && db.users) || {}).map(function (k) { return db.users[k].uid; });
-        var uid;
-        do { uid = String(Math.floor(10000000 + Math.random() * 90000000)); } while (used.indexOf(uid) !== -1);
-        return uid;
-      }
+      function isAdmin() { return me === ADMIN_EMAIL; }
       function getDB() {
         return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
           .catch(function () { return { users: {} }; });
@@ -373,7 +357,45 @@
       function saveDB(db) {
         return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
       }
-      /* 供鞭策计数器调用：登录用户鞭策次数 +1 */
+      function genUID(db) {
+        var used = Object.keys((db && db.users) || {}).map(function (k) { return db.users[k].uid; });
+        var uid;
+        do { uid = String(Math.floor(10000000 + Math.random() * 90000000)); } while (used.indexOf(uid) !== -1);
+        return uid;
+      }
+      function hash(email, pass) {
+        return crypto.subtle.digest("SHA-256", new TextEncoder().encode("bs-salt::" + email + "::" + pass))
+          .then(function (b) {
+            return Array.prototype.map.call(new Uint8Array(b), function (x) { return ("0" + x.toString(16)).slice(-2); }).join("");
+          });
+      }
+      function showLogged(info) {
+        me = info.email; myInfo = info;
+        nameLink.textContent = info.nick || info.email.split("@")[0];
+        nameLink.title = info.uid ? ("UID: " + info.uid) : "";
+        var admin = isAdmin();
+        adminBadge.style.display = admin ? "inline-block" : "none";
+        adminBtn.style.display = admin ? "inline-block" : "none";
+        loginBtn.style.display = "none";
+        chip.style.display = "flex";
+      }
+      function showLogin() { me = null; loginBtn.style.display = "inline-block"; chip.style.display = "none"; }
+      function valid(email, pass) {
+        return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && pass.length >= 6;
+      }
+      /* 封禁检查：被封禁的账号强制跳转封禁页 */
+      function enforceBan() {
+        if (!me) return Promise.resolve();
+        return getDB().then(function (db) {
+          var u = db.users && db.users[me];
+          if (u && u.banned) {
+            localStorage.removeItem(KEY);
+            location.href = BAN_PAGE + encodeURIComponent(me);
+            return true;
+          }
+          return false;
+        });
+      }
       window.bsSaveWhip = function () {
         if (!me) return;
         getDB().then(function (db) {
@@ -396,17 +418,23 @@
             var u = db.users[email];
             if (mode === "register") {
               if (u) { setStatus("该邮箱已注册，请直接登录", "err"); return; }
-              var uid = genUID(db);
-              db.users[email] = { id: email, hash: h, nick: nick, uid: uid, whips: 0, joined: new Date().toISOString() };
+              var rec;
+              if (email === ADMIN_EMAIL) {
+                rec = { id: email, hash: h, nick: "小粽子", uid: ADMIN_UID, role: "admin", whips: 0, joined: new Date().toISOString() };
+              } else {
+                rec = { id: email, hash: h, nick: nick, uid: genUID(db), whips: 0, joined: new Date().toISOString() };
+              }
+              db.users[email] = rec;
               return saveDB(db).then(function () {
                 localStorage.setItem(KEY, JSON.stringify({ email: email, hash: h }));
-                showLogged({ email: email, nick: nick, uid: uid });
+                showLogged({ email: email, nick: rec.nick, uid: rec.uid });
                 mask.classList.remove("show");
                 setStatus("", "");
               });
             } else {
               if (!u) { setStatus("该邮箱未注册", "err"); return; }
               if (u.hash !== h) { setStatus("密码错误", "err"); return; }
+              if (u.banned) { location.href = BAN_PAGE + encodeURIComponent(email); return; }
               localStorage.setItem(KEY, JSON.stringify({ email: email, hash: h }));
               showLogged({ email: email, nick: u.nick, uid: u.uid });
               mask.classList.remove("show");
@@ -415,18 +443,103 @@
           });
         }).catch(function () { setStatus("网络异常，请稍后再试", "err"); });
       }
+      function logout() { localStorage.removeItem(KEY); showLogin(); }
+      /* 注销账号：输入密码确认后从云端彻底删除 */
+      deleteBtn.addEventListener("click", function () {
+        var pass = prompt("⚠️ 注销后账号数据将永久删除且无法恢复！\n请输入密码确认：");
+        if (pass === null) return;
+        hash(me, pass).then(function (h) {
+          return getDB().then(function (db) {
+            var u = db.users && db.users[me];
+            if (!u || u.hash !== h) { alert("密码错误，注销失败"); return; }
+            delete db.users[me];
+            return saveDB(db).then(function () {
+              alert("账号已注销");
+              logout();
+            });
+          });
+        });
+      });
+      /* ===== 管理员面板 ===== */
+      function renderAdmin() {
+        getDB().then(function (db) {
+          var box = document.getElementById("adminList");
+          var rows = Object.keys(db.users || {}).map(function (email) {
+            var u = db.users[email];
+            var banTxt = u.banned ? "解封" : "封禁";
+            return "<div>💬 <b>" + (u.nick || "-") + "</b>（UID: " + (u.uid || "-") + "）"
+              + " <span style=\"color:var(--muted);\">" + email + "</span>"
+              + (u.banned ? " <span style=\"color:#ff6b6b;\">[已封禁]</span>" : "")
+              + " <a href=\"javascript:void(0)\" data-act=\"ban\" data-e=\"" + email + "\" style=\"color:var(--accent2); margin-left:.5rem;\">" + banTxt + "</a>"
+              + " <a href=\"javascript:void(0)\" data-act=\"del\" data-e=\"" + email + "\" style=\"color:#ff6b6b; margin-left:.4rem;\">删除</a>"
+              + " <a href=\"javascript:void(0)\" data-act=\"uid\" data-e=\"" + email + "\" style=\"color:var(--muted); margin-left:.4rem;\">设UID</a>"
+              + "</div>";
+          });
+          box.innerHTML = rows.join("") || "<p style=\"color:var(--muted);\">暂无账号</p>";
+        });
+      }
+      document.getElementById("adminList").addEventListener("click", function (e) {
+        var t = e.target.getAttribute("data-act") ? e.target : null;
+        if (!t) return;
+        var act = t.getAttribute("data-act"), email = t.getAttribute("data-e");
+        getDB().then(function (db) {
+          var u = db.users && db.users[email];
+          if (!u) { alert("账号不存在"); return; }
+          if (act === "ban") {
+            if (email === ADMIN_EMAIL) { alert("不能封禁管理员"); return; }
+            u.banned = !u.banned;
+          } else if (act === "del") {
+            if (email === ADMIN_EMAIL) { alert("不能删除管理员"); return; }
+            if (!confirm("确定永久删除账号 " + email + " ？")) return;
+            delete db.users[email];
+          } else if (act === "uid") {
+            var v = prompt("设置新 UID（8位数字）：", u.uid || "");
+            if (v === null) return;
+            if (!/^\d{8}$/.test(v)) { alert("UID 必须是8位数字"); return; }
+            u.uid = v;
+          }
+          return saveDB(db).then(renderAdmin);
+        });
+      });
+      document.getElementById("admCreate").addEventListener("click", function () {
+        var st = document.getElementById("admStatus");
+        var email = document.getElementById("admEmail").value.trim().toLowerCase();
+        var pass = document.getElementById("admPass").value;
+        var nick = document.getElementById("admNick").value.trim().slice(0, 20);
+        var uid = document.getElementById("admUID").value.trim();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { st.textContent = "邮箱格式不正确"; return; }
+        if (pass.length < 6) { st.textContent = "密码至少6位"; return; }
+        if (!nick) { st.textContent = "请填写昵称"; return; }
+        if (uid && !/^\d{8}$/.test(uid)) { st.textContent = "UID 必须是8位数字"; return; }
+        hash(email, pass).then(function (h) {
+          return getDB().then(function (db) {
+            db.users = db.users || {};
+            if (db.users[email]) { st.textContent = "该邮箱已存在"; return; }
+            if (uid) {
+              var dup = Object.keys(db.users).some(function (k) { return db.users[k].uid === uid; });
+              if (dup) { st.textContent = "UID 已被占用"; return; }
+            }
+            db.users[email] = { id: email, hash: h, nick: nick, uid: uid || genUID(db), whips: 0, joined: new Date().toISOString() };
+            return saveDB(db).then(function () {
+              st.textContent = "✅ 账号已创建：" + email;
+              document.getElementById("admEmail").value = "";
+              document.getElementById("admPass").value = "";
+              document.getElementById("admNick").value = "";
+              document.getElementById("admUID").value = "";
+              renderAdmin();
+            });
+          });
+        });
+      });
+      adminBtn.addEventListener("click", function () { renderAdmin(); adminMask.classList.add("show"); });
+      document.getElementById("admClose").addEventListener("click", function () { adminMask.classList.remove("show"); });
+
       document.getElementById("registerBtn").addEventListener("click", function () { tryAuth("register"); });
       document.getElementById("doLoginBtn").addEventListener("click", function () { tryAuth("login"); });
       loginBtn.addEventListener("click", function () { mask.classList.add("show"); emailIn.focus(); });
       document.getElementById("modalClose").addEventListener("click", function () { mask.classList.remove("show"); });
-      document.getElementById("ghBtn").addEventListener("click", function () {
-        setStatus("");
-        alert("GitHub 登录正在开发中，敬请期待！");
-      });
-      logoutBtn.addEventListener("click", function () {
-        localStorage.removeItem(KEY);
-        showLogin();
-      });
+      logoutBtn.addEventListener("click", logout);
+      setInterval(enforceBan, 30000); /* 每30秒检查一次封禁状态 */
       (function init() {
         try {
           var s = JSON.parse(localStorage.getItem(KEY) || "null");
@@ -434,7 +547,9 @@
             showLogged({ email: s.email });
             getDB().then(function (db) {
               var u = db.users && db.users[s.email];
-              if (u) showLogged({ email: s.email, nick: u.nick, uid: u.uid });
+              if (!u) { logout(); return; }
+              if (u.banned) { location.href = BAN_PAGE + encodeURIComponent(s.email); return; }
+              showLogged({ email: s.email, nick: u.nick, uid: u.uid });
             });
           } else showLogin();
         } catch (e) { showLogin(); }
