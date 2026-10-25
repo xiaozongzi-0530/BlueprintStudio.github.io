@@ -221,6 +221,9 @@
       <input class="auth-input" id="admUID" type="text" placeholder="UID（8位数字，留空自动生成）" maxlength="8">
       <p id="admStatus" style="color:var(--muted); font-size:.85rem; min-height:1.2em;"></p>
       <div class="auth-btns"><button class="auth-btn" id="admCreate">创建账号</button></div>
+      <hr style="border:none; border-top:1px solid rgba(255,255,255,.12); margin:1rem 0;">
+      <h3 style="font-size:1rem; text-align:center;">Bug 反馈列表</h3>
+      <div id="bugList" style="max-height:200px; overflow:auto; font-size:.85rem; line-height:1.9;"></div>
       <button class="close" id="admClose" style="display:block; margin:1rem auto 0;">关闭</button>
     </div>
   </div>
@@ -287,6 +290,20 @@
       </div>
     </section>
 
+  </main>
+
+    <section id="bugreport">
+      <h2 class="sec">报告 <em>Bug</em></h2>
+      <p class="sec-sub">发现网站问题？告诉我们，开发者会尽快修复</p>
+      <div class="card" style="max-width:640px; margin:0 auto;">
+        <textarea id="bugText" style="width:100%; min-height:90px; resize:vertical; background:rgba(255,255,255,.06); border:1px solid rgba(79,124,255,.3); border-radius:10px; color:var(--text); padding:.7rem .9rem; font-size:.95rem; outline:none; font-family:inherit;" placeholder="描述你遇到的问题（什么操作、预期是什么、实际发生了什么）"></textarea>
+        <div style="display:flex; gap:.8rem; align-items:center; flex-wrap:wrap; margin-top:.8rem;">
+          <input id="bugContact" type="text" placeholder="联系方式（选填，如邮箱/QQ）" style="flex:1; min-width:200px; background:rgba(255,255,255,.06); border:1px solid rgba(79,124,255,.3); border-radius:10px; color:var(--text); padding:.6rem .9rem; font-size:.92rem; outline:none;">
+          <button class="btn" id="bugSend">提交反馈</button>
+        </div>
+        <p id="bugStatus" style="color:var(--muted); font-size:.85rem; margin-top:.6rem; min-height:1.2em;"></p>
+      </div>
+    </section>
   </main>
 
   <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
@@ -532,7 +549,52 @@
           });
         });
       });
-      adminBtn.addEventListener("click", function () { renderAdmin(); adminMask.classList.add("show"); });
+      adminBtn.addEventListener("click", function () { renderAdmin(); renderBugList(); adminMask.classList.add("show"); });
+      /* ===== Bug 反馈 ===== */
+      var BUG_DB = "https://textdb.dev/api/data/blueprintstudio-bugs-2026";
+      function getBugs() {
+        return fetch(BUG_DB + "?t=" + Date.now()).then(function (r) { return r.json(); }).catch(function () { return { bugs: [] }; });
+      }
+      document.getElementById("bugSend").addEventListener("click", function () {
+        var st = document.getElementById("bugStatus");
+        var text = document.getElementById("bugText").value.trim();
+        if (!text) { st.textContent = "请描述问题内容"; return; }
+        this.disabled = true; st.textContent = "提交中…";
+        var contact = document.getElementById("bugContact").value.trim();
+        var who = me ? (myInfo.nick || me) : "游客";
+        getBugs().then(function (db) {
+          db.bugs = db.bugs || [];
+          db.bugs.unshift({ who: who, contact: contact, text: text.slice(0, 3000), time: new Date().toISOString() });
+          return fetch(BUG_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(function () {
+            document.getElementById("bugText").value = "";
+            document.getElementById("bugContact").value = "";
+            st.textContent = "✅ 反馈已提交，感谢你的帮助！";
+            this.disabled = false;
+          }.bind(this));
+        }.bind(this)).catch(function () { st.textContent = "提交失败，请稍后再试"; this.disabled = false; }.bind(this));
+      });
+      function renderBugList() {
+        getBugs().then(function (db) {
+          var box = document.getElementById("bugList");
+          var list = db.bugs || [];
+          if (!list.length) { box.innerHTML = '<p style="color:var(--muted);">暂无反馈</p>'; return; }
+          box.innerHTML = list.map(function (b, i) {
+            return '<div style="border-bottom:1px solid rgba(255,255,255,.08); padding:.4rem 0;">'
+              + '<b>' + b.who.replace(/</g, "&lt;") + '</b> <span style="color:var(--muted);">' + b.time.slice(0, 16).replace("T", " ") + "</span>"
+              + (b.contact ? " <span style=\"color:var(--accent2);\">联系:" + b.contact.replace(/</g, "&lt;") + "</span>" : "")
+              + ' <a href="javascript:void(0)" data-bugdel="' + i + '" style="color:#ff6b6b; float:right;">删除</a><br>'
+              + '<span style="color:var(--muted);">' + b.text.replace(/</g, "&lt;") + "</span></div>";
+          }).join("");
+        });
+      }
+      document.getElementById("bugList").addEventListener("click", function (e) {
+        var i = e.target.getAttribute("data-bugdel");
+        if (i === null) return;
+        getBugs().then(function (db) {
+          db.bugs.splice(parseInt(i, 10), 1);
+          return fetch(BUG_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(renderBugList);
+        });
+      });
       document.getElementById("admClose").addEventListener("click", function () { adminMask.classList.remove("show"); });
 
       document.getElementById("registerBtn").addEventListener("click", function () { tryAuth("register"); });
