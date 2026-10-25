@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>公告 · BlueprintStudio</title>
+<style>
+  :root { --bg:#0b1020; --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; }
+  .grid-bg {
+    position:fixed; inset:0; z-index:0;
+    background-image:
+      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+    background-size:40px 40px;
+  }
+  header {
+    position:sticky; top:0; z-index:10;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:1rem 2rem;
+    background:rgba(11,16,32,.85); backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(79,124,255,.15);
+  }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav a { color:var(--muted); text-decoration:none; margin-left:1.5rem; font-size:.95rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+  main { position:relative; z-index:1; max-width:720px; margin:0 auto; padding:2.5rem 1.5rem; }
+  h1 { font-size:1.7rem; margin-bottom:.4rem; }
+  h1 em { font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { color:var(--muted); font-size:.92rem; margin-bottom:1.8rem; }
+  .card {
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(79,124,255,.25);
+    border-radius:16px; padding:1.5rem; margin-bottom:1.2rem;
+  }
+  .ann-item { border-left:3px solid #f5b301; padding-left:1rem; margin-bottom:1.2rem; }
+  .ann-item .t { color:#f5b301; font-size:.8rem; margin-bottom:.3rem; }
+  .ann-item .text { line-height:1.9; font-size:.95rem; word-break:break-word; }
+  input[type="text"] {
+    width:100%; background:rgba(255,255,255,.06);
+    border:1px solid rgba(79,124,255,.3); border-radius:10px;
+    color:var(--text); padding:.65rem .9rem; font-size:.95rem; outline:none;
+  }
+  input:focus { border-color:var(--accent2); }
+  .btn {
+    display:inline-block; border:none; cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#fff; padding:.6rem 1.5rem; border-radius:10px;
+    font-size:.92rem; font-weight:600;
+  }
+  .del { color:#ff6b6b; cursor:pointer; font-size:.8rem; float:right; }
+  .empty { color:var(--muted); text-align:center; padding:2rem; }
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="forum.html">论坛</a>
+      <a href="chat.html">聊天</a>
+      <a href="notes.html">笔记</a>
+      <a href="ann.html" class="active">公告</a>
+      <a href="join.html">加入我们</a>
+    </nav>
+  </header>
+  <main>
+    <h1>工作室<em>公告</em></h1>
+    <p class="sub">官方发布的全部公告，最新在前。</p>
+
+    <div class="card" id="adminBox" style="display:none;">
+      <div style="display:flex; gap:.8rem;">
+        <input type="text" id="annInput" placeholder="输入公告内容（发布后首页横幅同步显示）" maxlength="300" style="flex:1;">
+        <button class="btn" id="annBtn">发布</button>
+      </div>
+    </div>
+
+    <div id="annList"></div>
+  </main>
+  <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+  <script>
+    (function () {
+      var DB = "https://textdb.dev/api/data/blueprintstudio-announce-2026";
+      var ADMIN = "zhouxinyuan0530@qq.com";
+      var me = null;
+      try { me = JSON.parse(localStorage.getItem("bs_auth") || "null"); } catch (e) {}
+      var isAdmin = me && me.email === ADMIN;
+      if (isAdmin) document.getElementById("adminBox").style.display = "block";
+
+      function getDB() {
+        return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
+          .catch(function () { return { anns: [] }; });
+      }
+      function saveDB(db) {
+        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+      }
+      function esc(t) { return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+      function fmt(t) { try { return new Date(t).toLocaleString("zh-CN", { hour12:false }); } catch (e) { return t; } }
+      function render() {
+        getDB().then(function (db) {
+          var list = db.anns || [];
+          document.getElementById("annList").innerHTML = list.length ? list.map(function (a, i) {
+            return '<div class="card ann-item"><div class="t">' + fmt(a.time)
+              + (isAdmin ? ' <span class="del" data-del="' + i + '">删除</span>' : "") + "</div>"
+              + '<div class="text">' + esc(a.text) + "</div></div>";
+          }).join("") : '<div class="card empty">暂无公告</div>';
+        });
+      }
+      document.getElementById("annBtn").addEventListener("click", function () {
+        var text = document.getElementById("annInput").value.trim();
+        if (!text) { alert("公告内容不能为空"); return; }
+        getDB().then(function (db) {
+          db.anns = db.anns || [];
+          db.anns.unshift({ text: text.slice(0, 300), time: new Date().toISOString() });
+          return saveDB(db).then(function () {
+            document.getElementById("annInput").value = "";
+            render();
+          });
+        });
+      });
+      document.getElementById("annList").addEventListener("click", function (e) {
+        var i = e.target.getAttribute("data-del");
+        if (i === null) return;
+        getDB().then(function (db) {
+          db.anns.splice(parseInt(i, 10), 1);
+          return saveDB(db).then(render);
+        });
+      });
+      render();
+    })();
+  </script>
+</body>
+</html>
