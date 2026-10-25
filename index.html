@@ -89,6 +89,26 @@
   @keyframes load { from { width: 35%; } to { width: 72%; } }
   .percent { color: var(--muted); font-size: .85rem; letter-spacing: .1em; }
   footer { margin-top: 2.5rem; color: var(--muted); font-size: .85rem; }
+  .leader {
+    margin-top: 1.6rem;
+    color: var(--muted);
+    font-size: .95rem;
+  }
+  .leader a { color: var(--accent2); text-decoration: none; }
+  .leader a:hover { text-decoration: underline; }
+  .actions { margin-top: 1.4rem; }
+  .btn {
+    display: inline-block;
+    text-decoration: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    padding: .6rem 1.6rem;
+    border-radius: 10px;
+    font-size: .95rem;
+    font-weight: 600;
+    transition: opacity .2s, transform .2s;
+  }
+  .btn:hover { opacity: .85; transform: translateY(-2px); }
 </style>
 </head>
 <body>
@@ -100,6 +120,8 @@
     <p class="desc">我们正在精心绘制属于你的蓝图，<br>一个更好的站点即将上线，敬请期待。</p>
     <div class="progress"><div class="bar"></div></div>
     <div class="percent">CONSTRUCTING…</div>
+    <p class="leader">工作室室长：小粽子（GitHub: <a href="https://github.com/xiaozongzi-0530" target="_blank" rel="noopener">xiaozongzi-0530</a>）</p>
+    <div class="actions"><a class="btn" href="join.html">加入我们 →</a></div>
     <footer>© 2025 BlueprintStudio · 保留所有权利</footer>
   </main>
 </body>
