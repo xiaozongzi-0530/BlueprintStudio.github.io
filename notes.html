@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>笔记 · BlueprintStudio</title>
+<style>
+  :root { --bg:#0b1020; --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; }
+  .grid-bg {
+    position:fixed; inset:0; z-index:0;
+    background-image:
+      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+    background-size:40px 40px;
+  }
+  header {
+    position:sticky; top:0; z-index:10;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:1rem 2rem;
+    background:rgba(11,16,32,.85); backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(79,124,255,.15);
+  }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav a { color:var(--muted); text-decoration:none; margin-left:1.5rem; font-size:.95rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+  main { position:relative; z-index:1; max-width:800px; margin:0 auto; padding:2.5rem 1.5rem; }
+  h1 { font-size:1.7rem; margin-bottom:.4rem; }
+  h1 em {
+    font-style:normal;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .sub { color:var(--muted); font-size:.92rem; margin-bottom:1.8rem; }
+  .card {
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(79,124,255,.25);
+    border-radius:16px; padding:1.5rem; margin-bottom:1.2rem;
+  }
+  input[type="text"], textarea {
+    width:100%;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(79,124,255,.3);
+    border-radius:10px; color:var(--text);
+    padding:.65rem .9rem; font-size:.95rem;
+    outline:none; font-family:inherit;
+  }
+  textarea { min-height:110px; resize:vertical; margin:.8rem 0; }
+  input:focus, textarea:focus { border-color:var(--accent2); }
+  .btn {
+    display:inline-block; border:none; cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#fff; padding:.6rem 1.5rem; border-radius:10px;
+    font-size:.92rem; font-weight:600;
+  }
+  .btn.ghost { background:transparent; border:1px solid rgba(79,124,255,.5); color:var(--accent2); }
+  .row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; }
+  .note-head { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin-bottom:.6rem; }
+  .note-head .nick { font-weight:700; }
+  .badge-title, .badge-admin {
+    background:#f5b301; color:#1a1a1a;
+    font-size:.68rem; font-weight:700;
+    padding:.15rem .5rem; border-radius:999px;
+  }
+  .note-head .time { color:var(--muted); font-size:.8rem; margin-left:auto; }
+  .note-title { font-size:1.1rem; font-weight:700; margin-bottom:.4rem; }
+  .note-body { color:var(--text); font-size:.95rem; line-height:1.9; white-space:pre-wrap; word-break:break-word; }
+  .note-foot { margin-top:1rem; display:flex; gap:1rem; align-items:center; }
+  .vote {
+    border:1px solid rgba(79,124,255,.4); border-radius:999px;
+    background:rgba(79,124,255,.08); color:var(--text);
+    padding:.35rem 1rem; font-size:.85rem; cursor:pointer;
+    transition:all .2s; user-select:none;
+  }
+  .vote:hover { box-shadow:0 2px 12px rgba(79,124,255,.3); }
+  .vote.on-up { background:rgba(34,211,238,.25); border-color:var(--accent2); color:var(--accent2); }
+  .vote.on-down { background:rgba(255,107,107,.2); border-color:#ff6b6b; color:#ff6b6b; }
+  .note-foot .del { color:#ff6b6b; font-size:.8rem; cursor:pointer; text-decoration:none; margin-left:auto; }
+  .empty { color:var(--muted); text-align:center; padding:2rem; }
+  .tip { color:var(--muted); font-size:.85rem; }
+  .tip a { color:var(--accent2); }
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="forum.html">论坛</a>
+      <a href="chat.html">聊天</a>
+      <a href="notes.html" class="active">笔记</a>
+      <a href="join.html">加入我们</a>
+    </nav>
+  </header>
+  <main>
+    <h1>共享<em>笔记</em></h1>
+    <p class="sub">所有人都可以写笔记，分享知识、记录灵感。👍 赞同 · 👎 拉踩，看看大家最认可哪些内容。</p>
+
+    <div class="card">
+      <input type="text" id="noteTitle" placeholder="笔记标题（必填）" maxlength="60">
+      <textarea id="noteBody" placeholder="笔记内容（必填）…" maxlength="5000"></textarea>
+      <div class="row">
+        <input type="text" id="noteGuest" placeholder="游客昵称（已登录可留空）" maxlength="20" style="flex:1; min-width:180px;">
+        <button class="btn" id="sendBtn">发布笔记</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <input type="text" id="searchBox" placeholder="🔍 搜索笔记（标题 / 内容 / 作者）" style="flex:1;">
+      </div>
+    </div>
+
+    <div id="noteList"></div>
+  </main>
+  <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+
+  <script>
+    (function () {
+      var DB = "https://textdb.dev/api/data/blueprintstudio-notes-2026";
+      var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
+      var me = null, myNick = "", myUID = "", myTitle = "";
+      try { me = JSON.parse(localStorage.getItem("bs_auth") || "null"); } catch (e) {}
+      myNick = localStorage.getItem("bs_nick") || "";
+      myUID = localStorage.getItem("bs_uid") || "";
+      myTitle = localStorage.getItem("bs_title") || "";
+      /* 游客身份标识（本地随机，用于点赞去重） */
+      var guestID = localStorage.getItem("bs_guest");
+      if (!guestID) {
+        guestID = "guest_" + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem("bs_guest", guestID);
+      }
+      function myID() { return me ? me.email : guestID; }
+
+      function getDB() {
+        return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
+          .catch(function () { return { notes: [] }; });
+      }
+      function saveDB(db) {
+        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+      }
+      function esc(t) {
+        return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+      function fmt(t) {
+        try { return new Date(t).toLocaleString("zh-CN", { hour12: false }); } catch (e) { return t; }
+      }
+
+      /* ===== 发布 ===== */
+      document.getElementById("sendBtn").addEventListener("click", function () {
+        var title = document.getElementById("noteTitle").value.trim();
+        var body = document.getElementById("noteBody").value.trim();
+        var guest = document.getElementById("noteGuest").value.trim();
+        if (!title || !body) { alert("标题和内容都要填写哦"); return; }
+        var nick = me ? (myNick || me.email.split("@")[0]) : guest;
+        if (!nick) { alert("请填写游客昵称，或先登录"); return; }
+        this.disabled = true;
+        getDB().then(function (db) {
+          db.notes = db.notes || [];
+          db.notes.unshift({
+            id: Date.now() + "_" + Math.random().toString(36).slice(2, 8),
+            author: me ? me.email : "",
+            nick: nick,
+            uid: me ? myUID : "",
+            title: title.slice(0, 60),
+            content: body.slice(0, 5000),
+            time: new Date().toISOString(),
+            likes: [], dislikes: []
+          });
+          return saveDB(db).then(function () {
+            document.getElementById("noteTitle").value = "";
+            document.getElementById("noteBody").value = "";
+            document.getElementById("noteGuest").value = "";
+            this.disabled = false;
+            render();
+          }.bind(this));
+        }.bind(this)).catch(function () { alert("发布失败，请稍后再试"); this.disabled = false; }.bind(this));
+      });
+
+      /* ===== 搜索 + 渲染 ===== */
+      document.getElementById("searchBox").addEventListener("input", render);
+      function render() {
+        var kw = document.getElementById("searchBox").value.trim().toLowerCase();
+        getDB().then(function (db) {
+          var list = (db.notes || []).filter(function (n) {
+            if (!kw) return true;
+            return (n.title + " " + n.content + " " + n.nick).toLowerCase().indexOf(kw) !== -1;
+          });
+          var box = document.getElementById("noteList");
+          if (!list.length) {
+            box.innerHTML = '<div class="card empty">' + (kw ? "没有匹配的笔记" : "还没有笔记，来写第一篇吧！") + "</div>";
+            return;
+          }
+          box.innerHTML = list.map(function (n) {
+            var isAdminN = n.author === ADMIN_EMAIL;
+            var badge = isAdminN ? '<span class="badge-admin">官方管理员</span>'
+              : (n.title || (n.author && n.uid) ? "" : "");
+            if (!isAdminN && n.title) badge = '<span class="badge-title">' + esc(n.title) + "</span>";
+            var myVote = n.likes.indexOf(myID()) !== -1 ? "up" : (n.dislikes.indexOf(myID()) !== -1 ? "down" : "");
+            var canDel = (me && (n.author === me.email || me.email === ADMIN_EMAIL));
+            return '<div class="card">'
+              + '<div class="note-head"><span class="nick">' + esc(n.nick) + "</span>" + badge
+              + '<span class="time">' + fmt(n.time) + "</span></div>"
+              + '<div class="note-title">' + esc(n.title) + "</div>"
+              + '<div class="note-body">' + esc(n.content) + "</div>"
+              + '<div class="note-foot">'
+              + '<button class="vote ' + (myVote === "up" ? "on-up" : "") + '" data-vote="up" data-id="' + n.id + '">👍 ' + (n.likes || []).length + "</button>"
+              + '<button class="vote ' + (myVote === "down" ? "on-down" : "") + '" data-vote="down" data-id="' + n.id + '">👎 ' + (n.dislikes || []).length + "</button>"
+              + (canDel ? '<a class="del" data-del="' + n.id + '">删除</a>' : "")
+              + "</div></div>";
+          }).join("");
+        });
+      }
+      document.getElementById("noteList").addEventListener("click", function (e) {
+        var vote = e.target.getAttribute("data-vote");
+        var del = e.target.getAttribute("data-del");
+        if (vote) {
+          var id = e.target.getAttribute("data-id");
+          getDB().then(function (db) {
+            var n = (db.notes || []).find(function (x) { return x.id === id; });
+            if (!n) return;
+            var meID = myID();
+            n.likes = n.likes || []; n.dislikes = n.dislikes || [];
+            var li = n.likes.indexOf(meID), di = n.dislikes.indexOf(meID);
+            if (vote === "up") {
+              if (li !== -1) { n.likes.splice(li, 1); }
+              else { n.likes.push(meID); if (di !== -1) n.dislikes.splice(di, 1); }
+            } else {
+              if (di !== -1) { n.dislikes.splice(di, 1); }
+              else { n.dislikes.push(meID); if (li !== -1) n.likes.splice(li, 1); }
+            }
+            return saveDB(db).then(render);
+          });
+        }
+        if (del) {
+          if (!confirm("确定删除该笔记？")) return;
+          getDB().then(function (db) {
+            db.notes = (db.notes || []).filter(function (x) { return x.id !== del; });
+            return saveDB(db).then(render);
+          });
+        }
+      });
+
+      /* 未登录时同步一次云端昵称/头衔 */
+      if (me) {
+        fetch("https://textdb.dev/api/data/blueprintstudio-users-2026?t=" + Date.now())
+          .then(function (r) { return r.json(); })
+          .then(function (db) {
+            var u = db.users && db.users[me.email];
+            if (u) {
+              myNick = u.nick || myNick; myUID = u.uid || myUID; myTitle = u.title || "";
+              localStorage.setItem("bs_nick", myNick);
+              localStorage.setItem("bs_uid", myUID);
+              localStorage.setItem("bs_title", myTitle);
+            }
+            if (u && u.banned) { location.href = "ban.html?email=" + encodeURIComponent(me.email); return; }
+            render();
+          }).catch(render);
+      } else render();
+    })();
+  </script>
+</body>
+</html>
