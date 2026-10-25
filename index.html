@@ -109,6 +109,32 @@
     transition: opacity .2s, transform .2s;
   }
   .btn:hover { opacity: .85; transform: translateY(-2px); }
+  .whip {
+    margin-top: 2rem;
+  }
+  .whip-btn {
+    display: inline-block;
+    border: 1px solid rgba(79,124,255,.5);
+    background: rgba(79,124,255,.08);
+    color: var(--accent2);
+    font-size: 1rem;
+    font-weight: 600;
+    padding: .8rem 1.8rem;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform .1s, box-shadow .2s;
+    user-select: none;
+  }
+  .whip-btn:hover { box-shadow: 0 4px 24px rgba(79,124,255,.35); }
+  .whip-btn:active { transform: scale(.92); }
+  .whip-btn:disabled { opacity: .6; cursor: not-allowed; }
+  .whip-count {
+    margin-top: .8rem;
+    color: var(--muted);
+    font-size: .95rem;
+  }
+  .whip-count strong { color: var(--accent2); font-size: 1.3rem; }
+  .whip-tip { margin-top: .4rem; color: var(--muted); font-size: .8rem; }
 </style>
 </head>
 <body>
@@ -122,7 +148,56 @@
     <div class="percent">CONSTRUCTING…</div>
     <p class="leader">工作室室长：小粽子（GitHub: <a href="https://github.com/xiaozongzi-0530" target="_blank" rel="noopener">xiaozongzi-0530</a>）</p>
     <div class="actions"><a class="btn" href="join.html">加入我们 →</a></div>
+    <div class="whip">
+      <button class="whip-btn" id="whipBtn">👊 鞭策开发者，催他干活！</button>
+      <div class="whip-count">开发者已被鞭策 <strong id="whipCount">…</strong> 次</div>
+      <div class="whip-tip">可以连点，但手速太快会被限流哦～</div>
+    </div>
     <footer>© 2026 BlueprintStudio · 保留所有权利</footer>
   </main>
+  <script>
+    (function () {
+      var NS = "blueprintstudio", KEY = "whip";
+      var HIT = "https://abacus.jasoncameron.dev/hit/" + NS + "/" + KEY;
+      var countEl = document.getElementById("whipCount");
+      var btn = document.getElementById("whipBtn");
+      var base = 0, localDelta = 0, queue = 0, sending = false;
+      function render() { countEl.textContent = base + localDelta; }
+      function fetchTotal() {
+        fetch("https://abacus.jasoncameron.dev/get/" + NS + "/" + KEY)
+          .then(function (r) { return r.text(); })
+          .then(function (t) {
+            var n = parseInt(t, 10);
+            if (!isNaN(n)) { base = n; localDelta = 0; render(); }
+          }).catch(function () {});
+      }
+      function flush() {
+        if (sending || queue <= 0) return;
+        sending = true;
+        var batch = Math.min(queue, 5);
+        queue -= batch;
+        var chain = Promise.resolve();
+        for (var i = 0; i < batch; i++) {
+          chain = chain.then(function () {
+            return fetch(HIT).catch(function () {});
+          });
+        }
+        chain.then(function () {
+          sending = false;
+          if (queue > 0) setTimeout(flush, 1000);
+        });
+      }
+      btn.addEventListener("click", function () {
+        localDelta++;
+        render();
+        btn.disabled = true;
+        setTimeout(function () { btn.disabled = false; }, 700); /* 节流：最快0.7秒一次 */
+        queue++;
+        setTimeout(flush, 300);
+      });
+      fetchTotal();
+      setInterval(fetchTotal, 30000); /* 每30秒同步一次全站总数 */
+    })();
+  </script>
 </body>
 </html>
