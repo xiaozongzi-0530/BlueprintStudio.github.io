@@ -231,6 +231,7 @@
   <div class="modal-mask" id="authModal">
     <div class="modal">
       <h3>🔐 账号注册 / 登录</h3>
+      <input class="auth-input" id="nickInput" type="text" placeholder="昵称（注册后可修改）" maxlength="20">
       <input class="auth-input" id="emailInput" type="email" placeholder="邮箱" autocomplete="email">
       <input class="auth-input" id="passInput" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
       <p id="authStatus" style="min-height:1.2em;"></p>
@@ -313,19 +314,38 @@
       var logoutBtn = document.getElementById("logoutBtn");
       var mask = document.getElementById("authModal");
       var emailIn = document.getElementById("emailInput");
+      var nickIn = document.getElementById("nickInput");
       var passIn = document.getElementById("passInput");
       var statusEl = document.getElementById("authStatus");
-      var me = null; /* 当前登录用户 {email} */
+      var me = null, myInfo = {}; /* 当前登录用户 */
 
       function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = cls || ""; }
-      function showLogged(email) {
-        me = email;
+      function showLogged(info) {
+        /* info: {email, nick, uid} */
+        me = info.email;
+        myInfo = info;
         avatar.style.display = "none";
-        nameLink.textContent = email.split("@")[0];
+        nameLink.textContent = info.nick || info.email.split("@")[0];
+        nameLink.title = info.uid ? ("UID: " + info.uid) : "";
         nameLink.href = "javascript:void(0)";
-        nameLink.onclick = function (e) { e.preventDefault(); };
+        nameLink.onclick = function (e) { e.preventDefault(); changeNick(); };
         loginBtn.style.display = "none";
         chip.style.display = "flex";
+      }
+      function changeNick() {
+        var nick = prompt("修改昵称（最长20字）：", myInfo.nick || "");
+        if (nick === null) return;
+        nick = nick.trim();
+        if (!nick) { alert("昵称不能为空"); return; }
+        getDB().then(function (db) {
+          if (db.users && db.users[me]) {
+            db.users[me].nick = nick.slice(0, 20);
+            saveDB(db).then(function () {
+              myInfo.nick = db.users[me].nick;
+              nameLink.textContent = myInfo.nick;
+            });
+          }
+        });
       }
       function showLogin() { me = null; loginBtn.style.display = "inline-block"; chip.style.display = "none"; }
       function valid(email, pass) {
@@ -339,6 +359,12 @@
               return ("0" + x.toString(16)).slice(-2);
             }).join("");
           });
+      }
+      function genUID(db) {
+        var used = Object.keys((db && db.users) || {}).map(function (k) { return db.users[k].uid; });
+        var uid;
+        do { uid = String(Math.floor(10000000 + Math.random() * 90000000)); } while (used.indexOf(uid) !== -1);
+        return uid;
       }
       function getDB() {
         return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
@@ -360,6 +386,8 @@
       function tryAuth(mode) {
         var email = emailIn.value.trim().toLowerCase();
         var pass = passIn.value;
+        var nick = (nickIn.value || "").trim().slice(0, 20);
+        if (mode === "register" && !nick) { setStatus("请填写昵称", "err"); return; }
         if (!valid(email, pass)) { setStatus("邮箱格式不正确，或密码少于6位", "err"); return; }
         setStatus(mode === "register" ? "注册中…" : "登录中…");
         hash(email, pass).then(function (h) {
@@ -368,10 +396,11 @@
             var u = db.users[email];
             if (mode === "register") {
               if (u) { setStatus("该邮箱已注册，请直接登录", "err"); return; }
-              db.users[email] = { hash: h, whips: 0, joined: new Date().toISOString() };
+              var uid = genUID(db);
+              db.users[email] = { id: email, hash: h, nick: nick, uid: uid, whips: 0, joined: new Date().toISOString() };
               return saveDB(db).then(function () {
                 localStorage.setItem(KEY, JSON.stringify({ email: email, hash: h }));
-                showLogged(email);
+                showLogged({ email: email, nick: nick, uid: uid });
                 mask.classList.remove("show");
                 setStatus("", "");
               });
@@ -379,7 +408,7 @@
               if (!u) { setStatus("该邮箱未注册", "err"); return; }
               if (u.hash !== h) { setStatus("密码错误", "err"); return; }
               localStorage.setItem(KEY, JSON.stringify({ email: email, hash: h }));
-              showLogged(email);
+              showLogged({ email: email, nick: u.nick, uid: u.uid });
               mask.classList.remove("show");
               setStatus("", "");
             }
@@ -401,7 +430,13 @@
       (function init() {
         try {
           var s = JSON.parse(localStorage.getItem(KEY) || "null");
-          if (s && s.email) showLogged(s.email); else showLogin();
+          if (s && s.email) {
+            showLogged({ email: s.email });
+            getDB().then(function (db) {
+              var u = db.users && db.users[s.email];
+              if (u) showLogged({ email: s.email, nick: u.nick, uid: u.uid });
+            });
+          } else showLogin();
         } catch (e) { showLogin(); }
       })();
     })();
