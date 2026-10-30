@@ -75,6 +75,66 @@
   .msg.other { align-self:flex-start; background:rgba(255,255,255,.08); border-bottom-left-radius:4px; }
   .back { color:var(--muted); cursor:pointer; font-size:.85rem; }
   .back:hover { color:var(--accent2); }
+  /* 输入区 */
+  #msgInput {
+    flex:1; min-width:140px; resize:none;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(79,124,255,.3);
+    border-radius:10px; color:var(--text);
+    padding:.65rem .9rem; font-size:.95rem; outline:none; font-family:inherit;
+    line-height:1.5; max-height:120px; overflow-y:auto;
+  }
+  #msgInput:focus { border-color:var(--accent2); }
+  #msgInput:disabled { opacity:.5; }
+  .input-tools { display:flex; gap:.4rem; flex-shrink:0; }
+  .tool-btn {
+    background:rgba(79,124,255,.1); border:1px solid rgba(79,124,255,.35);
+    color:var(--accent2); border-radius:10px; cursor:pointer;
+    font-size:.82rem; font-family:inherit; padding:.55rem .75rem;
+    transition:background .2s, border-color .2s;
+  }
+  .tool-btn:hover { background:rgba(79,124,255,.22); border-color:var(--accent2); }
+  .tool-btn:disabled { opacity:.4; cursor:default; }
+  /* 打码遮盖 */
+  .masked {
+    background:#000; color:transparent !important;
+    border-radius:3px; padding:0 .18em; margin:0 .08em;
+    user-select:none; cursor:default;
+    text-shadow:none !important;
+    box-decoration-break:clone; -webkit-box-decoration-break:clone;
+  }
+  .msg.me .masked { background:#000; }
+  /* 文件卡片 */
+  .file-card {
+    display:flex; align-items:center; gap:.6rem;
+    background:rgba(0,0,0,.28);
+    border:1px solid rgba(255,255,255,.28);
+    border-radius:10px; padding:.55rem .8rem;
+    margin-top:.45rem; text-decoration:none; color:#fff;
+    font-size:.85rem; max-width:100%;
+    transition:background .2s, border-color .2s;
+  }
+  .msg.other .file-card { background:rgba(0,0,0,.3); border-color:rgba(255,255,255,.2); }
+  .file-card:hover { background:rgba(0,0,0,.45); border-color:#fff; }
+  .file-card .fname { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .file-card .fsize { color:rgba(255,255,255,.7); font-size:.75rem; flex-shrink:0; }
+  .file-card .fico {
+    flex-shrink:0; width:26px; height:26px; border-radius:6px;
+    background:rgba(255,255,255,.22);
+    display:flex; align-items:center; justify-content:center;
+    font-size:.7rem; font-weight:700; letter-spacing:-.02em;
+  }
+  .file-card .fico.img { background:rgba(34,211,238,.35); }
+  .msg img.att-img { max-width:100%; border-radius:8px; margin-top:.45rem; display:block; }
+  #attachPreview .ap {
+    display:flex; align-items:center; gap:.6rem;
+    background:rgba(79,124,255,.1); border:1px dashed rgba(79,124,255,.5);
+    border-radius:10px; padding:.5rem .8rem; font-size:.85rem;
+  }
+  #attachPreview .ap button {
+    margin-left:auto; background:none; border:none; cursor:pointer;
+    color:#ff6b6b; font-size:1rem; line-height:1;
+  }
   footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
 </style>
 </head>
@@ -130,10 +190,17 @@
         <span class="back" id="backBtn">← 返回</span>
       </div>
       <div id="chatWin"></div>
-      <div class="row" style="margin-top:.8rem;">
-        <input type="text" id="msgInput" placeholder="输入消息…" style="flex:1;" maxlength="1000">
+      <div id="attachPreview" style="display:none; margin-top:.7rem;"></div>
+      <div class="row" style="margin-top:.8rem; align-items:flex-end;">
+        <textarea id="msgInput" placeholder="输入消息…（选中文字后点「打码」可永久遮盖）" maxlength="1000" rows="1"></textarea>
+        <div class="input-tools">
+          <button class="tool-btn" id="maskBtn" title="选中文字后点击，将其永久替换为黑色打码">打码</button>
+          <button class="tool-btn" id="fileBtn" title="发送文件（建议小于 900KB）">文件</button>
+          <input type="file" id="fileInput" style="display:none;">
+        </div>
         <button class="btn" id="sendBtn">发送</button>
       </div>
+      <p class="tip" style="margin-top:.5rem; font-size:.78rem;">打码为永久遮盖：原文不会保存，发送后任何一方都无法恢复。文件建议小于 500KB。</p>
     </div>
   </main>
   <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
@@ -143,6 +210,8 @@
       var DB = "https://textdb.dev/api/data/blueprintstudio-chat-2026";
       var USER_DB = "https://textdb.dev/api/data/blueprintstudio-users-2026";
       var me = null, myUID = "", myNick = "", chatting = null, timer = null;
+      var maskRanges = [], pendingFile = null, endedState = false;
+      var MASK_CHAR = "█";
 
       try { me = JSON.parse(localStorage.getItem("bs_auth") || "null"); } catch (e) {}
       myUID = localStorage.getItem("bs_uid") || "";
@@ -204,6 +273,10 @@
         document.getElementById("chatWith").textContent = "UID: " + uid;
         document.getElementById("listBox").style.display = "none";
         document.getElementById("chatBox").style.display = "block";
+        maskRanges = [];
+        clearPendingFile();
+        inputEl().value = "";
+        autoGrow();
         renderChat();
         if (timer) clearInterval(timer);
         timer = setInterval(renderChat, 3000);
@@ -237,7 +310,6 @@
           });
         });
       });
-      var endedState = false;
       function isEnded(db, uidA, uidB) {
         var s = (db.sessions || {})[pairKey(uidA, uidB)];
         return s ? s : null;
@@ -259,7 +331,8 @@
             + '<div id="qWin" style="max-height:300px; overflow:auto; display:flex; flex-direction:column; gap:.5rem; margin-top:.6rem;">'
             + (list.map(function (m) {
                 var mine = m.from === myUID;
-                return '<div class="msg ' + (mine ? "me" : "other") + '"><div class="meta">UID:' + m.from + " · " + fmt(m.time) + "</div>" + esc(m.text) + "</div>";
+                return '<div class="msg ' + (mine ? "me" : "other") + '"><div class="meta">UID:' + m.from + " · " + fmt(m.time) + "</div>"
+                  + textWithMask(m.text) + fileHtml(m.file) + "</div>";
               }).join("") || '<p class="tip">该对话没有消息</p>')
             + "</div>";
         });
@@ -293,7 +366,7 @@
             var mine = m.from === myUID;
             return '<div class="msg ' + (mine ? "me" : "other") + '">'
               + '<div class="meta">' + (mine ? "我" : "对方") + " · " + fmt(m.time) + "</div>"
-              + esc(m.text) + "</div>";
+              + textWithMask(m.text) + fileHtml(m.file) + "</div>";
           }).join("") || '<p class="tip" style="text-align:center;">开始你们的对话吧</p>');
           win.scrollTop = win.scrollHeight;
         });
@@ -316,21 +389,170 @@
           });
         });
       });
+      /* 把消息文本中的 █ 连续块渲染为黑色遮盖 */
+      function textWithMask(text) {
+        var s = String(text == null ? "" : text);
+        var out = "", i = 0;
+        while (i < s.length) {
+          if (s[i] === MASK_CHAR) {
+            var j = i;
+            while (j < s.length && s[j] === MASK_CHAR) j++;
+            var n = j - i;
+            // 统一渲染成固定长度的黑块，不暴露原文真实长度
+            var shown = Math.min(Math.max(n, 4), 12);
+            out += '<span class="masked" title="已打码">' + Array(shown + 1).join("█") + "</span>";
+            i = j;
+          } else {
+            var k = i;
+            while (k < s.length && s[k] !== MASK_CHAR) k++;
+            out += esc(s.slice(i, k));
+            i = k;
+          }
+        }
+        return out;
+      }
+
+      /* ===== 打码：永久遮盖选中文字，原文不落库 ===== */
+
+      function inputEl() { return document.getElementById("msgInput"); }
+
+      /* 把区间应用到字符串，区间内字符替换为 █ */
+      function applyMaskRanges(str, ranges) {
+        if (!ranges.length) return str;
+        var chars = str.split("");
+        ranges.forEach(function (r) {
+          for (var i = r[0]; i < r[1] && i < chars.length; i++) {
+            if (chars[i] !== "\n") chars[i] = MASK_CHAR;
+          }
+        });
+        return chars.join("");
+      }
+      /* 发送时：把遮盖区间真正写入文本，并清空区间（原文就此丢弃） */
+      function applyMaskOnSend(text) {
+        var out = applyMaskRanges(text, maskRanges);
+        maskRanges = [];
+        return out;
+      }
+      /* 在输入框中实时显示打码效果 */
+      function refreshInputDisplay() {
+        var el = inputEl();
+        if (!maskRanges.length) return;
+        var v = el.value;
+        var start = el.selectionStart, end = el.selectionEnd;
+        var shown = applyMaskRanges(v, maskRanges);
+        if (shown !== v) {
+          el.value = shown;
+          // 打码后原区间依然对应 █ 块，保持区间有效
+          try { el.setSelectionRange(Math.min(start, shown.length), Math.min(end, shown.length)); } catch (e) {}
+        }
+      }
+
+      document.getElementById("maskBtn").addEventListener("click", function () {
+        var el = inputEl();
+        var s = el.selectionStart, e = el.selectionEnd;
+        if (s === e) { alert("请先在输入框中选中要打码的文字"); return; }
+        var v = el.value;
+        // 记录区间，然后把选中段替换成 █ 块（原文立即从输入框消失）
+        var masked = "";
+        for (var i = s; i < e; i++) masked += (v[i] === "\n" ? "\n" : MASK_CHAR);
+        el.value = v.slice(0, s) + masked + v.slice(e);
+        // 区间记录为 [s, s+masked.length)
+        if (masked.length) maskRanges.push([s, s + masked.length]);
+        el.focus();
+        el.setSelectionRange(s + masked.length, s + masked.length);
+        autoGrow();
+      });
+
+      /* ===== 发送文件（Base64 存库） ===== */
+      var MAX_FILE = 900 * 1024;   // 约 900KB 原始文件，Base64 后约 1.2MB
+
+      function fmtSize(n) {
+        if (n < 1024) return n + " B";
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+        return (n / 1024 / 1024).toFixed(2) + " MB";
+      }
+      function clearPendingFile() {
+        pendingFile = null;
+        document.getElementById("fileInput").value = "";
+        document.getElementById("attachPreview").style.display = "none";
+        document.getElementById("attachPreview").innerHTML = "";
+      }
+      document.getElementById("fileBtn").addEventListener("click", function () {
+        if (endedState) { alert("本轮对话已结束，无法发送文件"); return; }
+        document.getElementById("fileInput").click();
+      });
+      document.getElementById("fileInput").addEventListener("change", function (e) {
+        var f = e.target.files && e.target.files[0];
+        if (!f) return;
+        if (f.size > MAX_FILE) {
+          alert("文件过大（" + fmtSize(f.size) + "），请选择小于 900KB 的文件。");
+          clearPendingFile();
+          return;
+        }
+        var reader = new FileReader();
+        reader.onload = function () {
+          pendingFile = { name: f.name, size: f.size, type: f.type, data: reader.result };
+          var box = document.getElementById("attachPreview");
+          box.style.display = "block";
+          box.innerHTML = '<div class="ap"><span class="fico" style="width:24px;height:24px;border-radius:6px;background:rgba(79,124,255,.3);display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:700;">FILE</span>'
+            + '<span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(f.name) + '</span>'
+            + '<span class="fsize" style="color:var(--muted); font-size:.75rem;">' + fmtSize(f.size) + '</span>'
+            + '<button id="apDel" title="移除">×</button></div>';
+          document.getElementById("apDel").addEventListener("click", clearPendingFile);
+        };
+        reader.onerror = function () { alert("读取文件失败"); clearPendingFile(); };
+        reader.readAsDataURL(f);
+      });
+
+      /* 渲染消息中的文件 */
+      function fileHtml(f) {
+        if (!f || !f.data) return "";
+        var isImg = /^image\//.test(f.type || "");
+        if (isImg) {
+          return '<img class="att-img" src="' + f.data + '" alt="' + esc(f.name) + '">'
+            + '<a class="file-card" href="' + f.data + '" download="' + esc(f.name) + '">'
+            + '<span class="fico img">IMG</span><span class="fname">' + esc(f.name) + '</span>'
+            + '<span class="fsize">' + fmtSize(f.size || 0) + '</span></a>';
+        }
+        return '<a class="file-card" href="' + f.data + '" download="' + esc(f.name) + '">'
+          + '<span class="fico">FILE</span><span class="fname">' + esc(f.name) + '</span>'
+          + '<span class="fsize">' + fmtSize(f.size || 0) + '</span></a>';
+      }
+
+      /* 输入框自动增高 */
+      function autoGrow() {
+        var el = inputEl();
+        el.style.height = "auto";
+        el.style.height = Math.min(el.scrollHeight, 120) + "px";
+      }
+      inputEl().addEventListener("input", autoGrow);
+
       function send() {
         var input = document.getElementById("msgInput");
         var text = input.value.trim();
-        if (!text || !chatting) return;
+        var hasFile = !!pendingFile;
+        if ((!text && !hasFile) || !chatting) return;
         if (endedState) { alert("本轮对话已结束归档，请先点「开始新对话」"); return; }
         input.disabled = true;
+        var msg = {
+          from: myUID, to: chatting, nick: myNick,
+          text: applyMaskOnSend(text).slice(0, 1000),
+          time: new Date().toISOString()
+        };
+        if (hasFile) {
+          msg.file = { name: pendingFile.name, size: pendingFile.size, type: pendingFile.type, data: pendingFile.data };
+        }
         getDB().then(function (db) {
           db.msgs = db.msgs || [];
-          db.msgs.push({ from: myUID, to: chatting, nick: myNick, text: text.slice(0, 1000), time: new Date().toISOString() });
+          db.msgs.push(msg);
           return saveDB(db).then(function () {
             input.value = "";
             input.disabled = false;
+            clearPendingFile();
+            autoGrow();
             renderChat();
           });
-        }).catch(function () { alert("发送失败"); input.disabled = false; });
+        }).catch(function (e) { alert("发送失败，文件可能过大：" + e); input.disabled = false; });
       }
       document.getElementById("sendBtn").addEventListener("click", send);
       document.getElementById("msgInput").addEventListener("keydown", function (e) { if (e.key === "Enter") send(); });
