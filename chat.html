@@ -125,6 +125,7 @@
       <div class="row" style="justify-content:space-between; margin-bottom:.6rem;">
         <b>与 <span id="chatWith" style="color:var(--accent2);"></span> 的对话</b>
         <span style="flex:1;"></span>
+        <button class="btn" id="newConvBtn" style="display:none; padding:.35rem .9rem; font-size:.82rem;">开始新对话</button>
         <a class="back" id="endBtn" style="color:#ff6b6b;">结束聊天</a>
         <span class="back" id="backBtn">← 返回</span>
       </div>
@@ -210,18 +211,25 @@
       /* 结束聊天：生成10位编号归档，全站可查 */
       document.getElementById("endBtn").addEventListener("click", function () {
         if (!chatting) return;
-        if (!confirm("结束后对话将归档为全站可见的公开记录，且不能再发送消息。确定结束？")) return;
+        if (!confirm("结束后本轮对话将归档为全站可见的公开记录，确定结束？\n（结束后仍可重新发起新对话）")) return;
         getDB().then(function (db) {
           db.sessions = db.sessions || {};
           var key = pairKey(myUID, chatting);
-          if (db.sessions[key] && db.sessions[key].id) {
-            alert("该对话已结束，编号：" + db.sessions[key].id);
+          var prev = db.sessions[key];
+          if (prev && prev.ended) {
+            alert("本轮对话已结束，编号：" + prev.id + "\n如需继续交流，请点「开始新对话」。");
             return;
           }
           var id;
           do { id = String(Math.floor(1000000000 + Math.random() * 9000000000)); }
           while (Object.keys(db.sessions).some(function (k) { return db.sessions[k].id === id; }));
-          db.sessions[key] = { id: id, uids: [myUID, chatting], ended: true, time: new Date().toISOString() };
+          // 记录本轮起止，旧消息仍按编号可查；ended=false 表示已归档但仍可开启下一轮
+          db.sessions[key] = {
+            id: id, uids: [myUID, chatting], ended: true,
+            time: new Date().toISOString(),
+            endedAt: new Date().toISOString(),
+            startedAt: (prev && prev.startedAt) || null
+          };
           return saveDB(db).then(function () {
             alert("对话已结束并归档！\n聊天编号：" + id + "\n任何人可在聊天页输入此编号查看记录。");
             endedState = true;
@@ -268,11 +276,16 @@
         if (!chatting) return;
         getDB().then(function (db) {
           var sess = isEnded(db, myUID, chatting);
-          endedState = !!(sess && sess.id);
+          endedState = !!(sess && sess.ended);
+          var newBtn = document.getElementById("newConvBtn");
           document.getElementById("endBtn").style.display = endedState ? "none" : "inline";
+          newBtn.style.display = endedState ? "inline-block" : "none";
           document.getElementById("msgInput").disabled = endedState;
           document.getElementById("sendBtn").disabled = endedState;
-          var notice = endedState ? '<p class="tip" style="text-align:center; color:#f5b301;">此对话已结束归档 · 编号 ' + sess.id + ' · 全站可查询</p>' : "";
+          var notice = endedState
+            ? '<p class="tip" style="text-align:center; color:#f5b301;">本轮对话已结束归档 · 编号 ' + sess.id
+              + ' · 全站可查询<br>如需继续交流，点「开始新对话」开启新一轮</p>'
+            : "";
           var key = pairKey(myUID, chatting);
           var list = (db.msgs || []).filter(function (m) { return pairKey(m.from, m.to) === key; });
           var win = document.getElementById("chatWin");
@@ -285,11 +298,29 @@
           win.scrollTop = win.scrollHeight;
         });
       }
+      /* 开始新对话：解除归档标记，开启新一轮（旧消息仍可按编号查询） */
+      document.getElementById("newConvBtn").addEventListener("click", function () {
+        if (!chatting) return;
+        if (!confirm("开启新一轮对话？\n本轮消息将从头开始，之前的记录仍可通过旧编号查询。")) return;
+        getDB().then(function (db) {
+          db.sessions = db.sessions || {};
+          var key = pairKey(myUID, chatting);
+          if (db.sessions[key]) {
+            db.sessions[key].ended = false;
+            db.sessions[key].restartedAt = new Date().toISOString();
+          }
+          return saveDB(db).then(function () {
+            endedState = false;
+            renderChat();
+            document.getElementById("msgInput").focus();
+          });
+        });
+      });
       function send() {
         var input = document.getElementById("msgInput");
         var text = input.value.trim();
         if (!text || !chatting) return;
-        if (endedState) { alert("该对话已结束归档，不能再发送消息"); return; }
+        if (endedState) { alert("本轮对话已结束归档，请先点「开始新对话」"); return; }
         input.disabled = true;
         getDB().then(function (db) {
           db.msgs = db.msgs || [];
