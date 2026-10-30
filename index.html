@@ -175,7 +175,8 @@
   .modal-mask {
     position: fixed; inset: 0; z-index: 20;
     background: rgba(0,0,0,.6);
-    display: none; align-items: center; justify-content: center;
+    display: none; align-items: flex-start; justify-content: center;
+    overflow-y: auto; padding: 0 0 4vh;
   }
   .modal-mask.show { display: flex; }
   .modal {
@@ -213,6 +214,101 @@
     background: none; border: none;
   }
   .modal .close:hover { color: var(--text); }
+
+  /* ===== 管理后台 ===== */
+  .admin-panel {
+    background: #141a30;
+    border: 1px solid rgba(79,124,255,.35);
+    border-radius: 16px;
+    width: min(880px, 94vw);
+    display: flex; flex-direction: column;
+    align-self: flex-start;
+    margin-top: 5vh;
+    overflow: hidden;
+    transition: background .35s ease;
+  }
+  html[data-theme="light"] .admin-panel { background: #fff; border-color: rgba(79,124,255,.25); }
+  .admin-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.4rem;
+    border-bottom: 1px solid rgba(128,150,200,.18);
+    flex-shrink: 0;
+  }
+  .admin-head h3 { font-size: 1.05rem; }
+  .admin-x {
+    background: none; border: none; cursor: pointer;
+    color: var(--muted); font-size: 1.5rem; line-height: 1;
+    padding: 0 .3rem; border-radius: 6px; transition: color .2s, background .2s;
+  }
+  .admin-x:hover { color: var(--text); background: rgba(128,150,200,.12); }
+  .admin-body { display: flex; min-height: 0; }
+  .admin-tabs {
+    width: 156px; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: .25rem;
+    padding: .9rem .6rem;
+    border-right: 1px solid rgba(128,150,200,.18);
+    background: rgba(128,150,200,.04);
+  }
+  .admin-tab {
+    text-align: left; background: none; border: none; cursor: pointer;
+    color: var(--muted); font-size: .87rem; font-family: inherit;
+    padding: .6rem .75rem; border-radius: 9px;
+    transition: background .18s, color .18s;
+    white-space: nowrap;
+  }
+  .admin-tab:hover { background: rgba(79,124,255,.1); color: var(--text); }
+  .admin-tab.active {
+    background: rgba(79,124,255,.18); color: var(--accent2); font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--accent2);
+  }
+  .admin-main { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-start; padding: 1rem 1.2rem; overflow: hidden; }
+  .admin-pane { display: none; flex-direction: column; min-height: 0; width: 100%; justify-content: flex-start; max-width: none; margin: 0; padding: 0; }
+  .admin-pane.active { display: flex; }
+  .admin-toolbar { display: flex; align-items: center; gap: .7rem; margin-bottom: .8rem; flex-shrink: 0; width: 100%; }
+  .admin-search {
+    flex: 1; min-width: 0;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(79,124,255,.3);
+    border-radius: 9px; color: var(--text);
+    padding: .55rem .85rem; font-size: .88rem; font-family: inherit; outline: none;
+    transition: border-color .2s, background .35s ease;
+  }
+  html[data-theme="light"] .admin-search { background: rgba(0,0,0,.04); }
+  .admin-search:focus { border-color: var(--accent2); }
+  .admin-count { color: var(--muted); font-size: .78rem; flex-shrink: 0; }
+  .admin-hint { color: var(--muted); font-size: .84rem; line-height: 1.8; margin-bottom: .8rem; }
+  .admin-scroll { max-height: 46vh; min-height: 100px; overflow: auto; }
+  .admin-list { font-size: .86rem; line-height: 1.9; }
+  .admin-row {
+    display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+    padding: .55rem .2rem;
+    border-bottom: 1px solid rgba(128,150,200,.12);
+  }
+  .admin-row:last-child { border-bottom: none; }
+  .admin-row .r-main { flex: 1; min-width: 180px; }
+  .admin-row .r-email { color: var(--muted); font-size: .78rem; font-family: ui-monospace, Consolas, monospace; }
+  .admin-row .r-ops { display: flex; gap: .55rem; flex-shrink: 0; font-size: .8rem; }
+  .admin-row .r-ops a { cursor: pointer; text-decoration: none; }
+  .admin-pager { display: flex; align-items: center; justify-content: center; gap: .4rem; padding-top: .7rem; flex-shrink: 0; }
+  .pg-btn {
+    background: rgba(255,255,255,.05); border: 1px solid rgba(128,150,200,.25);
+    color: var(--muted); border-radius: 7px; cursor: pointer;
+    font-size: .8rem; font-family: inherit; padding: .28rem .6rem; min-width: 30px;
+    transition: background .18s, color .18s;
+  }
+  html[data-theme="light"] .pg-btn { background: rgba(0,0,0,.04); }
+  .pg-btn:hover:not(:disabled) { color: var(--accent2); border-color: var(--accent2); }
+  .pg-btn.active { background: rgba(79,124,255,.2); color: var(--accent2); border-color: var(--accent2); }
+  .pg-btn:disabled { opacity: .35; cursor: default; }
+  .admin-empty { color: var(--muted); text-align: center; padding: 2rem 0; font-size: .86rem; }
+
+  @media (max-width: 640px) {
+    .admin-panel { max-height: 92vh; width: 96vw; }
+    .admin-body { flex-direction: column; }
+    .admin-tabs { width: 100%; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid rgba(128,150,200,.18); padding: .5rem; gap: .3rem; }
+    .admin-tab { padding: .45rem .65rem; font-size: .8rem; }
+    .admin-main { padding: .8rem; }
+  }
 
   /* 区块滚动渐显 */
   .reveal { opacity: 0; transform: translateY(24px); transition: opacity .6s ease, transform .6s ease; }
@@ -264,30 +360,70 @@
   </header>
 
   <div class="modal-mask" id="adminModal">
-    <div class="modal" style="max-width:520px; text-align:left;">
-      <h3 style="text-align:center;">账号管理</h3>
-      <div id="adminList" style="max-height:260px; overflow:auto; font-size:.85rem; line-height:2;"></div>
-      <hr style="border:none; border-top:1px solid rgba(255,255,255,.12); margin:1rem 0;">
-      <h3 style="font-size:1rem; text-align:center;">分发新账号</h3>
-      <input class="auth-input" id="admEmail" type="email" placeholder="邮箱（ID）">
-      <input class="auth-input" id="admPass" type="password" placeholder="初始密码（至少6位）">
-      <input class="auth-input" id="admNick" type="text" placeholder="昵称">
-      <input class="auth-input" id="admTitle" type="text" placeholder="头衔（可选，输入文字，如：成员 / 设计师）" maxlength="10">
-      <input class="auth-input" id="admUID" type="text" placeholder="UID（8位数字，留空自动生成）" maxlength="8">
-      <p id="admStatus" style="color:var(--muted); font-size:.85rem; min-height:1.2em;"></p>
-      <div class="auth-btns"><button class="auth-btn" id="admCreate">创建账号</button></div>
-      <hr style="border:none; border-top:1px solid rgba(255,255,255,.12); margin:1rem 0;">
-      <h3 style="font-size:1rem; text-align:center;">公告管理</h3>
-      <div style="display:flex; gap:.8rem; margin-bottom:.8rem;">
-        <input class="auth-input" id="annInput" type="text" placeholder="输入公告内容（发布后全站显示）" style="flex:1; margin-bottom:0;">
-        <button class="auth-btn" id="annPublish">发布公告</button>
+    <div class="admin-panel">
+      <div class="admin-head">
+        <h3>管理后台</h3>
+        <button class="admin-x" id="admClose" title="关闭">×</button>
       </div>
-      <div id="annList" style="max-height:130px; overflow:auto; font-size:.85rem; line-height:1.9; margin-bottom:1rem;"></div>
-      <h3 style="font-size:1rem; text-align:center;">聊天管理</h3>
-      <div id="chatAdminList" style="max-height:130px; overflow:auto; font-size:.85rem; line-height:1.9;"></div>
-      <h3 style="font-size:1rem; text-align:center;">Bug 反馈列表</h3>
-      <div id="bugList" style="max-height:200px; overflow:auto; font-size:.85rem; line-height:1.9;"></div>
-      <button class="close" id="admClose" style="display:block; margin:1rem auto 0;">关闭</button>
+      <div class="admin-body">
+        <aside class="admin-tabs" id="adminTabs">
+          <button class="admin-tab active" data-tab="users">账号管理</button>
+          <button class="admin-tab" data-tab="create">分发账号</button>
+          <button class="admin-tab" data-tab="ann">公告管理</button>
+          <button class="admin-tab" data-tab="chat">聊天管理</button>
+          <button class="admin-tab" data-tab="bug">Bug 反馈</button>
+        </aside>
+
+        <div class="admin-main">
+          <!-- 账号管理 -->
+          <div class="admin-pane active" data-pane="users">
+            <div class="admin-toolbar">
+              <input class="admin-search" id="userSearch" type="search" placeholder="搜索昵称 / 邮箱 / UID / 头衔…">
+              <span class="admin-count" id="userCount"></span>
+            </div>
+            <div class="admin-scroll">
+              <div id="adminList" class="admin-list"></div>
+            </div>
+            <div class="admin-pager" id="userPager"></div>
+          </div>
+
+          <!-- 分发账号 -->
+          <div class="admin-pane" data-pane="create">
+            <p class="admin-hint">创建新账号，可指定头衔（带头衔的账号会出现在首页成员名单）。</p>
+            <input class="auth-input" id="admEmail" type="email" placeholder="邮箱（ID）">
+            <input class="auth-input" id="admPass" type="password" placeholder="初始密码（至少6位）">
+            <input class="auth-input" id="admNick" type="text" placeholder="昵称">
+            <input class="auth-input" id="admTitle" type="text" placeholder="头衔（可选，如：成员 / 设计师）" maxlength="10">
+            <input class="auth-input" id="admUID" type="text" placeholder="UID（8位数字，留空自动生成）" maxlength="8">
+            <p id="admStatus" class="admin-hint"></p>
+            <button class="auth-btn" id="admCreate">创建账号</button>
+          </div>
+
+          <!-- 公告 -->
+          <div class="admin-pane" data-pane="ann">
+            <div class="admin-toolbar">
+              <input class="auth-input" id="annInput" type="text" placeholder="输入公告内容（发布后全站显示）" style="flex:1; margin-bottom:0;">
+              <button class="auth-btn" id="annPublish">发布</button>
+            </div>
+            <div class="admin-scroll"><div id="annList" class="admin-list"></div></div>
+          </div>
+
+          <!-- 聊天 -->
+          <div class="admin-pane" data-pane="chat">
+            <div class="admin-scroll"><div id="chatAdminList" class="admin-list"></div></div>
+          </div>
+
+          <!-- Bug 反馈 -->
+          <div class="admin-pane" data-pane="bug">
+            <div class="admin-toolbar">
+              <input class="admin-search" id="bugSearch" type="search" placeholder="搜索提交人 / 内容 / 联系方式…">
+              <span class="admin-count" id="bugCount"></span>
+            </div>
+            <div class="admin-scroll"><div id="bugList" class="admin-list"></div></div>
+            <div class="admin-pager" id="bugPager"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -584,24 +720,82 @@
           });
         });
       });
+      /* ===== 管理后台：Tab / 搜索 / 分页 ===== */
+      var PAGE_SIZE = 6;
+      var userPage = 1, bugPage = 1;
+      var userData = {}, bugData = [];
+
+      function esc(s) {
+        return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+      function scoreMatch(hay, q) {
+        if (!q) return true;
+        return hay.toLowerCase().indexOf(q) !== -1;
+      }
+      function renderPager(box, page, total, onGo) {
+        var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        if (pages <= 1) { box.innerHTML = ""; return; }
+        var html = '<button class="pg-btn" data-pg="' + (page - 1) + '"' + (page <= 1 ? " disabled" : "") + ">‹</button>";
+        for (var i = 1; i <= pages; i++) {
+          if (pages > 7 && i > 2 && i < pages - 1 && Math.abs(i - page) > 1) {
+            if (i === 3) html += '<span class="admin-count">…</span>';
+            continue;
+          }
+          html += '<button class="pg-btn' + (i === page ? " active" : "") + '" data-pg="' + i + '">' + i + "</button>";
+        }
+        html += '<button class="pg-btn" data-pg="' + (page + 1) + '"' + (page >= pages ? " disabled" : "") + ">›</button>";
+        box.innerHTML = html;
+        box.onclick = function (e) {
+          var b = e.target.closest("[data-pg]");
+          if (!b || b.disabled) return;
+          var p = parseInt(b.getAttribute("data-pg"), 10);
+          if (p >= 1 && p <= pages) onGo(p);
+        };
+      }
+
       function renderAdmin() {
         getDB().then(function (db) {
-          var box = document.getElementById("adminList");
-          var rows = Object.keys(db.users || {}).map(function (email) {
-            var u = db.users[email];
-            var banTxt = u.banned ? "解封" : "封禁";
-            var titleHtml = u.title ? " <span style=\"background:#f5b301; color:#1a1a1a; font-size:.68rem; padding:.1rem .4rem; border-radius:999px;\">" + u.title + "</span>" : "";
-            return "<div><b>" + (u.nick || "-") + "</b>" + titleHtml + "（UID: " + (u.uid || "-") + "）"
-              + " <span style=\"color:var(--muted);\">" + email + "</span>"
-              + (u.banned ? " <span style=\"color:#ff6b6b;\">[已封禁]</span>" : "")
-              + " <a href=\"javascript:void(0)\" data-act=\"ban\" data-e=\"" + email + "\" style=\"color:var(--accent2); margin-left:.5rem;\">" + banTxt + "</a>"
-              + " <a href=\"javascript:void(0)\" data-act=\"del\" data-e=\"" + email + "\" style=\"color:#ff6b6b; margin-left:.4rem;\">删除</a>"
-              + " <a href=\"javascript:void(0)\" data-act=\"uid\" data-e=\"" + email + "\" style=\"color:var(--muted); margin-left:.4rem;\">设UID</a>"
-              + "</div>";
-          });
-          box.innerHTML = rows.join("") || "<p style=\"color:var(--muted);\">暂无账号</p>";
+          userData = db.users || {};
+          drawUsers();
         });
       }
+      function drawUsers() {
+        var list = document.getElementById("adminList");
+        var q = (document.getElementById("userSearch").value || "").trim().toLowerCase();
+        var keys = Object.keys(userData).filter(function (email) {
+          var u = userData[email] || {};
+          var hay = [email, u.nick, u.uid, u.title].join(" ");
+          return scoreMatch(hay, q);
+        });
+        var total = keys.length;
+        var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        if (userPage > pages) userPage = pages;
+        var slice = keys.slice((userPage - 1) * PAGE_SIZE, userPage * PAGE_SIZE);
+        document.getElementById("userCount").textContent = q ? ("匹配 " + total + " 个") : ("共 " + total + " 个账号");
+
+        if (!slice.length) {
+          list.innerHTML = '<p class="admin-empty">' + (q ? "没有匹配的账号" : "暂无账号") + "</p>";
+        } else {
+          list.innerHTML = slice.map(function (email) {
+            var u = userData[email] || {};
+            var titleHtml = u.title ? ' <span class="badge-title">' + esc(u.title) + "</span>" : "";
+            var banTxt = u.banned ? "解封" : "封禁";
+            var ghTag = u.gh ? ' <span class="admin-count">GitHub</span>' : "";
+            return '<div class="admin-row">'
+              + '<div class="r-main"><b>' + esc(u.nick || "-") + "</b>" + titleHtml + ghTag
+              + ' <span class="admin-count">UID: ' + esc(u.uid || "-") + "</span>"
+              + (u.banned ? ' <span style="color:#ff6b6b;">[已封禁]</span>' : "")
+              + '<div class="r-email">' + esc(email) + "</div></div>"
+              + '<div class="r-ops">'
+              + '<a data-act="ban" data-e="' + esc(email) + '" style="color:var(--accent2);">' + banTxt + "</a>"
+              + '<a data-act="uid" data-e="' + esc(email) + '" style="color:var(--muted);">设UID</a>'
+              + '<a data-act="del" data-e="' + esc(email) + '" style="color:#ff6b6b;">删除</a>'
+              + "</div></div>";
+          }).join("");
+        }
+        renderPager(document.getElementById("userPager"), userPage, total, function (p) { userPage = p; drawUsers(); });
+      }
+      document.getElementById("userSearch").addEventListener("input", function () { userPage = 1; drawUsers(); });
       document.getElementById("adminList").addEventListener("click", function (e) {
         var t = e.target.getAttribute("data-act") ? e.target : null;
         if (!t) return;
@@ -659,7 +853,13 @@
           });
         });
       });
-      adminBtn.addEventListener("click", function () { renderAdmin(); renderBugList(); renderAnn(); renderChatAdmin(); adminMask.classList.add("show"); });
+      adminBtn.addEventListener("click", function () {
+        userPage = 1; bugPage = 1;
+        var firstTab = document.querySelector('.admin-tab[data-tab="users"]');
+        if (firstTab) firstTab.click();
+        renderAdmin(); renderBugList(); renderAnn(); renderChatAdmin();
+        adminMask.classList.add("show");
+      });
       /* ===== 公告 ===== */
       var ANN_DB = "https://textdb.dev/api/data/blueprintstudio-announce-2026";
       function getAnns() {
@@ -763,25 +963,63 @@
       });
       function renderBugList() {
         getBugs().then(function (db) {
-          var box = document.getElementById("bugList");
-          var list = db.bugs || [];
-          if (!list.length) { box.innerHTML = '<p style="color:var(--muted);">暂无反馈</p>'; return; }
-          box.innerHTML = list.map(function (b, i) {
-            return '<div style="border-bottom:1px solid rgba(255,255,255,.08); padding:.4rem 0;">'
-              + '<b>' + b.who.replace(/</g, "&lt;") + '</b> <span style="color:var(--muted);">' + b.time.slice(0, 16).replace("T", " ") + "</span>"
-              + (b.contact ? " <span style=\"color:var(--accent2);\">联系:" + b.contact.replace(/</g, "&lt;") + "</span>" : "")
-              + ' <a href="javascript:void(0)" data-bugdel="' + i + '" style="color:#ff6b6b; float:right;">删除</a><br>'
-              + '<span style="color:var(--muted);">' + b.text.replace(/</g, "&lt;") + "</span></div>";
-          }).join("");
+          bugData = db.bugs || [];
+          drawBugs();
         });
       }
+      function drawBugs() {
+        var box = document.getElementById("bugList");
+        var q = (document.getElementById("bugSearch").value || "").trim().toLowerCase();
+        var items = bugData.map(function (b, i) { return { b: b, i: i }; }).filter(function (o) {
+          var hay = [o.b.who, o.b.text, o.b.contact].join(" ");
+          return scoreMatch(hay, q);
+        });
+        var total = items.length;
+        var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        if (bugPage > pages) bugPage = pages;
+        var slice = items.slice((bugPage - 1) * PAGE_SIZE, bugPage * PAGE_SIZE);
+        document.getElementById("bugCount").textContent = q ? ("匹配 " + total + " 条") : ("共 " + total + " 条");
+
+        if (!slice.length) {
+          box.innerHTML = '<p class="admin-empty">' + (q ? "没有匹配的反馈" : "暂无反馈") + "</p>";
+        } else {
+          box.innerHTML = slice.map(function (o) {
+            var b = o.b;
+            return '<div class="admin-row" style="display:block;">'
+              + '<div style="display:flex; align-items:center; gap:.5rem;">'
+              + "<b>" + esc(b.who) + "</b>"
+              + '<span class="admin-count">' + esc(String(b.time || "").slice(0, 16).replace("T", " ")) + "</span>"
+              + (b.contact ? '<span style="color:var(--accent2); font-size:.78rem;">联系: ' + esc(b.contact) + "</span>" : "")
+              + '<a data-bugdel="' + o.i + '" style="color:#ff6b6b; margin-left:auto; cursor:pointer; font-size:.8rem;">删除</a>'
+              + "</div>"
+              + '<div style="color:var(--muted); font-size:.82rem; margin-top:.25rem; white-space:pre-wrap;">' + esc(b.text) + "</div>"
+              + "</div>";
+          }).join("");
+        }
+        renderPager(document.getElementById("bugPager"), bugPage, total, function (p) { bugPage = p; drawBugs(); });
+      }
+      document.getElementById("bugSearch").addEventListener("input", function () { bugPage = 1; drawBugs(); });
       document.getElementById("bugList").addEventListener("click", function (e) {
         var i = e.target.getAttribute("data-bugdel");
         if (i === null) return;
+        if (!confirm("确定删除这条反馈？")) return;
         getBugs().then(function (db) {
           db.bugs.splice(parseInt(i, 10), 1);
           return fetch(BUG_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(renderBugList);
         });
+      });
+
+      /* ===== Tab 切换 ===== */
+      document.getElementById("adminTabs").addEventListener("click", function (e) {
+        var btn = e.target.closest(".admin-tab");
+        if (!btn) return;
+        var tab = btn.getAttribute("data-tab");
+        document.querySelectorAll(".admin-tab").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        document.querySelectorAll(".admin-pane").forEach(function (p) {
+          p.classList.toggle("active", p.getAttribute("data-pane") === tab);
+        });
+        var focusMap = { users: "userSearch", bug: "bugSearch" };
+        if (focusMap[tab]) setTimeout(function () { document.getElementById(focusMap[tab]).focus(); }, 30);
       });
       document.getElementById("admClose").addEventListener("click", function () { adminMask.classList.remove("show"); });
 
