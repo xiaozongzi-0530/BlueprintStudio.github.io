@@ -205,13 +205,15 @@
   </main>
   <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
 
+  <script src="crypto.js"></script>
   <script>
     (function () {
-      var DB = "https://textdb.dev/api/data/blueprintstudio-chat-2026";
-      var USER_DB = "https://textdb.dev/api/data/blueprintstudio-users-2026";
+      var DB = "https://textdb.dev/api/data/blueprintstudio-chat-v2";
+      var USER_DB = "https://textdb.dev/api/data/blueprintstudio-users-v2";
       var me = null, myUID = "", myNick = "", chatting = null, timer = null;
       var maskRanges = [], pendingFile = null, endedState = false;
       var MASK_CHAR = "█";
+      var C = window.BPCrypto;
 
       try { me = JSON.parse(localStorage.getItem("bs_auth") || "null"); } catch (e) {}
       myUID = localStorage.getItem("bs_uid") || "";
@@ -226,12 +228,73 @@
       document.getElementById("startBox").style.display = "block";
       document.getElementById("listBox").style.display = "block";
 
+      /* 拉取并解密整个聊天库。
+         每条消息独立用「双方 UID 对」派生的密钥解密，因此：
+         - 同一对用户的消息共用一把密钥，收发双方都能读；
+         - 第三方 UID 无法解密该消息。 */
+      var _decCache = {};   // 密文 -> 明文 缓存，避免重复解密
+      function decryptMsg(m) {
+        var pid = C.pairContext(m.from, m.to);
+        var tasks = [];
+        var out = {};
+        Object.keys(m).forEach(function (k) { out[k] = m[k]; });
+
+        if (typeof m.text === "string") {
+          if (_decCache[m.text]) { out.text = _decCache[m.text]; }
+          else {
+            tasks.push(C.decrypt(m.text, pid + "|text").then(function (v) {
+              _decCache[m.text] = v; out.text = v;
+            }));
+          }
+        }
+        if (m.file && typeof m.file.data === "string") {
+          var fd = m.file.data;
+          if (_decCache[fd]) { out.file = Object.assign({}, m.file, { data: _decCache[fd] }); }
+          else {
+            tasks.push(C.decrypt(fd, pid + "|file").then(function (v) {
+              _decCache[fd] = v;
+              out.file = Object.assign({}, m.file, { data: v });
+            }));
+          }
+        }
+        return Promise.all(tasks).then(function () { return out; });
+      }
       function getDB() {
         return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
-          .catch(function () { return { msgs: [] }; });
+          .catch(function () { return { msgs: [] }; })
+          .then(function (db) {
+            var raw = (db && db.msgs) || [];
+            return Promise.all(raw.map(decryptMsg)).then(function (list) {
+              return { msgs: list, sessions: (db && db.sessions) || {} };
+            });
+          });
+      }
+      /* 保存：把明文消息重新加密后写入 */
+      function encryptMsg(m) {
+        var pid = C.pairContext(m.from, m.to);
+        var copy = {};
+        Object.keys(m).forEach(function (k) { copy[k] = m[k]; });
+        var tasks = [];
+        if (typeof copy.text === "string" && copy.text.indexOf("v2:") !== 0) {
+          var plain = copy.text;
+          tasks.push(C.encrypt(plain, pid + "|text").then(function (v) { copy.text = v; }));
+        }
+        if (copy.file && copy.file.data && String(copy.file.data).indexOf("v2:") !== 0) {
+          var fdata = copy.file.data;
+          var fmeta = {};
+          Object.keys(copy.file).forEach(function (k) { if (k !== "data") fmeta[k] = copy.file[k]; });
+          tasks.push(C.encrypt(fdata, pid + "|file").then(function (v) {
+            fmeta.data = v; copy.file = fmeta;
+          }));
+        }
+        return Promise.all(tasks).then(function () { return copy; });
       }
       function saveDB(db) {
-        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+        var list = (db && db.msgs) || [];
+        return Promise.all(list.map(encryptMsg)).then(function (encList) {
+          var payload = { msgs: encList, sessions: (db && db.sessions) || {} };
+          return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(payload) });
+        });
       }
       function pairKey(a, b) { return [a, b].sort().join("|"); }
       function esc(t) {

@@ -509,6 +509,7 @@
 
   <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
 
+  <script src="crypto.js"></script>
   <script>
     /* ===== 主题切换 ===== */
     (function () {
@@ -542,13 +543,15 @@
       els.forEach(function (e) { io.observe(e); });
     })();
 
-    /* ===== 账号系统：注册/登录/管理员/封禁/注销 ===== */
+    /* ===== 账号系统：注册/登录/管理员/封禁/注销（加密存储 v2） ===== */
     (function () {
-      var DB = "https://textdb.dev/api/data/blueprintstudio-users-2026";
+      var DB = "https://textdb.dev/api/data/blueprintstudio-users-v2";
       var KEY = "bs_auth";
       var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
       var ADMIN_UID = "00000000";
       var BAN_PAGE = "ban.html?email=";
+      var C = window.BPCrypto;
+      var USER_ENC_FIELDS = ["nick", "title"];   // 用户资料中需要加密的字段
 
       /* ---- GitHub OAuth（PKCE）配置 ----
          站点所有者需到 https://github.com/settings/developers 注册一个 OAuth App，
@@ -574,12 +577,35 @@
 
       function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = cls || ""; }
       function isAdmin() { return me === ADMIN_EMAIL; }
+      /* 读取：解密每个用户的昵称/头衔（邮箱作为键保持明文，用于登录定位） */
       function getDB() {
         return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
-          .catch(function () { return { users: {} }; });
+          .catch(function () { return { users: {} }; })
+          .then(function (db) {
+            var users = (db && db.users) || {};
+            var keys = Object.keys(users);
+            return Promise.all(keys.map(function (email) {
+              return C.decryptFields(users[email], USER_ENC_FIELDS, "user|" + email)
+                .then(function (u) { return { email: email, u: u }; });
+            })).then(function (arr) {
+              var out = {};
+              arr.forEach(function (x) { out[x.email] = x.u; });
+              return { users: out };
+            });
+          });
       }
+      /* 写入：加密昵称/头衔后保存 */
       function saveDB(db) {
-        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+        var users = (db && db.users) || {};
+        var keys = Object.keys(users);
+        return Promise.all(keys.map(function (email) {
+          return C.encryptFields(users[email], USER_ENC_FIELDS, "user|" + email)
+            .then(function (u) { return { email: email, u: u }; });
+        })).then(function (arr) {
+          var out = {};
+          arr.forEach(function (x) { out[x.email] = x.u; });
+          return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ users: out }) });
+        });
       }
       function genUID(db) {
         var used = Object.keys((db && db.users) || {}).map(function (k) { return db.users[k].uid; });
@@ -591,11 +617,9 @@
         return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
           .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
       }
+      /* 密码哈希：PBKDF2-SHA256（15万次迭代），比单轮 SHA-256 更能抵抗暴力破解 */
       function hash(email, pass) {
-        return crypto.subtle.digest("SHA-256", new TextEncoder().encode("bs-salt::" + email + "::" + pass))
-          .then(function (b) {
-            return Array.prototype.map.call(new Uint8Array(b), function (x) { return ("0" + x.toString(16)).slice(-2); }).join("");
-          });
+        return C.hashPassword(email, pass);
       }
       function showLogged(info) {
         me = info.email; myInfo = info;
@@ -860,10 +884,29 @@
         renderAdmin(); renderBugList(); renderAnn(); renderChatAdmin();
         adminMask.classList.add("show");
       });
-      /* ===== 公告 ===== */
-      var ANN_DB = "https://textdb.dev/api/data/blueprintstudio-announce-2026";
+      /* ===== 公告（加密存储） ===== */
+      var ANN_DB = "https://textdb.dev/api/data/blueprintstudio-announce-v2";
       function getAnns() {
-        return fetch(ANN_DB + "?t=" + Date.now()).then(function (r) { return r.json(); }).catch(function () { return { anns: [] }; });
+        return fetch(ANN_DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
+          .catch(function () { return { anns: [] }; })
+          .then(function (db) {
+            var list = (db && db.anns) || [];
+            return Promise.all(list.map(function (a) {
+              return C.decrypt(a.text, "announce|text").then(function (t) {
+                return { text: t, time: a.time };
+              });
+            })).then(function (dec) { return { anns: dec }; });
+          });
+      }
+      function saveAnns(db) {
+        var list = (db && db.anns) || [];
+        return Promise.all(list.map(function (a) {
+          return C.encrypt(a.text, "announce|text").then(function (t) {
+            return { text: t, time: a.time };
+          });
+        })).then(function (enc) {
+          return fetch(ANN_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ anns: enc }) });
+        });
       }
       function showAnnBanner() {
         getAnns().then(function (db) {
@@ -891,7 +934,7 @@
         getAnns().then(function (db) {
           db.anns = db.anns || [];
           db.anns.unshift({ text: text.slice(0, 300), time: new Date().toISOString() });
-          return fetch(ANN_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(function () {
+          return saveAnns(db).then(function () {
             document.getElementById("annInput").value = "";
             renderAnn();
             showAnnBanner();
@@ -903,11 +946,11 @@
         if (i === null) return;
         getAnns().then(function (db) {
           db.anns.splice(parseInt(i, 10), 1);
-          return fetch(ANN_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(renderAnn);
+          return saveAnns(db).then(renderAnn);
         });
       });
       /* ===== 聊天管理（删除会话） ===== */
-      var CHAT_DB = "https://textdb.dev/api/data/blueprintstudio-chat-2026";
+      var CHAT_DB = "https://textdb.dev/api/data/blueprintstudio-chat-v2";
       function getChats() {
         return fetch(CHAT_DB + "?t=" + Date.now()).then(function (r) { return r.json(); }).catch(function () { return { msgs: [], sessions: {} }; });
       }
@@ -934,10 +977,33 @@
           return fetch(CHAT_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(renderChatAdmin);
         });
       });
-      /* ===== Bug 反馈 ===== */
-      var BUG_DB = "https://textdb.dev/api/data/blueprintstudio-bugs-2026";
+      /* ===== Bug 反馈（加密存储） ===== */
+      var BUG_DB = "https://textdb.dev/api/data/blueprintstudio-bugs-v2";
+      var BUG_ENC = ["who", "contact", "text"];
+      function bugKey(b) { return "bug|" + (b.bid || "x"); }
       function getBugs() {
-        return fetch(BUG_DB + "?t=" + Date.now()).then(function (r) { return r.json(); }).catch(function () { return { bugs: [] }; });
+        return fetch(BUG_DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
+          .catch(function () { return { bugs: [] }; })
+          .then(function (db) {
+            var list = (db && db.bugs) || [];
+            return Promise.all(list.map(function (b, i) {
+              // 兼容旧数据：无 bid 时用索引兜底
+              var key = b.bid ? ("bug|" + b.bid) : ("bug|idx" + i);
+              return C.decryptFields(b, BUG_ENC, key).then(function (d) {
+                d._idx = i; return d;
+              });
+            })).then(function (dec) { return { bugs: dec }; });
+          });
+      }
+      function saveBugs(db) {
+        var list = (db && db.bugs) || [];
+        return Promise.all(list.map(function (b, i) {
+          // 保证每条反馈有稳定 bid，删除其它条目不影响解密
+          if (!b.bid) b.bid = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+          return C.encryptFields(b, BUG_ENC, "bug|" + b.bid);
+        })).then(function (enc) {
+          return fetch(BUG_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ bugs: enc }) });
+        });
       }
       document.getElementById("bugSend").addEventListener("click", function () {
         var st = document.getElementById("bugStatus");
@@ -950,7 +1016,7 @@
         getBugs().then(function (db) {
           db.bugs = db.bugs || [];
           db.bugs.unshift({ who: who, contact: contact, text: text.slice(0, 3000), time: new Date().toISOString() });
-          return fetch(BUG_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+          return saveBugs(db);
         }).then(function () {
           document.getElementById("bugText").value = "";
           document.getElementById("bugContact").value = "";
@@ -1005,7 +1071,7 @@
         if (!confirm("确定删除这条反馈？")) return;
         getBugs().then(function (db) {
           db.bugs.splice(parseInt(i, 10), 1);
-          return fetch(BUG_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(renderBugList);
+          return saveBugs(db).then(renderBugList);
         });
       });
 
