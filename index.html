@@ -1,9 +1,21 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BlueprintStudio · 蓝图工作室</title>
+<script>
+  /* 首屏即应用主题，避免白屏闪烁 */
+  (function () {
+    try {
+      var t = localStorage.getItem("bs_theme");
+      if (!t) t = (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  })();
+</script>
 <style>
   :root {
     --bg: #0b1020;
@@ -12,12 +24,21 @@
     --text: #e6ebf5;
     --muted: #8a93a8;
   }
+  /* ===== 浅色主题覆盖 ===== */
+  html[data-theme="light"] {
+    --bg: #eef1f8;
+    --text: #1b2235;
+    --muted: #5a6478;
+    --accent: #3b6cff;
+    --accent2: #0bb4d4;
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
     background: var(--bg);
     color: var(--text);
     font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
+    transition: background .35s ease, color .35s ease;
   }
   .grid-bg {
   pointer-events: none;
@@ -37,7 +58,9 @@
     background: rgba(11,16,32,.85);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid rgba(79,124,255,.15);
+    transition: background .35s ease, border-color .35s ease;
   }
+  html[data-theme="light"] header { background: rgba(255,255,255,.88); }
   .brand { font-weight: 700; letter-spacing: .05em; font-size: 1.1rem; text-decoration: none; color: var(--text); }
   .brand span { color: var(--accent2); }
   nav a { color: var(--muted); text-decoration: none; margin-left: 1.5rem; font-size: .95rem; transition: color .2s; }
@@ -52,7 +75,7 @@
     padding: .45rem 1rem;
     border-radius: 999px;
     cursor: pointer;
-    transition: box-shadow .2s;
+    transition: box-shadow .2s, background .2s, color .2s;
   }
   .auth-btn:hover { box-shadow: 0 4px 20px rgba(79,124,255,.3); }
   .user-chip {
@@ -63,6 +86,7 @@
     padding: .3rem .9rem .3rem .35rem;
     font-size: .85rem;
   }
+  html[data-theme="light"] .user-chip { background: rgba(0,0,0,.05); border-color: rgba(0,0,0,.12); }
   .badge-admin {
     background: #f5b301; color: #1a1a1a;
     font-size: .68rem; font-weight: 700;
@@ -84,8 +108,9 @@
     border: 1px solid rgba(79,124,255,.25);
     border-radius: 16px;
     padding: 1.8rem;
-    transition: transform .2s, box-shadow .2s;
+    transition: transform .2s, box-shadow .2s, background .35s ease;
   }
+  html[data-theme="light"] .card { background: rgba(0,0,0,.04); }
   .card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(79,124,255,.18); }
 
   .hero { text-align: center; padding-top: 7rem !important; padding-bottom: 5rem !important; }
@@ -160,7 +185,9 @@
     padding: 2rem;
     max-width: 380px; width: 90%;
     text-align: center;
+    transition: background .35s ease;
   }
+  html[data-theme="light"] .modal { background: #ffffff; border-color: rgba(79,124,255,.3); }
   .modal h3 { margin-bottom: 1rem; }
   .modal p { color: var(--muted); font-size: .9rem; line-height: 1.7; }
   .auth-input {
@@ -173,7 +200,9 @@
     font-size: .95rem;
     margin-bottom: .8rem;
     outline: none;
+    transition: background .35s ease, border-color .2s;
   }
+  html[data-theme="light"] .auth-input { background: rgba(0,0,0,.05); }
   .auth-input:focus { border-color: var(--accent2); }
   #authStatus { color: var(--muted); font-size: .85rem; min-height: 1.2em; }
   #authStatus.err { color: #ff6b6b; }
@@ -184,6 +213,25 @@
     background: none; border: none;
   }
   .modal .close:hover { color: var(--text); }
+
+  /* 区块滚动渐显 */
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* ===== 移动端适配 ===== */
+  @media (max-width: 720px) {
+    header { flex-wrap: wrap; padding: .8rem 1rem; gap: .5rem; }
+    nav { order: 3; width: 100%; display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin-left: 0; }
+    nav a { margin-left: 0; font-size: .85rem; }
+    .auth-area { flex-wrap: wrap; justify-content: flex-end; }
+    section { padding: 3rem 1rem; }
+    .hero { padding-top: 4.5rem !important; }
+    .hero h1 { font-size: 2rem; }
+  }
+  @media (max-width: 420px) {
+    nav a { font-size: .8rem; margin-right: .2rem; }
+    .auth-btn { padding: .4rem .7rem; font-size: .8rem; }
+  }
 </style>
 </head>
 <body>
@@ -201,6 +249,7 @@
       <a href="join.html">加入我们</a>
     </nav>
     <div class="auth-area">
+      <button class="auth-btn" id="themeBtn" title="切换主题">🌙</button>
       <button class="auth-btn" id="adminBtn" style="display:none;">管理</button>
       <button class="auth-btn" id="ghBtn">GitHub 登录</button>
       <button class="auth-btn" id="loginBtn" style="display:none;">登录 / 注册</button>
@@ -257,11 +306,11 @@
     </div>
   </div>
 
+  <main>
     <div id="annBar" style="display:none; position:relative; z-index:1; max-width:1000px; margin:1rem auto 0; padding:.9rem 1.4rem; background:rgba(245,179,1,.12); border:1px solid rgba(245,179,1,.45); border-radius:12px; font-size:.92rem; line-height:1.7;">
       <b style="color:#f5b301;">📢 公告：</b><span id="annText"></span>
     </div>
-  </main>
-  <main>
+
     <section class="hero">
       <h1>Blueprint<em>Studio</em> · 蓝图工作室</h1>
       <p class="slogan">以兴趣为纸，以热爱为笔，<br>一起绘制属于我们的蓝图。</p>
@@ -272,7 +321,7 @@
       <p class="leader-line">工作室室长：小粽子（GitHub: <a href="https://github.com/xiaozongzi-0530" target="_blank" rel="noopener">xiaozongzi-0530</a>）</p>
     </section>
 
-    <section id="about">
+    <section id="about" class="reveal">
       <h2 class="sec">关于<em>我们</em></h2>
       <p class="sec-sub">非商业性质的兴趣工作室，一切活动均为兴趣驱动、免费参与</p>
       <div class="grid3">
@@ -294,7 +343,7 @@
       </div>
     </section>
 
-    <section id="team">
+    <section id="team" class="reveal">
       <h2 class="sec">工作室<em>成员</em></h2>
       <p class="sec-sub">目前的核心成员</p>
       <div class="grid3" id="memberGrid">
@@ -308,9 +357,7 @@
       </div>
     </section>
 
-  </main>
-
-    <section id="bugreport">
+    <section id="bugreport" class="reveal">
       <h2 class="sec">报告 <em>Bug</em></h2>
       <p class="sec-sub">发现网站问题？告诉我们，开发者会尽快修复</p>
       <div class="card" style="max-width:640px; margin:0 auto;">
@@ -327,6 +374,38 @@
   <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
 
   <script>
+    /* ===== 主题切换 ===== */
+    (function () {
+      var themeBtn = document.getElementById("themeBtn");
+      function syncIcon() {
+        var t = document.documentElement.getAttribute("data-theme");
+        themeBtn.textContent = (t === "light") ? "☀️" : "🌙";
+      }
+      themeBtn.addEventListener("click", function () {
+        var cur = document.documentElement.getAttribute("data-theme");
+        var nx = (cur === "light") ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", nx);
+        try { localStorage.setItem("bs_theme", nx); } catch (e) {}
+        syncIcon();
+      });
+      syncIcon();
+    })();
+
+    /* ===== 区块滚动渐显 ===== */
+    (function () {
+      var els = document.querySelectorAll(".reveal");
+      if (!("IntersectionObserver" in window)) {
+        els.forEach(function (e) { e.classList.add("in"); });
+        return;
+      }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
+        });
+      }, { threshold: 0.12 });
+      els.forEach(function (e) { io.observe(e); });
+    })();
+
     /* ===== 账号系统：注册/登录/管理员/封禁/注销 ===== */
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-users-2026";
@@ -334,6 +413,14 @@
       var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
       var ADMIN_UID = "00000000";
       var BAN_PAGE = "ban.html?email=";
+
+      /* ---- GitHub OAuth（PKCE）配置 ----
+         站点所有者需到 https://github.com/settings/developers 注册一个 OAuth App，
+         Authorization callback URL 填本页地址（如 https://xiaozongzi-0530.github.io/BlueprintStudio.github.io/），
+         然后把得到的 Client ID 填到下面。留空时点击按钮会提示去配置。 */
+      var GITHUB_CLIENT_ID = "";
+      var GITHUB_REDIRECT = location.origin + location.pathname;
+
       var loginBtn = document.getElementById("loginBtn");
       var chip = document.getElementById("userChip");
       var nameLink = document.getElementById("userName");
@@ -363,6 +450,10 @@
         var uid;
         do { uid = String(Math.floor(10000000 + Math.random() * 90000000)); } while (used.indexOf(uid) !== -1);
         return uid;
+      }
+      function b64url(buf) {
+        return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
+          .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
       }
       function hash(email, pass) {
         return crypto.subtle.digest("SHA-256", new TextEncoder().encode("bs-salt::" + email + "::" + pass))
@@ -698,13 +789,80 @@
       document.getElementById("doLoginBtn").addEventListener("click", function () { tryAuth("login"); });
       loginBtn.addEventListener("click", function () { mask.classList.add("show"); emailIn.focus(); });
       document.getElementById("modalClose").addEventListener("click", function () { mask.classList.remove("show"); });
-      document.getElementById("ghBtn").addEventListener("click", function () {
-        alert("GitHub 登录正在开发中，敬请期待！");
-      });
+
+      /* ===== GitHub 登录（PKCE 授权码流程，纯前端） ===== */
+      function ghStart() {
+        if (!GITHUB_CLIENT_ID) {
+          alert("GitHub 登录尚未配置：请在 index.html 源码顶部填入 GITHUB_CLIENT_ID（详见注释）。");
+          return;
+        }
+        var verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+        crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)).then(function (h) {
+          var challenge = b64url(h);
+          var state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+          sessionStorage.setItem("gh_v", verifier);
+          sessionStorage.setItem("gh_s", state);
+          var url = "https://github.com/login/oauth/authorize"
+            + "?client_id=" + encodeURIComponent(GITHUB_CLIENT_ID)
+            + "&redirect_uri=" + encodeURIComponent(GITHUB_REDIRECT)
+            + "&scope=" + encodeURIComponent("read:user")
+            + "&state=" + encodeURIComponent(state)
+            + "&code_challenge=" + encodeURIComponent(challenge)
+            + "&code_challenge_method=S256";
+          location.href = url;
+        });
+      }
+      function ghCallback() {
+        var p = new URLSearchParams(location.search);
+        var code = p.get("code");
+        var state = p.get("state");
+        if (!code) return;
+        if (state !== sessionStorage.getItem("gh_s")) {
+          history.replaceState({}, "", GITHUB_REDIRECT);
+          alert("GitHub 登录校验失败（state 不匹配）。");
+          return;
+        }
+        var verifier = sessionStorage.getItem("gh_v");
+        sessionStorage.removeItem("gh_v");
+        sessionStorage.removeItem("gh_s");
+        history.replaceState({}, "", GITHUB_REDIRECT);
+        fetch("https://github.com/login/oauth/access_token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({ client_id: GITHUB_CLIENT_ID, code: code, code_verifier: verifier })
+        }).then(function (r) { return r.json(); }).then(function (tok) {
+          if (!tok || !tok.access_token) throw new Error(tok && tok.error_description ? tok.error_description : "未获取到 token");
+          return fetch("https://api.github.com/user", {
+            headers: { Authorization: "token " + tok.access_token, Accept: "application/vnd.github+json" }
+          }).then(function (r) { return r.json(); }).then(function (u) {
+            var gid = "gh:" + u.login;
+            return getDB().then(function (db) {
+              db.users = db.users || {};
+              if (!db.users[gid]) {
+                db.users[gid] = {
+                  id: gid, gh: true, nick: u.name || u.login,
+                  uid: genUID(db), avatar: u.avatar_url, joined: new Date().toISOString()
+                };
+                return saveDB(db).then(function () { return db.users[gid]; });
+              }
+              return db.users[gid];
+            }).then(function (rec) {
+              localStorage.setItem(KEY, JSON.stringify({ email: gid, hash: "gh" }));
+              showLogged({ email: gid, nick: rec.nick, uid: rec.uid, title: rec.title });
+            });
+          });
+        }).catch(function (e) {
+          alert("GitHub 登录失败：" + (e && e.message ? e.message : e));
+        });
+      }
+      document.getElementById("ghBtn").addEventListener("click", ghStart);
+
       logoutBtn.addEventListener("click", logout);
       setInterval(enforceBan, 30000);
       renderMembers();
       (function init() {
+        /* 先处理 GitHub OAuth 回跳 */
+        ghCallback();
         try {
           var s = JSON.parse(localStorage.getItem(KEY) || "null");
           if (s && s.email) {
