@@ -58,6 +58,7 @@
   }
   .btn.ghost { background:transparent; border:1px solid rgba(79,124,255,.5); color:var(--accent2); }
   .row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; }
+  .att-bar + .row { border-top:1px solid rgba(255,255,255,.08); padding-top:.9rem; }
   .note-head { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin-bottom:.6rem; }
   .note-head .nick { font-weight:700; }
   .badge-title, .badge-admin {
@@ -90,6 +91,62 @@
   .empty { color:var(--muted); text-align:center; padding:2rem; }
   .tip { color:var(--muted); font-size:.85rem; }
   .tip a { color:var(--accent2); }
+
+  /* ===== 附件 ===== */
+  .att-bar { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin:.1rem 0 .9rem; }
+  .att-btn {
+    border:1px dashed rgba(79,124,255,.5); background:rgba(79,124,255,.08);
+    color:var(--accent2); font-size:.85rem; cursor:pointer;
+    padding:.45rem .95rem; border-radius:10px;
+    transition:background .2s, border-color .2s;
+  }
+  .att-btn:hover { background:rgba(79,124,255,.18); border-color:var(--accent2); }
+  .att-btn:disabled { opacity:.45; cursor:not-allowed; }
+  .att-hint { color:var(--muted); font-size:.78rem; }
+  .att-list { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:.8rem; }
+  .att-list:empty { display:none; }
+  .ap {
+    display:flex; align-items:center; gap:.5rem;
+    background:rgba(79,124,255,.1); border:1px dashed rgba(79,124,255,.45);
+    border-radius:10px; padding:.35rem .6rem; font-size:.82rem; max-width:100%;
+  }
+  .ap .ico {
+    flex-shrink:0; width:24px; height:24px; border-radius:6px;
+    background:rgba(79,124,255,.32); color:#dbe6ff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:.62rem; font-weight:700; letter-spacing:-.02em;
+  }
+  .ap .ico.img { background:rgba(34,211,238,.32); color:#cffafe; }
+  .ap .nm { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ap .sz { color:var(--muted); font-size:.72rem; flex-shrink:0; }
+  .ap .rm {
+    margin-left:.2rem; background:none; border:none; color:#ff6b6b;
+    cursor:pointer; font-size:1rem; line-height:1; padding:0 .1rem;
+  }
+  /* 笔记正文里的附件展示 */
+  .note-atts { margin-top:.8rem; display:flex; flex-direction:column; gap:.5rem; }
+  .file-card {
+    display:flex; align-items:center; gap:.6rem;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(79,124,255,.35);
+    border-radius:10px; padding:.55rem .8rem;
+    text-decoration:none; color:var(--text); font-size:.86rem; max-width:100%;
+    transition:background .2s, border-color .2s;
+  }
+  .file-card:hover { background:rgba(79,124,255,.16); border-color:var(--accent2); }
+  .file-card .fname { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .file-card .fsize { color:var(--muted); font-size:.75rem; flex-shrink:0; }
+  .file-card .fico {
+    flex-shrink:0; width:26px; height:26px; border-radius:6px;
+    background:rgba(79,124,255,.3); color:#dbe6ff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:.62rem; font-weight:700; letter-spacing:-.02em;
+  }
+  .file-card .fico.img { background:rgba(34,211,238,.3); color:#cffafe; }
+  .note-atts img.att-img {
+    max-width:100%; max-height:320px; border-radius:10px;
+    display:block; border:1px solid rgba(79,124,255,.25); cursor:zoom-in;
+  }
   footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
 </style>
 </head>
@@ -113,6 +170,12 @@
     <div class="card">
       <input type="text" id="noteTitle" placeholder="笔记标题（必填）" maxlength="60">
       <textarea id="noteBody" placeholder="笔记内容（必填）…" maxlength="5000"></textarea>
+      <div class="att-bar">
+        <button class="att-btn" id="attBtn" type="button">＋ 添加附件</button>
+        <input type="file" id="fileInput" multiple style="display:none;">
+        <span class="att-hint" id="attHint">支持图片 / 文档 / 压缩包，单个 ≤ 400KB，最多 3 个</span>
+      </div>
+      <div class="att-list" id="attList"></div>
       <div class="row">
         <input type="text" id="noteGuest" placeholder="游客昵称（已登录可留空）" maxlength="20" style="flex:1; min-width:180px;">
         <button class="btn" id="sendBtn">发布笔记</button>
@@ -160,6 +223,104 @@
         try { return new Date(t).toLocaleString("zh-CN", { hour12: false }); } catch (e) { return t; }
       }
 
+      /* ===== 附件：Base64 存库，随笔记一起保存 ===== */
+      var MAX_FILE = 400 * 1024;      // 单个 400KB
+      var MAX_ATTS = 3;               // 最多 3 个
+      var MAX_TOTAL = 1200 * 1024;    // 一条笔记附件总量 1.2MB（Base64 后约 1.6MB，留余量给 textdb 限制）
+      var pendingAtts = [];
+
+      function fmtSize(n) {
+        if (n < 1024) return n + " B";
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+        return (n / 1024 / 1024).toFixed(2) + " MB";
+      }
+      function attTotal() {
+        return pendingAtts.reduce(function (s, a) { return s + (a.size || 0); }, 0);
+      }
+      /* 下载用文件名：去掉会破坏 HTML 属性的字符 */
+      function safeName(s) { return String(s || "file").replace(/["'<>&]/g, "_"); }
+      function extOf(name) {
+        var m = String(name || "").match(/\.([a-z0-9]{1,5})$/i);
+        return m ? m[1].toUpperCase() : "FILE";
+      }
+      function drawPending() {
+        var box = document.getElementById("attList");
+        box.innerHTML = pendingAtts.map(function (a, i) {
+          var isImg = /^image\//.test(a.type || "");
+          return '<div class="ap">'
+            + '<span class="ico ' + (isImg ? "img" : "") + '">' + (isImg ? "IMG" : extOf(a.name)) + "</span>"
+            + '<span class="nm" title="' + esc(safeName(a.name)) + '">' + esc(a.name) + "</span>"
+            + '<span class="sz">' + fmtSize(a.size) + "</span>"
+            + '<button class="rm" data-rm="' + i + '" title="移除">×</button>'
+            + "</div>";
+        }).join("");
+        document.getElementById("attBtn").disabled = pendingAtts.length >= MAX_ATTS;
+        document.getElementById("attHint").textContent = pendingAtts.length
+          ? "已选 " + pendingAtts.length + "/" + MAX_ATTS + "，共 " + fmtSize(attTotal())
+          : "支持图片 / 文档 / 压缩包，单个 ≤ 400KB，最多 3 个";
+      }
+      document.getElementById("attBtn").addEventListener("click", function () {
+        document.getElementById("fileInput").click();
+      });
+      document.getElementById("fileInput").addEventListener("change", function (e) {
+        var files = Array.prototype.slice.call(e.target.files || []);
+        e.target.value = "";   // 允许再次选择同一文件
+        if (!files.length) return;
+        var queue = files.filter(function (f) {
+          if (pendingAtts.length >= MAX_ATTS) { alert("最多只能添加 " + MAX_ATTS + " 个附件"); return false; }
+          if (f.size > MAX_FILE) { alert("「" + f.name + "」过大（" + fmtSize(f.size) + "），单个附件不能超过 400KB"); return false; }
+          return true;
+        });
+        /* 串行读取，保证顺序与用户选择一致 */
+        var i = 0;
+        (function next() {
+          if (i >= queue.length || pendingAtts.length >= MAX_ATTS) {
+            drawPending();
+            return;
+          }
+          var f = queue[i++];
+          if (attTotal() + f.size > MAX_TOTAL) {
+            alert("附件总量超出 1.2MB，请删掉一些再加");
+            drawPending();
+            return;
+          }
+          var reader = new FileReader();
+          reader.onload = function () {
+            pendingAtts.push({ name: f.name, size: f.size, type: f.type || "", data: reader.result });
+            next();
+          };
+          reader.onerror = function () { alert("读取「" + f.name + "」失败"); next(); };
+          reader.readAsDataURL(f);
+        })();
+      });
+      document.getElementById("attList").addEventListener("click", function (e) {
+        var idx = e.target.getAttribute("data-rm");
+        if (idx === null) return;
+        pendingAtts.splice(Number(idx), 1);
+        drawPending();
+      });
+      /* 渲染笔记里的附件 */
+      function attsHtml(atts) {
+        if (!atts || !atts.length) return "";
+        return '<div class="note-atts">' + atts.map(function (a) {
+          if (!a || !a.data) return "";
+          var isImg = /^image\//.test(a.type || "");
+          var nm = safeName(a.name);
+          if (isImg) {
+            return '<a href="' + a.data + '" target="_blank" rel="noopener">'
+              + '<img class="att-img" src="' + a.data + '" alt="' + esc(nm) + '" loading="lazy">'
+              + "</a>"
+              + '<a class="file-card" href="' + a.data + '" download="' + esc(nm) + '">'
+              + '<span class="fico img">IMG</span><span class="fname">' + esc(a.name) + "</span>"
+              + '<span class="fsize">' + fmtSize(a.size || 0) + "</span></a>";
+          }
+          return '<a class="file-card" href="' + a.data + '" download="' + esc(nm) + '">'
+            + '<span class="fico">' + extOf(a.name) + "</span>"
+            + '<span class="fname">' + esc(a.name) + "</span>"
+            + '<span class="fsize">' + fmtSize(a.size || 0) + "</span></a>";
+        }).join("") + "</div>";
+      }
+
       /* ===== 发布 ===== */
       document.getElementById("sendBtn").addEventListener("click", function () {
         var title = document.getElementById("noteTitle").value.trim();
@@ -178,6 +339,9 @@
             uid: me ? myUID : "",
             title: title.slice(0, 60),
             content: body.slice(0, 5000),
+            atts: pendingAtts.map(function (a) {
+              return { name: a.name, size: a.size, type: a.type, data: a.data };
+            }),
             time: new Date().toISOString(),
             likes: [], dislikes: []
           });
@@ -185,6 +349,8 @@
             document.getElementById("noteTitle").value = "";
             document.getElementById("noteBody").value = "";
             document.getElementById("noteGuest").value = "";
+            pendingAtts = [];
+            drawPending();
             this.disabled = false;
             render();
           }.bind(this));
@@ -217,6 +383,7 @@
               + '<span class="time">' + fmt(n.time) + "</span></div>"
               + '<div class="note-title">' + esc(n.title) + "</div>"
               + '<div class="note-body">' + esc(n.content) + "</div>"
+              + attsHtml(n.atts)
               + '<div class="note-foot">'
               + '<button class="vote ' + (myVote === "up" ? "on-up" : "") + '" data-vote="up" data-id="' + n.id + '">👍 ' + (n.likes || []).length + "</button>"
               + '<button class="vote ' + (myVote === "down" ? "on-down" : "") + '" data-vote="down" data-id="' + n.id + '">👎 ' + (n.dislikes || []).length + "</button>"
