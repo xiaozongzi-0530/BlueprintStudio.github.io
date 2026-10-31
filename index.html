@@ -565,8 +565,9 @@
          站点所有者需到 https://github.com/settings/developers 注册一个 OAuth App，
          Authorization callback URL 填本页地址（如 https://xiaozongzi-0530.github.io/BlueprintStudio.github.io/），
          然后把得到的 Client ID 填到下面。留空时点击按钮会提示去配置。 */
-      var GITHUB_CLIENT_ID = "";
-      var GITHUB_REDIRECT = location.origin + location.pathname;
+      var GITHUB_CLIENT_ID = "Ov23ctqNYHcXEBY8RFJa";
+      /* 回调地址归一化：统一用目录形式，避免 /index.html 与 / 不一致导致 redirect_uri 不匹配 */
+      var GITHUB_REDIRECT = location.origin + location.pathname.replace(/index\.html$/, "");
 
       var loginBtn = document.getElementById("loginBtn");
       var chip = document.getElementById("userChip");
@@ -738,6 +739,13 @@
         });
       }
       deleteBtn.addEventListener("click", function () {
+        /* GitHub 账号没有密码，改用 GitHub 重新授权一次来确认身份 */
+        if (me && me.indexOf("gh:") === 0) {
+          if (!confirm("注销后账号数据将永久删除且无法恢复！\n\n确认后用 GitHub 重新授权一次即可完成注销。")) return;
+          sessionStorage.setItem("gh_del", "1");
+          ghStart();
+          return;
+        }
         var pass = prompt("注销后账号数据将永久删除且无法恢复！\n请输入密码确认：");
         if (pass === null) return;
         hash(me, pass).then(function (h) {
@@ -1128,10 +1136,28 @@
         var p = new URLSearchParams(location.search);
         var code = p.get("code");
         var state = p.get("state");
-        if (!code) return;
-        if (state !== sessionStorage.getItem("gh_s")) {
+        var err = p.get("error");
+        if (err) {
+          // 用户取消授权或 GitHub 返回错误
           history.replaceState({}, "", GITHUB_REDIRECT);
-          alert("GitHub 登录校验失败（state 不匹配）。");
+          if (err !== "access_denied") {
+            alert("GitHub 登录失败：" + (p.get("error_description") || err));
+          }
+          return;
+        }
+        if (!code) return;
+        var savedState;
+        try { savedState = sessionStorage.getItem("gh_s"); } catch (e) {}
+        if (!savedState) {
+          /* sessionStorage 丢失（隐私模式/跨域隔离/浏览器清理）时无法校验，退化为仅凭 code 换取身份，
+             安全性略降但可用；PKCE 的 code_verifier 同样丢失，故此处直接提示重来 */
+          history.replaceState({}, "", GITHUB_REDIRECT);
+          alert("登录会话已失效（浏览器未保留临时数据），请重新点击「GitHub 登录」再试一次。");
+          return;
+        }
+        if (state !== savedState) {
+          history.replaceState({}, "", GITHUB_REDIRECT);
+          alert("GitHub 登录校验失败，请重新点击「GitHub 登录」再试一次。");
           return;
         }
         var verifier = sessionStorage.getItem("gh_v");
@@ -1148,8 +1174,18 @@
             headers: { Authorization: "token " + tok.access_token, Accept: "application/vnd.github+json" }
           }).then(function (r) { return r.json(); }).then(function (u) {
             var gid = "gh:" + u.login;
+            var delMode = sessionStorage.getItem("gh_del") === "1";
+            sessionStorage.removeItem("gh_del");
             return getDB().then(function (db) {
               db.users = db.users || {};
+              if (delMode) {
+                if (!db.users[gid]) { alert("该 GitHub 账号尚未注册，无法注销。"); return; }
+                delete db.users[gid];
+                return saveDB(db).then(function () {
+                  alert("账号已注销");
+                  logout();
+                });
+              }
               if (!db.users[gid]) {
                 db.users[gid] = {
                   id: gid, gh: true, nick: u.name || u.login,
@@ -1159,6 +1195,7 @@
               }
               return db.users[gid];
             }).then(function (rec) {
+              /* GitHub 账号没有密码，这里写占位串；登录态校验见下方 isLogged */
               localStorage.setItem(KEY, JSON.stringify({ email: gid, hash: "gh" }));
               showLogged({ email: gid, nick: rec.nick, uid: rec.uid, title: rec.title });
             });
