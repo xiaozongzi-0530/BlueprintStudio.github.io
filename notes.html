@@ -27,6 +27,7 @@
   .brand span { color:var(--accent2); }
   nav a { color:var(--muted); text-decoration:none; margin-left:1.5rem; font-size:.95rem; }
   nav a:hover, nav a.active { color:var(--accent2); }
+  nav a:focus { outline:none; }
   main { position:relative; z-index:1; max-width:800px; margin:0 auto; padding:2.5rem 1.5rem; }
   h1 { font-size:1.7rem; margin-bottom:.4rem; }
   h1 em {
@@ -94,6 +95,13 @@
   .cmt-row input { flex:1; }
   .cmt-send { border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; padding:.5rem 1.1rem; border-radius:10px; font-size:.85rem; }
   .empty { color:var(--muted); text-align:center; padding:2rem; }
+  /* 刚发布的那条笔记短暂高亮 */
+  @keyframes flashNew {
+    0%, 100% { box-shadow:0 0 0 0 rgba(34,211,238,0); }
+    25% { box-shadow:0 0 0 3px rgba(34,211,238,.65); }
+    60% { box-shadow:0 0 0 3px rgba(34,211,238,.25); }
+  }
+  .card.flash { animation:flashNew 2.2s ease; }
   .tip { color:var(--muted); font-size:.85rem; }
   .tip a { color:var(--accent2); }
 
@@ -164,6 +172,7 @@
       <a href="forum.html">论坛</a>
       <a href="chat.html">聊天</a>
       <a href="notes.html" class="active">笔记</a>
+      <a href="note-new.html">写笔记</a>
       <a href="ann.html">公告</a>
       <a href="join.html">加入我们</a>
     </nav>
@@ -172,24 +181,9 @@
     <h1>共享<em>笔记</em></h1>
     <p class="sub">所有人都可以写笔记，分享知识、记录灵感。👍 赞同 · 👎 拉踩，看看大家最认可哪些内容。</p>
 
-    <div class="card">
-      <input type="text" id="noteTitle" placeholder="笔记标题（必填）" maxlength="60">
-      <textarea id="noteBody" placeholder="笔记内容（必填）…" maxlength="5000"></textarea>
-      <div class="att-bar">
-        <button class="att-btn" id="attBtn" type="button">＋ 添加附件</button>
-        <input type="file" id="fileInput" multiple style="display:none;">
-        <span class="att-hint" id="attHint">支持图片 / 文档 / 压缩包，单个 ≤ 400KB，最多 3 个</span>
-      </div>
-      <div class="att-list" id="attList"></div>
-      <div class="row" style="justify-content:flex-end;">
-        <button class="btn" id="sendBtn">发布笔记</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <input type="text" id="searchBox" placeholder="🔍 搜索笔记（标题 / 内容 / 作者）" style="flex:1;">
-      </div>
+    <div class="card" style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+      <input type="text" id="searchBox" placeholder="🔍 搜索笔记（标题 / 内容 / 作者）" style="flex:1; min-width:200px;">
+      <a class="btn" id="writeBtn" href="note-new.html" style="text-decoration:none; white-space:nowrap;">✎ 写笔记</a>
     </div>
 
     <div id="noteList"></div>
@@ -235,19 +229,11 @@
         try { return new Date(t).toLocaleString("zh-CN", { hour12: false }); } catch (e) { return t; }
       }
 
-      /* ===== 附件：Base64 存库，随笔记一起保存 ===== */
-      var MAX_FILE = 400 * 1024;      // 单个 400KB
-      var MAX_ATTS = 3;               // 最多 3 个
-      var MAX_TOTAL = 1200 * 1024;    // 一条笔记附件总量 1.2MB（Base64 后约 1.6MB，留余量给 textdb 限制）
-      var pendingAtts = [];
-
+      /* ===== 附件展示（选择与上传在 note-new.html 编写页） ===== */
       function fmtSize(n) {
         if (n < 1024) return n + " B";
         if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
         return (n / 1024 / 1024).toFixed(2) + " MB";
-      }
-      function attTotal() {
-        return pendingAtts.reduce(function (s, a) { return s + (a.size || 0); }, 0);
       }
       /* 下载用文件名：去掉会破坏 HTML 属性的字符 */
       function safeName(s) { return String(s || "file").replace(/["'<>&]/g, "_"); }
@@ -255,62 +241,6 @@
         var m = String(name || "").match(/\.([a-z0-9]{1,5})$/i);
         return m ? m[1].toUpperCase() : "FILE";
       }
-      function drawPending() {
-        var box = document.getElementById("attList");
-        box.innerHTML = pendingAtts.map(function (a, i) {
-          var isImg = /^image\//.test(a.type || "");
-          return '<div class="ap">'
-            + '<span class="ico ' + (isImg ? "img" : "") + '">' + (isImg ? "IMG" : extOf(a.name)) + "</span>"
-            + '<span class="nm" title="' + esc(safeName(a.name)) + '">' + esc(a.name) + "</span>"
-            + '<span class="sz">' + fmtSize(a.size) + "</span>"
-            + '<button class="rm" data-rm="' + i + '" title="移除">×</button>'
-            + "</div>";
-        }).join("");
-        document.getElementById("attBtn").disabled = pendingAtts.length >= MAX_ATTS;
-        document.getElementById("attHint").textContent = pendingAtts.length
-          ? "已选 " + pendingAtts.length + "/" + MAX_ATTS + "，共 " + fmtSize(attTotal())
-          : "支持图片 / 文档 / 压缩包，单个 ≤ 400KB，最多 3 个";
-      }
-      document.getElementById("attBtn").addEventListener("click", function () {
-        document.getElementById("fileInput").click();
-      });
-      document.getElementById("fileInput").addEventListener("change", function (e) {
-        var files = Array.prototype.slice.call(e.target.files || []);
-        e.target.value = "";   // 允许再次选择同一文件
-        if (!files.length) return;
-        var queue = files.filter(function (f) {
-          if (pendingAtts.length >= MAX_ATTS) { alert("最多只能添加 " + MAX_ATTS + " 个附件"); return false; }
-          if (f.size > MAX_FILE) { alert("「" + f.name + "」过大（" + fmtSize(f.size) + "），单个附件不能超过 400KB"); return false; }
-          return true;
-        });
-        /* 串行读取，保证顺序与用户选择一致 */
-        var i = 0;
-        (function next() {
-          if (i >= queue.length || pendingAtts.length >= MAX_ATTS) {
-            drawPending();
-            return;
-          }
-          var f = queue[i++];
-          if (attTotal() + f.size > MAX_TOTAL) {
-            alert("附件总量超出 1.2MB，请删掉一些再加");
-            drawPending();
-            return;
-          }
-          var reader = new FileReader();
-          reader.onload = function () {
-            pendingAtts.push({ name: f.name, size: f.size, type: f.type || "", data: reader.result });
-            next();
-          };
-          reader.onerror = function () { alert("读取「" + f.name + "」失败"); next(); };
-          reader.readAsDataURL(f);
-        })();
-      });
-      document.getElementById("attList").addEventListener("click", function (e) {
-        var idx = e.target.getAttribute("data-rm");
-        if (idx === null) return;
-        pendingAtts.splice(Number(idx), 1);
-        drawPending();
-      });
       /* 渲染笔记里的附件 */
       function attsHtml(atts) {
         if (!atts || !atts.length) return "";
@@ -333,44 +263,20 @@
         }).join("") + "</div>";
       }
 
-      /* ===== 发布 ===== */
-      document.getElementById("sendBtn").addEventListener("click", function () {
-        var title = document.getElementById("noteTitle").value.trim();
-        var body = document.getElementById("noteBody").value.trim();
-        if (!title || !body) { alert("标题和内容都要填写哦"); return; }
-        /* 昵称：已登录/游客身份用其昵称；纯浏览者用「游客+ID后4位」 */
-        var nick = myKey ? (myNick || (myKey.indexOf("guest:") === 0 ? ("游客" + myUID.slice(-4)) : myKey.split("@")[0]))
-                         : ("游客" + guestID.slice(-4));
-        this.disabled = true;
-        getDB().then(function (db) {
-          db.notes = db.notes || [];
-          db.notes.unshift({
-            id: Date.now() + "_" + Math.random().toString(36).slice(2, 8),
-            author: myKey,
-            guest: isGuest,
-            nick: nick,
-            uid: myUID,
-            title: title.slice(0, 60),
-            content: body.slice(0, 5000),
-            atts: pendingAtts.map(function (a) {
-              return { name: a.name, size: a.size, type: a.type, data: a.data };
-            }),
-            time: new Date().toISOString(),
-            likes: [], dislikes: []
-          });
-          return saveDB(db).then(function () {
-            document.getElementById("noteTitle").value = "";
-            document.getElementById("noteBody").value = "";
-            pendingAtts = [];
-            drawPending();
-            this.disabled = false;
-            render();
-          }.bind(this));
-        }.bind(this)).catch(function () { alert("发布失败，请稍后再试"); this.disabled = false; }.bind(this));
-      });
-
       /* ===== 搜索 + 渲染 ===== */
       document.getElementById("searchBox").addEventListener("input", render);
+      /* 从编写页跳回来时（?new=<id>），定位并高亮刚发布的那条 */
+      var justNewId = (new URLSearchParams(location.search)).get("new") || "";
+      if (justNewId) history.replaceState({}, "", location.pathname);
+      function flashNew() {
+        if (!justNewId) return;
+        var el = document.getElementById("note-" + justNewId);
+        if (!el) return;
+        el.classList.add("flash");
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(function () { el.classList.remove("flash"); }, 2400);
+        justNewId = "";
+      }
       function render() {
         var kw = document.getElementById("searchBox").value.trim().toLowerCase();
         getDB().then(function (db) {
@@ -381,6 +287,10 @@
           var box = document.getElementById("noteList");
           if (!list.length) {
             box.innerHTML = '<div class="card empty">' + (kw ? "没有匹配的笔记" : "还没有笔记，来写第一篇吧！") + "</div>";
+            if (!kw) {
+              box.innerHTML += '<div style="text-align:center; margin-top:1.2rem;">'
+                + '<a class="btn" href="note-new.html" style="text-decoration:none;">✎ 写第一篇</a></div>';
+            }
             return;
           }
           box.innerHTML = list.map(function (n) {
@@ -391,7 +301,7 @@
             else if (!isAdminN && n.title) badge = '<span class="badge-title">' + esc(n.title) + "</span>";
             var myVote = n.likes.indexOf(myID()) !== -1 ? "up" : (n.dislikes.indexOf(myID()) !== -1 ? "down" : "");
             var canDel = (myKey && (n.author === myKey || myKey === ADMIN_EMAIL));
-            return '<div class="card">'
+            return '<div class="card" id="note-' + n.id + '">'
               + '<div class="note-head"><span class="nick">' + esc(n.nick) + "</span>" + badge
               + '<span class="time">' + fmt(n.time) + "</span></div>"
               + '<div class="note-title">' + esc(n.title) + "</div>"
@@ -410,6 +320,7 @@
               + '<div class="cmt-row"><input type="text" placeholder="写评论…（输入 @昵称 可回复某人）" maxlength="500" data-cmtinput="' + n.id + '"><button class="cmt-send" data-cmtsend="' + n.id + '">发送</button></div>'
               + "</div></div>";
           }).join("");
+          flashNew();
         });
       }
       document.getElementById("noteList").addEventListener("click", function (e) {
