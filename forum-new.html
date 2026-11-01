@@ -144,6 +144,7 @@
   </main>
   <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
 
+  <script src="ratelimit.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-forum-2026";
@@ -210,6 +211,14 @@
       document.getElementById("sendBtn").addEventListener("click", function () {
         var text = document.getElementById("postText").value.trim();
         if (!text && !filesData.length) { alert("内容不能为空"); return; }
+        /* 防刷：游客 10 分钟最多 5 帖，注册用户 1 分钟 5 帖；两次至少间隔 5 秒 */
+        var rl = isGuest
+          ? RLT.hit("forum:guest", 10 * 60 * 1000, 5, 5000)
+          : RLT.hit("forum:user", 60 * 1000, 5, 3000);
+        if (!rl.ok) { alert(rl.msg); return; }
+        /* 相同内容 1 分钟内不允许重复发（防刷屏） */
+        var sc = RLT.sameContent("forum", text, 60000);
+        if (!sc.ok) { alert(sc.msg); return; }
         var btn = this;
         btn.disabled = true; btn.textContent = "发布中…";
         getDB().then(function (db) {
