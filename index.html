@@ -207,6 +207,8 @@
   .auth-input:focus { border-color: var(--accent2); }
   #authStatus { color: var(--muted); font-size: .85rem; min-height: 1.2em; }
   #authStatus.err { color: #ff6b6b; }
+  #guestStatus { color: var(--muted); font-size: .85rem; min-height: 1.2em; }
+  #guestStatus.err { color: #ff6b6b; }
   .auth-btns { display: flex; gap: .8rem; justify-content: center; }
   .modal .close {
     margin-top: 1.2rem; cursor: pointer;
@@ -347,9 +349,11 @@
       <button class="auth-btn" id="themeBtn" title="切换主题">🌙</button>
       <button class="auth-btn" id="adminBtn" style="display:none;">管理</button>
       <button class="auth-btn" id="ghBtn">GitHub 登录</button>
+      <button class="auth-btn" id="guestBtn">游客模式</button>
       <button class="auth-btn" id="loginBtn" style="display:none;">登录 / 注册</button>
       <div class="user-chip" id="userChip" style="display:none;">
         <span class="badge-admin" id="adminBadge" style="display:none;">官方管理员</span>
+        <span class="badge-admin" id="guestBadge" style="display:none; background:rgba(139,147,168,.9); color:#0b1020;">游客</span>
         <a id="userName" href="#" target="_blank" rel="noopener"></a>
         <span id="userUID" style="color:var(--muted); font-size:.75rem;"></span>
         <span class="logout" id="deleteBtn">注销账号</span>
@@ -438,6 +442,33 @@
         <button class="auth-btn" id="doLoginBtn">登 录</button>
       </div>
       <button class="close" id="modalClose">取消</button>
+    </div>
+  </div>
+
+  <!-- 游客模式 -->
+  <div class="modal-mask" id="guestModal">
+    <div class="modal" style="max-width:400px;">
+      <h3>游客模式</h3>
+      <p style="text-align:left; margin-bottom:1rem;">
+        不注册也能发帖、聊天、写笔记。<br>
+        设置一个昵称，系统会随机分配一个 <b>10 位 UID</b> 给你。
+      </p>
+      <input class="auth-input" id="guestNick" type="text" placeholder="昵称（最多12字）" maxlength="12">
+      <div id="guestUIDBox" style="
+        margin-top:.8rem; padding:.7rem 1rem; border-radius:10px;
+        background:rgba(79,124,255,.1); border:1px dashed rgba(79,124,255,.45);
+        font-size:.9rem; color:var(--muted); text-align:left;">
+        你的 UID：<b id="guestUIDVal" style="color:var(--accent2); letter-spacing:.08em;">--------</b>
+        <button class="auth-btn" id="guestReUID" style="padding:.2rem .7rem; font-size:.75rem; margin-left:.5rem;">重新生成</button>
+      </div>
+      <p id="guestStatus" style="text-align:left;"></p>
+      <div class="auth-btns" style="margin-top:1rem;">
+        <button class="auth-btn" id="guestGo">进入</button>
+      </div>
+      <p style="font-size:.78rem; margin-top:.9rem; color:var(--muted);">
+        游客身份只保存在本浏览器，清理缓存后会丢失；聊天记录同样只存在本机。
+      </p>
+      <button class="close" id="guestClose">取消</button>
     </div>
   </div>
 
@@ -576,6 +607,8 @@
       var adminBtn = document.getElementById("adminBtn");
       var logoutBtn = document.getElementById("logoutBtn");
       var deleteBtn = document.getElementById("deleteBtn");
+      var ghBtn = document.getElementById("ghBtn");
+      var guestBtn = document.getElementById("guestBtn");
       var mask = document.getElementById("authModal");
       var adminMask = document.getElementById("adminModal");
       var emailIn = document.getElementById("emailInput");
@@ -583,6 +616,10 @@
       var passIn = document.getElementById("passInput");
       var statusEl = document.getElementById("authStatus");
       var me = null, myInfo = {};
+      /* 游客模式：gs_nick / gs_uid / gs_mode 三个本地键，gs_uid 参与聊天加密的密钥派生 */
+      var GUEST_NICK = "gs_nick", GUEST_UID = "gs_uid", GUEST_MODE = "gs_mode";
+      var guestMask = document.getElementById("guestModal");
+      var guestPendingUID = "";
 
       function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = cls || ""; }
       function isAdmin() { return me === ADMIN_EMAIL; }
@@ -637,17 +674,30 @@
           localStorage.setItem("bs_uid", info.uid || "");
           localStorage.setItem("bs_title", info.title || "");
         } catch (e) {}
-        nameLink.textContent = info.nick || info.email.split("@")[0];
+        nameLink.textContent = info.nick || String(info.email || "").split("@")[0];
         nameLink.title = info.uid ? ("UID: " + info.uid) : "";
         document.getElementById("userUID").textContent = info.uid ? ("UID: " + info.uid) : "";
+        /* 游客点昵称 = 改昵称；注册用户点昵称 = 改昵称（走云端） */
         nameLink.onclick = function (e) { e.preventDefault(); changeNick(); };
         var admin = isAdmin();
         adminBadge.style.display = admin ? "inline-block" : "none";
         adminBtn.style.display = admin ? "inline-block" : "none";
+        document.getElementById("guestBadge").style.display = isGuest() ? "inline-block" : "none";
+        /* 游客不显示「注销账号」，改成「退出游客」 */
+        deleteBtn.style.display = isGuest() ? "none" : "inline";
         loginBtn.style.display = "none";
+        ghBtn.style.display = "none";
+        guestBtn.style.display = "none";
         chip.style.display = "flex";
       }
-      function showLogin() { me = null; loginBtn.style.display = "inline-block"; chip.style.display = "none"; }
+      function isGuest() { return !!me && me.indexOf("guest:") === 0; }
+      function showLogin() {
+        me = null; myInfo = {};
+        loginBtn.style.display = "inline-block";
+        ghBtn.style.display = "inline-block";
+        guestBtn.style.display = "inline-block";
+        chip.style.display = "none";
+      }
       function valid(email, pass) {
         return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && pass.length >= 6;
       }
@@ -706,6 +756,14 @@
         if (nick === null) return;
         nick = nick.trim();
         if (!nick) { alert("昵称不能为空"); return; }
+        if (isGuest()) {
+          /* 游客：只改本地，各页面读取 gs_nick */
+          localStorage.setItem(GUEST_NICK, nick.slice(0, 12));
+          localStorage.setItem("bs_nick", nick.slice(0, 12));
+          myInfo.nick = nick.slice(0, 12);
+          nameLink.textContent = myInfo.nick;
+          return;
+        }
         getDB().then(function (db) {
           if (db.users && db.users[me]) {
             db.users[me].nick = nick.slice(0, 20);
@@ -717,7 +775,17 @@
           }
         });
       }
-      function logout() { localStorage.removeItem(KEY); showLogin(); }
+      function logout() {
+        localStorage.removeItem(KEY);
+        /* 退出游客时一并清掉游客身份，避免下次进聊天页时身份错乱 */
+        localStorage.removeItem(GUEST_MODE);
+        localStorage.removeItem(GUEST_NICK);
+        localStorage.removeItem(GUEST_UID);
+        localStorage.removeItem("bs_nick");
+        localStorage.removeItem("bs_uid");
+        localStorage.removeItem("bs_title");
+        showLogin();
+      }
       /* 带头衔的账号自动进入首页成员名单 */
       function renderMembers() {
         getDB().then(function (db) {
@@ -1206,6 +1274,55 @@
       }
       document.getElementById("ghBtn").addEventListener("click", ghStart);
 
+      /* ===== 游客模式 ===== */
+      /* 生成 10 位数字 UID，首位不为 0，避免与 8 位注册 UID 混淆 */
+      function genGuestUID() {
+        var a = new Uint32Array(1);
+        crypto.getRandomValues(a);
+        var s = String(a[0] % 9000000000 + 1000000000);   // 10 位
+        return s;
+      }
+      function paintGuestUID() {
+        guestPendingUID = genGuestUID();
+        document.getElementById("guestUIDVal").textContent = guestPendingUID;
+      }
+      function openGuest() {
+        var saved = localStorage.getItem(GUEST_NICK) || "";
+        document.getElementById("guestNick").value = saved;
+        document.getElementById("guestStatus").textContent = "";
+        var oldUID = localStorage.getItem(GUEST_UID);
+        if (oldUID && /^\d{10}$/.test(oldUID)) {
+          guestPendingUID = oldUID;
+          document.getElementById("guestUIDVal").textContent = oldUID;
+        } else paintGuestUID();
+        guestMask.classList.add("show");
+        setTimeout(function () { document.getElementById("guestNick").focus(); }, 60);
+      }
+      document.getElementById("guestBtn").addEventListener("click", openGuest);
+      document.getElementById("guestReUID").addEventListener("click", paintGuestUID);
+      document.getElementById("guestClose").addEventListener("click", function () { guestMask.classList.remove("show"); });
+      document.getElementById("guestGo").addEventListener("click", function () {
+        var nick = document.getElementById("guestNick").value.trim();
+        var st = document.getElementById("guestStatus");
+        if (!nick) { st.textContent = "请先填一个昵称"; st.className = "err"; return; }
+        nick = nick.slice(0, 12);
+        try {
+          localStorage.setItem(GUEST_MODE, "1");
+          localStorage.setItem(GUEST_NICK, nick);
+          localStorage.setItem(GUEST_UID, guestPendingUID);
+          /* 各页面统一从 bs_nick / bs_uid 读取，这里同步一份 */
+          localStorage.setItem("bs_nick", nick);
+          localStorage.setItem("bs_uid", guestPendingUID);
+          localStorage.setItem("bs_title", "");
+        } catch (e) {
+          st.textContent = "浏览器禁用了本地存储，无法使用游客模式";
+          st.className = "err";
+          return;
+        }
+        guestMask.classList.remove("show");
+        showLogged({ email: "guest:" + guestPendingUID, nick: nick, uid: guestPendingUID, title: "" });
+      });
+
       logoutBtn.addEventListener("click", logout);
       setInterval(enforceBan, 30000);
       renderMembers();
@@ -1222,7 +1339,18 @@
               if (u.banned) { location.href = BAN_PAGE + encodeURIComponent(s.email); return; }
               showLogged({ email: s.email, nick: u.nick, uid: u.uid, title: u.title });
             });
-          } else showLogin();
+            return;
+          }
+          /* 游客身份恢复（本地保存，不查云端） */
+          if (localStorage.getItem(GUEST_MODE) === "1") {
+            var gn = localStorage.getItem(GUEST_NICK) || "游客";
+            var gu = localStorage.getItem(GUEST_UID) || "";
+            if (/^\d{10}$/.test(gu)) {
+              showLogged({ email: "guest:" + gu, nick: gn, uid: gu, title: "" });
+              return;
+            }
+          }
+          showLogin();
         } catch (e) { showLogin(); }
       })();
     })();
