@@ -98,6 +98,12 @@
   .cmt-row input { flex:1; }
   .cmt-send { border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; padding:.5rem 1.1rem; border-radius:10px; font-size:.85rem; }
   .empty { color:var(--muted); text-align:center; padding:2rem; }
+  @keyframes flashNew {
+    0%, 100% { box-shadow:0 0 0 0 rgba(34,211,238,0); }
+    25% { box-shadow:0 0 0 3px rgba(34,211,238,.65); }
+    60% { box-shadow:0 0 0 3px rgba(34,211,238,.25); }
+  }
+  .card.flash { animation:flashNew 2.2s ease; }
   .tip { color:var(--muted); font-size:.85rem; margin-bottom:1.5rem; line-height:1.8; }
   .tip a { color:var(--accent2); }
   footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
@@ -110,6 +116,7 @@
     <nav>
       <a href="index.html">首页</a>
       <a href="forum.html" class="active">论坛</a>
+      <a href="forum-new.html">发帖</a>
       <a href="chat.html">聊天</a>
       <a href="notes.html">笔记</a>
       <a href="ann.html">公告</a>
@@ -121,17 +128,12 @@
     <p class="sub">分享作品、交流想法、发布文件。违规内容可举报，管理员会处理。</p>
 
     <div class="tip" id="loginTip">
-      ⚠️ 发帖前请先 <a href="index.html">登录 / 注册</a>（首页右上角）。
+      ⚠️ 发帖前请先 <a href="index.html">登录 / 注册</a>（首页右上角），或在首页用「游客模式」进入。
     </div>
 
-    <div class="card" id="postBox" style="display:none;">
-      <textarea id="postText" placeholder="说点什么…（文明发言，禁止违规内容）"></textarea>
-      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:.6rem;">
-        <label class="file-label">📎 添加文件<input type="file" id="postFiles" multiple></label>
-        <button class="btn" id="sendBtn">发布</button>
-      </div>
-      <div class="file-hint">支持多个文件，单个文件最大 300KB（小图片、文档、代码等）</div>
-      <div class="file-hint" id="fileList"></div>
+    <div class="card" style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:1.2rem;">
+      <span class="tip" style="margin:0; flex:1;">浏览全部帖子，点「发帖」写下你的想法。</span>
+      <a class="btn" id="writeBtn" href="forum-new.html" style="text-decoration:none; white-space:nowrap;">✎ 发帖</a>
     </div>
 
     <div id="postList"></div>
@@ -143,8 +145,7 @@
       var DB = "https://textdb.dev/api/data/blueprintstudio-forum-2026";
       var KEY = "bs_auth";
       var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
-      var MAX_FILE = 300 * 1024; /* 单文件300KB */
-      var me = null, myInfo = null, filesData = [];
+      var me = null, myInfo = null;
       /* 游客模式：gs_mode=1 且 gs_uid 为 10 位数字 */
       var gUID = localStorage.getItem("gs_uid") || "";
       var isGuest = localStorage.getItem("gs_mode") === "1" && /^\d{10}$/.test(gUID);
@@ -153,12 +154,10 @@
       if (myInfo && myInfo.email) {
         me = myInfo.email;
         document.getElementById("loginTip").style.display = "none";
-        document.getElementById("postBox").style.display = "block";
       } else if (isGuest) {
         /* 游客：以 guest:<uid> 作为作者标识，和注册邮箱不冲突 */
         me = "guest:" + gUID;
         document.getElementById("loginTip").style.display = "none";
-        document.getElementById("postBox").style.display = "block";
       }
 
       function getDB() {
@@ -175,61 +174,18 @@
         try { return new Date(iso).toLocaleString("zh-CN", { hour12: false }); } catch (e) { return iso; }
       }
 
-      /* ===== 文件选择 ===== */
-      document.getElementById("postFiles").addEventListener("change", function (e) {
-        var fs = Array.prototype.slice.call(e.target.files);
-        filesData = [];
-        var pending = fs.length, done = 0;
-        if (!fs.length) { document.getElementById("fileList").textContent = ""; return; }
-        fs.forEach(function (f) {
-          if (f.size > MAX_FILE) {
-            document.getElementById("fileList").textContent = "「" + f.name + "」超过 300KB，已被忽略";
-            done++;
-            return;
-          }
-          var r = new FileReader();
-          r.onload = function () {
-            filesData.push({ name: f.name, type: f.type || "application/octet-stream", data: r.result });
-            done++;
-            if (done === pending) {
-              document.getElementById("fileList").textContent =
-                "已添加 " + filesData.length + " 个文件：" + filesData.map(function (x) { return x.name; }).join("、");
-            }
-          };
-          r.readAsDataURL(f);
-        });
-      });
-
-      /* ===== 发布 ===== */
-      document.getElementById("sendBtn").addEventListener("click", function () {
-        var text = document.getElementById("postText").value.trim();
-        if (!text && !filesData.length) { alert("内容不能为空"); return; }
-        var btn = this;
-        btn.disabled = true; btn.textContent = "发布中…";
-        getDB().then(function (db) {
-          db.posts = db.posts || [];
-          db.posts.unshift({
-            id: Date.now() + "_" + Math.random().toString(36).slice(2, 8),
-            author: me,
-            guest: isGuest,
-            nick: localStorage.getItem("bs_nick") || (isGuest ? "游客" : myInfo.email.split("@")[0]),
-            uid: localStorage.getItem("bs_uid") || "",
-            title: isGuest ? "" : (localStorage.getItem("bs_title") || ""),
-            content: text.slice(0, 5000),
-            files: filesData,
-            time: new Date().toISOString(),
-            reports: []
-          });
-          return saveDB(db).then(function () {
-            document.getElementById("postText").value = "";
-            filesData = [];
-            document.getElementById("postFiles").value = "";
-            document.getElementById("fileList").textContent = "";
-            btn.disabled = false; btn.textContent = "发布";
-            render();
-          });
-        }).catch(function () { alert("发布失败，请稍后再试"); btn.disabled = false; btn.textContent = "发布"; });
-      });
+      /* 从发帖页跳回来时（?new=<id>），定位并高亮刚发布的帖子 */
+      var justNewId = (new URLSearchParams(location.search)).get("new") || "";
+      if (justNewId) history.replaceState({}, "", location.pathname);
+      function flashNew() {
+        if (!justNewId) return;
+        var el = document.getElementById("post-" + justNewId);
+        if (!el) return;
+        el.classList.add("flash");
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(function () { el.classList.remove("flash"); }, 2400);
+        justNewId = "";
+      }
 
       /* ===== 渲染帖子 ===== */
       function render() {
@@ -237,7 +193,12 @@
           var box = document.getElementById("postList");
           var isAdmin = me === ADMIN_EMAIL;
           var list = (db.posts || []);
-          if (!list.length) { box.innerHTML = '<div class="card empty">还没有帖子，来发第一帖吧！</div>'; return; }
+          if (!list.length) {
+            box.innerHTML = '<div class="card empty">还没有帖子，来发第一帖吧！</div>'
+              + '<div style="text-align:center; margin-top:1.2rem;">'
+              + '<a class="btn" href="forum-new.html" style="text-decoration:none;">✎ 发第一帖</a></div>';
+            return;
+          }
           box.innerHTML = list.map(function (p) {
             var badge = "";
             if (p.author === ADMIN_EMAIL) badge = '<span class="badge-admin">官方管理员</span>';
@@ -249,7 +210,7 @@
             var reportN = (p.reports || []).length;
             var repTxt = isAdmin && reportN ? '<span class="report-badge">被举报 ' + reportN + ' 次</span>' : "";
             var del = isAdmin ? '<a class="del-btn" data-del="' + p.id + '">删除</a>' : "";
-            return '<div class="card">'
+            return '<div class="card" id="post-' + p.id + '">'
               + '<div class="post-head"><span class="nick">' + esc(p.nick) + "</span>" + badge
               + '<span class="time">' + fmtTime(p.time) + "</span></div>"
               + '<div class="post-body">' + esc(p.content) + "</div>"
@@ -265,6 +226,7 @@
               + '<div class="cmt-row"><input type="text" placeholder="写评论…（输入 @昵称 可回复某人）" maxlength="500" data-cmtinput="' + p.id + '"><button class="cmt-send" data-cmtsend="' + p.id + '">发送</button></div>'
               + "</div></div>";
           }).join("");
+          flashNew();
         });
       }
       document.getElementById("postList").addEventListener("click", function (e) {
