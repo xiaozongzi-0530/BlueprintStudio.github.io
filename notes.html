@@ -66,6 +66,11 @@
     font-size:.68rem; font-weight:700;
     padding:.15rem .5rem; border-radius:999px;
   }
+  .badge-guest {
+    background:rgba(139,147,168,.85); color:#0b1020;
+    font-size:.68rem; font-weight:700;
+    padding:.15rem .5rem; border-radius:999px;
+  }
   .note-head .time { color:var(--muted); font-size:.8rem; margin-left:auto; }
   .note-title { font-size:1.1rem; font-weight:700; margin-bottom:.4rem; }
   .note-body { color:var(--text); font-size:.95rem; line-height:1.9; white-space:pre-wrap; word-break:break-word; }
@@ -196,17 +201,25 @@
       var DB = "https://textdb.dev/api/data/blueprintstudio-notes-2026";
       var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
       var me = null, myNick = "", myUID = "", myTitle = "";
+      var myKey = "";   // 统一的作者标识：注册用邮箱，游客用 guest:<10位UID>
       try { me = JSON.parse(localStorage.getItem("bs_auth") || "null"); } catch (e) {}
       myNick = localStorage.getItem("bs_nick") || "";
       myUID = localStorage.getItem("bs_uid") || "";
       myTitle = localStorage.getItem("bs_title") || "";
+      if (me && me.email) myKey = me.email;
       /* 游客身份标识（本地随机，用于点赞去重） */
       var guestID = localStorage.getItem("bs_guest");
       if (!guestID) {
         guestID = "guest_" + Math.random().toString(36).slice(2, 10);
         localStorage.setItem("bs_guest", guestID);
       }
-      function myID() { return me ? me.email : guestID; }
+      /* 首页设置的游客身份：有 10 位 UID 就用它作为作者标识与昵称 */
+      var isGuest = localStorage.getItem("gs_mode") === "1" && /^\d{10}$/.test(myUID);
+      if (isGuest && !myKey) {
+        myKey = "guest:" + myUID;
+        if (!myNick) myNick = localStorage.getItem("gs_nick") || "游客";
+      }
+      function myID() { return myKey || guestID; }
 
       function getDB() {
         return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
@@ -325,17 +338,18 @@
         var title = document.getElementById("noteTitle").value.trim();
         var body = document.getElementById("noteBody").value.trim();
         if (!title || !body) { alert("标题和内容都要填写哦"); return; }
-        /* 昵称：登录用账号昵称；游客用「游客+ID后4位」 */
-        var nick = me ? (myNick || me.email.split("@")[0])
-                      : ("游客" + guestID.slice(-4));
+        /* 昵称：已登录/游客身份用其昵称；纯浏览者用「游客+ID后4位」 */
+        var nick = myKey ? (myNick || (myKey.indexOf("guest:") === 0 ? ("游客" + myUID.slice(-4)) : myKey.split("@")[0]))
+                         : ("游客" + guestID.slice(-4));
         this.disabled = true;
         getDB().then(function (db) {
           db.notes = db.notes || [];
           db.notes.unshift({
             id: Date.now() + "_" + Math.random().toString(36).slice(2, 8),
-            author: me ? me.email : "",
+            author: myKey,
+            guest: isGuest,
             nick: nick,
-            uid: me ? myUID : "",
+            uid: myUID,
             title: title.slice(0, 60),
             content: body.slice(0, 5000),
             atts: pendingAtts.map(function (a) {
@@ -371,11 +385,12 @@
           }
           box.innerHTML = list.map(function (n) {
             var isAdminN = n.author === ADMIN_EMAIL;
-            var badge = isAdminN ? '<span class="badge-admin">官方管理员</span>'
-              : (n.title || (n.author && n.uid) ? "" : "");
-            if (!isAdminN && n.title) badge = '<span class="badge-title">' + esc(n.title) + "</span>";
+            var isGuestN = n.guest || (n.author && String(n.author).indexOf("guest:") === 0);
+            var badge = isAdminN ? '<span class="badge-admin">官方管理员</span>' : "";
+            if (!isAdminN && isGuestN) badge = '<span class="badge-guest">游客</span>';
+            else if (!isAdminN && n.title) badge = '<span class="badge-title">' + esc(n.title) + "</span>";
             var myVote = n.likes.indexOf(myID()) !== -1 ? "up" : (n.dislikes.indexOf(myID()) !== -1 ? "down" : "");
-            var canDel = (me && (n.author === me.email || me.email === ADMIN_EMAIL));
+            var canDel = (myKey && (n.author === myKey || myKey === ADMIN_EMAIL));
             return '<div class="card">'
               + '<div class="note-head"><span class="nick">' + esc(n.nick) + "</span>" + badge
               + '<span class="time">' + fmt(n.time) + "</span></div>"
@@ -409,7 +424,8 @@
           var input = document.querySelector('[data-cmtinput="' + cmtSend + '"]');
           var text = input.value.trim();
           if (!text) { alert("评论不能为空"); return; }
-          var nick = me ? (myNick || me.email.split("@")[0]) : (localStorage.getItem("bs_guest_nick") || (function () {
+          var nick = myKey ? (myNick || (myKey.indexOf("guest:") === 0 ? ("游客" + myUID.slice(-4)) : myKey.split("@")[0]))
+                           : (localStorage.getItem("bs_guest_nick") || (function () {
             var n = prompt("游客请输入昵称："); if (n) localStorage.setItem("bs_guest_nick", n); return n;
           })());
           if (!nick) return;
@@ -417,7 +433,7 @@
             var n = (db.notes || []).find(function (x) { return x.id === cmtSend; });
             if (!n) return;
             n.comments = n.comments || [];
-            n.comments.push({ nick: nick, author: me ? me.email : "", text: text.slice(0, 500), time: new Date().toISOString() });
+            n.comments.push({ nick: nick, author: myKey, text: text.slice(0, 500), time: new Date().toISOString() });
             return saveDB(db).then(render);
           });
           return;
@@ -451,19 +467,19 @@
         }
       });
 
-      /* 未登录时同步一次云端昵称/头衔 */
-      if (me) {
+      /* 已登录用户：同步一次云端昵称/头衔（游客与纯浏览者跳过） */
+      if (myKey && !isGuest) {
         fetch("https://textdb.dev/api/data/blueprintstudio-users-2026?t=" + Date.now())
           .then(function (r) { return r.json(); })
           .then(function (db) {
-            var u = db.users && db.users[me.email];
+            var u = db.users && db.users[myKey];
             if (u) {
               myNick = u.nick || myNick; myUID = u.uid || myUID; myTitle = u.title || "";
               localStorage.setItem("bs_nick", myNick);
               localStorage.setItem("bs_uid", myUID);
               localStorage.setItem("bs_title", myTitle);
             }
-            if (u && u.banned) { location.href = "ban.html?email=" + encodeURIComponent(me.email); return; }
+            if (u && u.banned) { location.href = "ban.html?email=" + encodeURIComponent(myKey); return; }
             render();
           }).catch(render);
       } else render();
