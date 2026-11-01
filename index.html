@@ -1277,14 +1277,62 @@
       /* ===== 游客模式 ===== */
       /* 生成 10 位数字 UID，首位不为 0，避免与 8 位注册 UID 混淆 */
       function genGuestUID() {
-        var a = new Uint32Array(1);
+        var a = new Uint32Array(4);
         crypto.getRandomValues(a);
-        var s = String(a[0] % 9000000000 + 1000000000);   // 10 位
-        return s;
+        /* 用两个 32 位拼成一个 53 位以内的整数，取模后更均匀，避免单次取模的偏差 */
+        var hi = a[0] % 90000;                       // 0..89999
+        var lo = a[1] % 100000;                      // 0..99999
+        return String(1000000000 + hi * 100000 + lo); // 10 位
       }
+
+      /* ---- 游客模式的频率限制 ----
+         说明：这是前端侧的软限制，能挡住「脚本无脑刷游客模式」，
+         但挡不住绕过页面的直接请求。真正的防护只能靠后端。 */
+      var GUEST_RL = "gs_rl";          // 记录格式 { n: 次数, t: 首次时间戳 }
+      var GUEST_RL_WINDOW = 60 * 60 * 1000;  // 1 小时窗口
+      var GUEST_RL_MAX = 5;            // 窗口内最多建 5 次游客身份
+      var GUEST_COOLDOWN = 8 * 1000;   // 两次进入至少间隔 8 秒
+      var GUEST_LAST = "gs_last";
+
+      function rlLoad() {
+        try {
+          var v = JSON.parse(localStorage.getItem(GUEST_RL) || "null");
+          if (!v || typeof v.n !== "number" || typeof v.t !== "number") return null;
+          return v;
+        } catch (e) { return null; }
+      }
+      function rlCheck() {
+        var now = Date.now();
+        /* 1) 冷却时间：防止连点/连发 */
+        var last = Number(localStorage.getItem(GUEST_LAST) || 0);
+        if (last && now - last < GUEST_COOLDOWN) {
+          var wait = Math.ceil((GUEST_COOLDOWN - (now - last)) / 1000);
+          return { ok: false, msg: "操作太频繁，请 " + wait + " 秒后重试" };
+        }
+        /* 2) 窗口计数 */
+        var v = rlLoad();
+        if (v && now - v.t > GUEST_RL_WINDOW) v = null;   // 窗口过期，重置
+        if (v && v.n >= GUEST_RL_MAX) {
+          var mins = Math.ceil((GUEST_RL_WINDOW - (now - v.t)) / 60000);
+          return { ok: false, msg: "1 小时内创建游客身份已达 " + GUEST_RL_MAX + " 次上限，请 " + mins + " 分钟后再试" };
+        }
+        return { ok: true, rec: v };
+      }
+      function rlCommit(rec) {
+        var now = Date.now();
+        var v = rec || rlLoad();
+        if (!v || now - v.t > GUEST_RL_WINDOW) v = { n: 0, t: now };
+        v.n += 1;
+        try {
+          localStorage.setItem(GUEST_RL, JSON.stringify(v));
+          localStorage.setItem(GUEST_LAST, String(now));
+        } catch (e) {}
+      }
+
       function paintGuestUID() {
         guestPendingUID = genGuestUID();
         document.getElementById("guestUIDVal").textContent = guestPendingUID;
+        document.getElementById("guestStatus").textContent = "";
       }
       function openGuest() {
         var saved = localStorage.getItem(GUEST_NICK) || "";
@@ -1299,13 +1347,27 @@
         setTimeout(function () { document.getElementById("guestNick").focus(); }, 60);
       }
       document.getElementById("guestBtn").addEventListener("click", openGuest);
-      document.getElementById("guestReUID").addEventListener("click", paintGuestUID);
+      /* 「重新生成」也走频率限制，避免被用来刷 UID */
+      document.getElementById("guestReUID").addEventListener("click", function () {
+        var st = document.getElementById("guestStatus");
+        var r = rlCheck();
+        if (!r.ok) { st.textContent = r.msg; st.className = "err"; return; }
+        rlCommit(r.rec);
+        paintGuestUID();
+      });
       document.getElementById("guestClose").addEventListener("click", function () { guestMask.classList.remove("show"); });
       document.getElementById("guestGo").addEventListener("click", function () {
         var nick = document.getElementById("guestNick").value.trim();
         var st = document.getElementById("guestStatus");
         if (!nick) { st.textContent = "请先填一个昵称"; st.className = "err"; return; }
+        /* 昵称防滥用：不允许纯符号/空白，限制长度 */
+        if (nick.length < 1) { st.textContent = "昵称不能为空"; st.className = "err"; return; }
+        if (/^[\s\u0000-\u001f]+$/.test(nick)) { st.textContent = "昵称不能只有空字符"; st.className = "err"; return; }
         nick = nick.slice(0, 12);
+
+        var r = rlCheck();
+        if (!r.ok) { st.textContent = r.msg; st.className = "err"; return; }
+
         try {
           localStorage.setItem(GUEST_MODE, "1");
           localStorage.setItem(GUEST_NICK, nick);
@@ -1319,6 +1381,7 @@
           st.className = "err";
           return;
         }
+        rlCommit(r.rec);
         guestMask.classList.remove("show");
         showLogged({ email: "guest:" + guestPendingUID, nick: nick, uid: guestPendingUID, title: "" });
       });
