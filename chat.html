@@ -206,6 +206,7 @@
   <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
 
   <script src="crypto.js"></script>
+  <script src="ratelimit.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-chat-v2";
@@ -216,7 +217,7 @@
       var C = window.BPCrypto;
 
       try { me = JSON.parse(localStorage.getItem("bs_auth") || "null"); } catch (e) {}
-      myUID = localStorage.getItem("bs_uid") || "";
+      myUID = localStorage.getItem("bs_uid") || localStorage.getItem("gs_uid") || "";
       myNick = localStorage.getItem("bs_nick") || "";
 
       /* 游客模式：首页设置过游客身份（gs_mode=1 + 10 位 UID）时，无需账号即可聊天 */
@@ -600,6 +601,11 @@
         var hasFile = !!pendingFile;
         if ((!text && !hasFile) || !chatting) return;
         if (endedState) { alert("本轮对话已结束归档，请先点「开始新对话」"); return; }
+        /* 防刷：游客每分钟 12 条、注册用户每分钟 30 条，且两条之间至少 1.2 秒 */
+        var rl = isGuest
+          ? RLT.hit("chat:guest", 60 * 1000, 12, 1200)
+          : RLT.hit("chat:user", 60 * 1000, 30, 400);
+        if (!rl.ok) { alert(rl.msg); return; }
         input.disabled = true;
         var msg = {
           from: myUID, to: chatting, nick: myNick,
