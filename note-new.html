@@ -192,6 +192,7 @@
   </main>
   <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
 
+  <script src="ratelimit.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-notes-2026";
@@ -333,6 +334,13 @@
         var title = document.getElementById("noteTitle").value.trim();
         var body = document.getElementById("noteBody").value.trim();
         if (!title || !body) { alert("标题和内容都要填写哦"); return; }
+        /* 防刷：游客更严，注册用户宽松些（纯前端限流，见 ratelimit.js 顶部说明） */
+        var rl = isGuest
+          ? RLT.hit("note:guest", 10 * 60 * 1000, 5, 5000)
+          : RLT.hit("note:user", 60 * 1000, 5, 3000);
+        if (!rl.ok) { alert(rl.msg); return; }
+        var sc = RLT.sameContent("note", title + "\n" + body, 60000);
+        if (!sc.ok) { alert(sc.msg); return; }
         /* 昵称：已登录/游客身份用其昵称；纯浏览者用「游客+ID后4位」 */
         var nick = myKey ? (myNick || (myKey.indexOf("guest:") === 0 ? ("游客" + myUID.slice(-4)) : myKey.split("@")[0]))
                          : ("游客" + guestID.slice(-4));
