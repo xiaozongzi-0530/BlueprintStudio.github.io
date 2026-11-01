@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>写笔记 · BlueprintStudio</title>
+<style>
+  :root { --bg:#0b1020; --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; }
+  .grid-bg {
+  pointer-events: none;
+    position:fixed; inset:0; z-index:0;
+    background-image:
+      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+    background-size:40px 40px;
+  }
+  header {
+    position:sticky; top:0; z-index:10;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:1rem 2rem;
+    background:rgba(11,16,32,.85); backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(79,124,255,.15);
+  }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav a { color:var(--muted); text-decoration:none; margin-left:1.5rem; font-size:.95rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+  nav a:focus { outline:none; }
+  main { position:relative; z-index:1; max-width:800px; margin:0 auto; padding:2.5rem 1.5rem; }
+  h1 { font-size:1.7rem; margin-bottom:.4rem; }
+  h1 em {
+    font-style:normal;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .sub { color:var(--muted); font-size:.92rem; margin-bottom:1.8rem; }
+  .card {
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(79,124,255,.25);
+    border-radius:16px; padding:1.5rem; margin-bottom:1.2rem;
+  }
+  input[type="text"], textarea {
+    width:100%;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(79,124,255,.3);
+    border-radius:10px; color:var(--text);
+    padding:.65rem .9rem; font-size:.95rem;
+    outline:none; font-family:inherit;
+  }
+  textarea { min-height:110px; resize:vertical; margin:.8rem 0; }
+  input:focus, textarea:focus { border-color:var(--accent2); }
+  .btn {
+    display:inline-block; border:none; cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#fff; padding:.6rem 1.5rem; border-radius:10px;
+    font-size:.92rem; font-weight:600;
+  }
+  .btn.ghost { background:transparent; border:1px solid rgba(79,124,255,.5); color:var(--accent2); }
+  .row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; }
+  .att-bar + .row { border-top:1px solid rgba(255,255,255,.08); padding-top:.9rem; }
+  .note-head { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin-bottom:.6rem; }
+  .note-head .nick { font-weight:700; }
+  .badge-title, .badge-admin {
+    background:#f5b301; color:#1a1a1a;
+    font-size:.68rem; font-weight:700;
+    padding:.15rem .5rem; border-radius:999px;
+  }
+  .badge-guest {
+    background:rgba(139,147,168,.85); color:#0b1020;
+    font-size:.68rem; font-weight:700;
+    padding:.15rem .5rem; border-radius:999px;
+  }
+  .note-head .time { color:var(--muted); font-size:.8rem; margin-left:auto; }
+  .note-title { font-size:1.1rem; font-weight:700; margin-bottom:.4rem; }
+  .note-body { color:var(--text); font-size:.95rem; line-height:1.9; white-space:pre-wrap; word-break:break-word; }
+  .note-foot { margin-top:1rem; display:flex; gap:1rem; align-items:center; }
+  .vote {
+    border:1px solid rgba(79,124,255,.4); border-radius:999px;
+    background:rgba(79,124,255,.08); color:var(--text);
+    padding:.35rem 1rem; font-size:.85rem; cursor:pointer;
+    transition:all .2s; user-select:none;
+  }
+  .vote:hover { box-shadow:0 2px 12px rgba(79,124,255,.3); }
+  .vote.on-up { background:rgba(34,211,238,.25); border-color:var(--accent2); color:var(--accent2); }
+  .vote.on-down { background:rgba(255,107,107,.2); border-color:#ff6b6b; color:#ff6b6b; }
+  .note-foot .del { color:#ff6b6b; font-size:.8rem; cursor:pointer; text-decoration:none; margin-left:auto; }
+  .cmt-area { margin-top:.8rem; border-top:1px solid rgba(255,255,255,.1); padding-top:.8rem; display:none; }
+  .cmt-area.open { display:block; }
+  .cmt { font-size:.88rem; line-height:1.8; padding:.4rem 0; border-bottom:1px solid rgba(255,255,255,.06); }
+  .cmt .who { color:var(--accent2); font-weight:600; }
+  .cmt .t { color:var(--muted); font-size:.75rem; margin-left:.5rem; }
+  .cmt-row { display:flex; gap:.6rem; margin-top:.7rem; }
+  .cmt-row input { flex:1; }
+  .cmt-send { border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; padding:.5rem 1.1rem; border-radius:10px; font-size:.85rem; }
+  .empty { color:var(--muted); text-align:center; padding:2rem; }
+  .tip { color:var(--muted); font-size:.85rem; }
+  .tip a { color:var(--accent2); }
+
+  /* ===== 附件 ===== */
+  .att-bar { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin:.1rem 0 .9rem; }
+  .att-btn {
+    border:1px dashed rgba(79,124,255,.5); background:rgba(79,124,255,.08);
+    color:var(--accent2); font-size:.85rem; cursor:pointer;
+    padding:.45rem .95rem; border-radius:10px;
+    transition:background .2s, border-color .2s;
+  }
+  .att-btn:hover { background:rgba(79,124,255,.18); border-color:var(--accent2); }
+  .att-btn:disabled { opacity:.45; cursor:not-allowed; }
+  .att-hint { color:var(--muted); font-size:.78rem; }
+  .att-list { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:.8rem; }
+  .att-list:empty { display:none; }
+  .ap {
+    display:flex; align-items:center; gap:.5rem;
+    background:rgba(79,124,255,.1); border:1px dashed rgba(79,124,255,.45);
+    border-radius:10px; padding:.35rem .6rem; font-size:.82rem; max-width:100%;
+  }
+  .ap .ico {
+    flex-shrink:0; width:24px; height:24px; border-radius:6px;
+    background:rgba(79,124,255,.32); color:#dbe6ff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:.62rem; font-weight:700; letter-spacing:-.02em;
+  }
+  .ap .ico.img { background:rgba(34,211,238,.32); color:#cffafe; }
+  .ap .nm { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ap .sz { color:var(--muted); font-size:.72rem; flex-shrink:0; }
+  .ap .rm {
+    margin-left:.2rem; background:none; border:none; color:#ff6b6b;
+    cursor:pointer; font-size:1rem; line-height:1; padding:0 .1rem;
+  }
+  /* 笔记正文里的附件展示 */
+  .note-atts { margin-top:.8rem; display:flex; flex-direction:column; gap:.5rem; }
+  .file-card {
+    display:flex; align-items:center; gap:.6rem;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(79,124,255,.35);
+    border-radius:10px; padding:.55rem .8rem;
+    text-decoration:none; color:var(--text); font-size:.86rem; max-width:100%;
+    transition:background .2s, border-color .2s;
+  }
+  .file-card:hover { background:rgba(79,124,255,.16); border-color:var(--accent2); }
+  .file-card .fname { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .file-card .fsize { color:var(--muted); font-size:.75rem; flex-shrink:0; }
+  .file-card .fico {
+    flex-shrink:0; width:26px; height:26px; border-radius:6px;
+    background:rgba(79,124,255,.3); color:#dbe6ff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:.62rem; font-weight:700; letter-spacing:-.02em;
+  }
+  .file-card .fico.img { background:rgba(34,211,238,.3); color:#cffafe; }
+  .note-atts img.att-img {
+    max-width:100%; max-height:320px; border-radius:10px;
+    display:block; border:1px solid rgba(79,124,255,.25); cursor:zoom-in;
+  }
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="forum.html">论坛</a>
+      <a href="chat.html">聊天</a>
+      <a href="notes.html">笔记</a>
+      <a href="note-new.html" class="active">写笔记</a>
+      <a href="ann.html">公告</a>
+      <a href="join.html">加入我们</a>
+    </nav>
+  </header>
+  <main>
+    <h1>写<em>笔记</em></h1>
+    <p class="sub">分享知识、记录灵感。写完后点「发布笔记」，会回到笔记列表看到你的内容。</p>
+
+    <div class="card">
+      <input type="text" id="noteTitle" placeholder="笔记标题（必填）" maxlength="60">
+      <textarea id="noteBody" placeholder="笔记内容（必填）…" maxlength="5000"></textarea>
+      <div class="att-bar">
+        <button class="att-btn" id="attBtn" type="button">＋ 添加附件</button>
+        <input type="file" id="fileInput" multiple style="display:none;">
+        <span class="att-hint" id="attHint">支持图片 / 文档 / 压缩包，单个 ≤ 400KB，最多 3 个</span>
+      </div>
+      <div class="att-list" id="attList"></div>
+      <div class="row" style="justify-content:flex-end;">
+        <a class="btn ghost" href="notes.html" style="text-decoration:none;">返回列表</a>
+        <button class="btn" id="sendBtn">发布笔记</button>
+      </div>
+    </div>
+
+  </main>
+  <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+
+  <script>
+    (function () {
+      var DB = "https://textdb.dev/api/data/blueprintstudio-notes-2026";
+      var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
+      var me = null, myNick = "", myUID = "", myTitle = "";
+      var myKey = "";   // 统一的作者标识：注册用邮箱，游客用 guest:<10位UID>
+      try { me = JSON.parse(localStorage.getItem("bs_auth") || "null"); } catch (e) {}
+      myNick = localStorage.getItem("bs_nick") || "";
+      myUID = localStorage.getItem("bs_uid") || "";
+      myTitle = localStorage.getItem("bs_title") || "";
+      if (me && me.email) myKey = me.email;
+      /* 游客身份标识（本地随机，用于点赞去重） */
+      var guestID = localStorage.getItem("bs_guest");
+      if (!guestID) {
+        guestID = "guest_" + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem("bs_guest", guestID);
+      }
+      /* 首页设置的游客身份：有 10 位 UID 就用它作为作者标识与昵称 */
+      var isGuest = localStorage.getItem("gs_mode") === "1" && /^\d{10}$/.test(myUID);
+      if (isGuest && !myKey) {
+        myKey = "guest:" + myUID;
+        if (!myNick) myNick = localStorage.getItem("gs_nick") || "游客";
+      }
+
+      function getDB() {
+        return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
+          .catch(function () { return { notes: [] }; });
+      }
+      function saveDB(db) {
+        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+      }
+      function esc(t) {
+        return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+      function fmt(t) {
+        try { return new Date(t).toLocaleString("zh-CN", { hour12: false }); } catch (e) { return t; }
+      }
+
+      /* ===== 附件：Base64 存库，随笔记一起保存 ===== */
+      var MAX_FILE = 400 * 1024;      // 单个 400KB
+      var MAX_ATTS = 3;               // 最多 3 个
+      var MAX_TOTAL = 1200 * 1024;    // 一条笔记附件总量 1.2MB（Base64 后约 1.6MB，留余量给 textdb 限制）
+      var pendingAtts = [];
+
+      function fmtSize(n) {
+        if (n < 1024) return n + " B";
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+        return (n / 1024 / 1024).toFixed(2) + " MB";
+      }
+      function attTotal() {
+        return pendingAtts.reduce(function (s, a) { return s + (a.size || 0); }, 0);
+      }
+      /* 下载用文件名：去掉会破坏 HTML 属性的字符 */
+      function safeName(s) { return String(s || "file").replace(/["'<>&]/g, "_"); }
+      function extOf(name) {
+        var m = String(name || "").match(/\.([a-z0-9]{1,5})$/i);
+        return m ? m[1].toUpperCase() : "FILE";
+      }
+      function drawPending() {
+        var box = document.getElementById("attList");
+        box.innerHTML = pendingAtts.map(function (a, i) {
+          var isImg = /^image\//.test(a.type || "");
+          return '<div class="ap">'
+            + '<span class="ico ' + (isImg ? "img" : "") + '">' + (isImg ? "IMG" : extOf(a.name)) + "</span>"
+            + '<span class="nm" title="' + esc(safeName(a.name)) + '">' + esc(a.name) + "</span>"
+            + '<span class="sz">' + fmtSize(a.size) + "</span>"
+            + '<button class="rm" data-rm="' + i + '" title="移除">×</button>'
+            + "</div>";
+        }).join("");
+        document.getElementById("attBtn").disabled = pendingAtts.length >= MAX_ATTS;
+        document.getElementById("attHint").textContent = pendingAtts.length
+          ? "已选 " + pendingAtts.length + "/" + MAX_ATTS + "，共 " + fmtSize(attTotal())
+          : "支持图片 / 文档 / 压缩包，单个 ≤ 400KB，最多 3 个";
+      }
+      document.getElementById("attBtn").addEventListener("click", function () {
+        document.getElementById("fileInput").click();
+      });
+      document.getElementById("fileInput").addEventListener("change", function (e) {
+        var files = Array.prototype.slice.call(e.target.files || []);
+        e.target.value = "";   // 允许再次选择同一文件
+        if (!files.length) return;
+        var queue = files.filter(function (f) {
+          if (pendingAtts.length >= MAX_ATTS) { alert("最多只能添加 " + MAX_ATTS + " 个附件"); return false; }
+          if (f.size > MAX_FILE) { alert("「" + f.name + "」过大（" + fmtSize(f.size) + "），单个附件不能超过 400KB"); return false; }
+          return true;
+        });
+        /* 串行读取，保证顺序与用户选择一致 */
+        var i = 0;
+        (function next() {
+          if (i >= queue.length || pendingAtts.length >= MAX_ATTS) {
+            drawPending();
+            return;
+          }
+          var f = queue[i++];
+          if (attTotal() + f.size > MAX_TOTAL) {
+            alert("附件总量超出 1.2MB，请删掉一些再加");
+            drawPending();
+            return;
+          }
+          var reader = new FileReader();
+          reader.onload = function () {
+            pendingAtts.push({ name: f.name, size: f.size, type: f.type || "", data: reader.result });
+            next();
+          };
+          reader.onerror = function () { alert("读取「" + f.name + "」失败"); next(); };
+          reader.readAsDataURL(f);
+        })();
+      });
+      document.getElementById("attList").addEventListener("click", function (e) {
+        var idx = e.target.getAttribute("data-rm");
+        if (idx === null) return;
+        pendingAtts.splice(Number(idx), 1);
+        drawPending();
+      });
+      /* 渲染笔记里的附件 */
+      function attsHtml(atts) {
+        if (!atts || !atts.length) return "";
+        return '<div class="note-atts">' + atts.map(function (a) {
+          if (!a || !a.data) return "";
+          var isImg = /^image\//.test(a.type || "");
+          var nm = safeName(a.name);
+          if (isImg) {
+            return '<a href="' + a.data + '" target="_blank" rel="noopener">'
+              + '<img class="att-img" src="' + a.data + '" alt="' + esc(nm) + '" loading="lazy">'
+              + "</a>"
+              + '<a class="file-card" href="' + a.data + '" download="' + esc(nm) + '">'
+              + '<span class="fico img">IMG</span><span class="fname">' + esc(a.name) + "</span>"
+              + '<span class="fsize">' + fmtSize(a.size || 0) + "</span></a>";
+          }
+          return '<a class="file-card" href="' + a.data + '" download="' + esc(nm) + '">'
+            + '<span class="fico">' + extOf(a.name) + "</span>"
+            + '<span class="fname">' + esc(a.name) + "</span>"
+            + '<span class="fsize">' + fmtSize(a.size || 0) + "</span></a>";
+        }).join("") + "</div>";
+      }
+
+      /* ===== 发布 ===== */
+      document.getElementById("sendBtn").addEventListener("click", function () {
+        var title = document.getElementById("noteTitle").value.trim();
+        var body = document.getElementById("noteBody").value.trim();
+        if (!title || !body) { alert("标题和内容都要填写哦"); return; }
+        /* 昵称：已登录/游客身份用其昵称；纯浏览者用「游客+ID后4位」 */
+        var nick = myKey ? (myNick || (myKey.indexOf("guest:") === 0 ? ("游客" + myUID.slice(-4)) : myKey.split("@")[0]))
+                         : ("游客" + guestID.slice(-4));
+        this.disabled = true;
+        getDB().then(function (db) {
+          db.notes = db.notes || [];
+          db.notes.unshift({
+            id: Date.now() + "_" + Math.random().toString(36).slice(2, 8),
+            author: myKey,
+            guest: isGuest,
+            nick: nick,
+            uid: myUID,
+            title: title.slice(0, 60),
+            content: body.slice(0, 5000),
+            atts: pendingAtts.map(function (a) {
+              return { name: a.name, size: a.size, type: a.type, data: a.data };
+            }),
+            time: new Date().toISOString(),
+            likes: [], dislikes: []
+          });
+          return saveDB(db).then(function () {
+            document.getElementById("noteTitle").value = "";
+            document.getElementById("noteBody").value = "";
+            pendingAtts = [];
+            drawPending();
+            this.disabled = false;
+            /* 编写页只负责写，发布后跳回列表页 */
+            location.href = "notes.html?new=" + encodeURIComponent(db.notes[0].id);
+          }.bind(this));
+        }.bind(this)).catch(function () { alert("发布失败，请稍后再试"); this.disabled = false; }.bind(this));
+      });
+      /* 已登录用户：同步一次云端昵称/头衔（游客与纯浏览者跳过） */
+      if (myKey && !isGuest) {
+        fetch("https://textdb.dev/api/data/blueprintstudio-users-2026?t=" + Date.now())
+          .then(function (r) { return r.json(); })
+          .then(function (db) {
+            var u = db.users && db.users[myKey];
+            if (u) {
+              myNick = u.nick || myNick; myUID = u.uid || myUID; myTitle = u.title || "";
+              localStorage.setItem("bs_nick", myNick);
+              localStorage.setItem("bs_uid", myUID);
+              localStorage.setItem("bs_title", myTitle);
+            }
+            if (u && u.banned) { location.href = "ban.html?email=" + encodeURIComponent(myKey); return; }
+          });
+      }
+    })();
+  </script>
+</body>
+</html>
