@@ -176,8 +176,7 @@
         <span class="att-hint" id="attHint">支持图片 / 文档 / 压缩包，单个 ≤ 400KB，最多 3 个</span>
       </div>
       <div class="att-list" id="attList"></div>
-      <div class="row">
-        <input type="text" id="noteGuest" placeholder="游客昵称（已登录可留空）" maxlength="20" style="flex:1; min-width:180px;">
+      <div class="row" style="justify-content:flex-end;">
         <button class="btn" id="sendBtn">发布笔记</button>
       </div>
     </div>
@@ -325,10 +324,10 @@
       document.getElementById("sendBtn").addEventListener("click", function () {
         var title = document.getElementById("noteTitle").value.trim();
         var body = document.getElementById("noteBody").value.trim();
-        var guest = document.getElementById("noteGuest").value.trim();
         if (!title || !body) { alert("标题和内容都要填写哦"); return; }
-        var nick = me ? (myNick || me.email.split("@")[0]) : guest;
-        if (!nick) { alert("请填写游客昵称，或先登录"); return; }
+        /* 昵称：登录用账号昵称；游客用「游客+ID后4位」 */
+        var nick = me ? (myNick || me.email.split("@")[0])
+                      : ("游客" + guestID.slice(-4));
         this.disabled = true;
         getDB().then(function (db) {
           db.notes = db.notes || [];
@@ -348,7 +347,6 @@
           return saveDB(db).then(function () {
             document.getElementById("noteTitle").value = "";
             document.getElementById("noteBody").value = "";
-            document.getElementById("noteGuest").value = "";
             pendingAtts = [];
             drawPending();
             this.disabled = false;
