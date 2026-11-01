@@ -161,7 +161,7 @@
 
     <div class="card" id="startBox" style="display:none;">
       <div class="row">
-        <input type="text" id="targetUID" placeholder="输入对方 UID（8位数字）" maxlength="8" style="flex:1; min-width:180px;">
+        <input type="text" id="targetUID" placeholder="输入对方 UID（8位或10位数字）" maxlength="10" inputmode="numeric" style="flex:1; min-width:180px;">
         <button class="btn" id="openBtn">开始聊天</button>
       </div>
       <p class="tip" style="margin-top:.6rem;">文明聊天，禁止发送违规内容。消息 3 秒自动刷新。</p>
@@ -219,7 +219,10 @@
       myUID = localStorage.getItem("bs_uid") || "";
       myNick = localStorage.getItem("bs_nick") || "";
 
-      if (!me || !myUID) {
+      /* 游客模式：首页设置过游客身份（gs_mode=1 + 10 位 UID）时，无需账号即可聊天 */
+      var isGuest = localStorage.getItem("gs_mode") === "1" && /^\d{10}$/.test(myUID);
+      if (!myUID || (!isGuest && !me)) {
+        /* 既无账号也无游客身份 */
         document.getElementById("myUID").textContent = "请先登录";
         return;
       }
@@ -330,7 +333,8 @@
 
       /* ===== 聊天窗口 ===== */
       function openChat(uid) {
-        if (!/^\d{8}$/.test(uid)) { alert("UID 必须是8位数字"); return; }
+        /* 8 位 = 注册账号，10 位 = 游客 */
+        if (!/^\d{8}$/.test(uid) && !/^\d{10}$/.test(uid)) { alert("UID 应为 8 位（注册）或 10 位（游客）数字"); return; }
         if (uid === myUID) { alert("不能和自己聊天"); return; }
         chatting = uid;
         document.getElementById("chatWith").textContent = "UID: " + uid;
