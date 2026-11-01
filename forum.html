@@ -71,6 +71,11 @@
     font-size:.68rem; font-weight:700;
     padding:.15rem .5rem; border-radius:999px;
   }
+  .badge-guest {
+    background:rgba(139,147,168,.85); color:#0b1020;
+    font-size:.68rem; font-weight:700;
+    padding:.15rem .5rem; border-radius:999px;
+  }
   .post-head .time { color:var(--muted); font-size:.8rem; margin-left:auto; }
   .post-body { color:var(--text); font-size:.95rem; line-height:1.9; white-space:pre-wrap; word-break:break-word; }
   .post-files { margin-top:.8rem; display:flex; flex-wrap:wrap; gap:.6rem; }
@@ -140,10 +145,18 @@
       var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
       var MAX_FILE = 300 * 1024; /* 单文件300KB */
       var me = null, myInfo = null, filesData = [];
+      /* 游客模式：gs_mode=1 且 gs_uid 为 10 位数字 */
+      var gUID = localStorage.getItem("gs_uid") || "";
+      var isGuest = localStorage.getItem("gs_mode") === "1" && /^\d{10}$/.test(gUID);
 
       try { myInfo = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
       if (myInfo && myInfo.email) {
         me = myInfo.email;
+        document.getElementById("loginTip").style.display = "none";
+        document.getElementById("postBox").style.display = "block";
+      } else if (isGuest) {
+        /* 游客：以 guest:<uid> 作为作者标识，和注册邮箱不冲突 */
+        me = "guest:" + gUID;
         document.getElementById("loginTip").style.display = "none";
         document.getElementById("postBox").style.display = "block";
       }
@@ -197,10 +210,11 @@
           db.posts = db.posts || [];
           db.posts.unshift({
             id: Date.now() + "_" + Math.random().toString(36).slice(2, 8),
-            author: myInfo.email,
-            nick: localStorage.getItem("bs_nick") || myInfo.email.split("@")[0],
+            author: me,
+            guest: isGuest,
+            nick: localStorage.getItem("bs_nick") || (isGuest ? "游客" : myInfo.email.split("@")[0]),
             uid: localStorage.getItem("bs_uid") || "",
-            title: localStorage.getItem("bs_title") || "",
+            title: isGuest ? "" : (localStorage.getItem("bs_title") || ""),
             content: text.slice(0, 5000),
             files: filesData,
             time: new Date().toISOString(),
@@ -227,6 +241,7 @@
           box.innerHTML = list.map(function (p) {
             var badge = "";
             if (p.author === ADMIN_EMAIL) badge = '<span class="badge-admin">官方管理员</span>';
+            else if (p.guest || (p.author && String(p.author).indexOf("guest:") === 0)) badge = '<span class="badge-guest">游客</span>';
             else if (p.title) badge = '<span class="badge-title">' + esc(p.title) + "</span>";
             var files = (p.files || []).map(function (f) {
               return '<a href="' + f.data + '" download="' + esc(f.name) + '">📎 ' + esc(f.name) + "</a>";
@@ -301,8 +316,8 @@
         }
       });
 
-      /* 登录用户昵称/头衔从云端刷新，用于帖子署名 */
-      if (me) {
+      /* 登录用户昵称/头衔从云端刷新，用于帖子署名（游客不查云端，直接用本地值） */
+      if (me && !isGuest) {
         fetch("https://textdb.dev/api/data/blueprintstudio-users-2026?t=" + Date.now())
           .then(function (r) { return r.json(); })
           .then(function (db) {
@@ -315,7 +330,13 @@
             }
             render();
           }).catch(render);
-      } else render();
+      } else {
+        if (isGuest) {
+          /* 用游客昵称覆盖 bs_nick，保证发帖署名一致 */
+          myInfo = { email: me };
+        }
+        render();
+      }
     })();
   </script>
 </body>
