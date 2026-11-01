@@ -140,6 +140,7 @@
   </main>
   <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
 
+  <script src="ratelimit.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-forum-2026";
@@ -241,6 +242,13 @@
           var input = document.querySelector('[data-cmtinput="' + cmtSend + '"]');
           var text = input.value.trim();
           if (!text) { alert("评论不能为空"); return; }
+          /* 防刷：游客 5 分钟 8 条，注册用户 1 分钟 10 条 */
+          var crl = isGuest
+            ? RLT.hit("cmt:guest", 5 * 60 * 1000, 8, 3000)
+            : RLT.hit("cmt:user", 60 * 1000, 10, 1500);
+          if (!crl.ok) { alert(crl.msg); return; }
+          var csc = RLT.sameContent("cmt", text, 45000);
+          if (!csc.ok) { alert(csc.msg); return; }
           var nick = me ? (localStorage.getItem("bs_nick") || me.split("@")[0]) : (localStorage.getItem("bs_guest_nick") || (function () {
             var n = prompt("游客请输入昵称："); if (n) localStorage.setItem("bs_guest_nick", n); return n;
           })());
