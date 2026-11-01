@@ -221,7 +221,7 @@
               + "</div>"
               + '<div class="cmt-area" id="cmt-' + p.id + '">'
               + (p.comments || []).map(function (c) {
-                  return '<div class="cmt"><span class="who">' + esc(c.nick) + '</span>' + esc(c.text) + '<span class="t">' + fmt(c.time) + "</span></div>";
+                  return '<div class="cmt"><span class="who">' + esc(c.nick) + '</span>' + esc(c.text) + '<span class="t">' + fmtTime(c.time) + "</span></div>";
                 }).join("")
               + '<div class="cmt-row"><input type="text" placeholder="写评论…（输入 @昵称 可回复某人）" maxlength="500" data-cmtinput="' + p.id + '"><button class="cmt-send" data-cmtsend="' + p.id + '">发送</button></div>'
               + "</div></div>";
