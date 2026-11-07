@@ -205,8 +205,17 @@
   }
   html[data-theme="light"] .auth-input { background: rgba(0,0,0,.05); }
   .auth-input:focus { border-color: var(--accent2); }
+  .code-row { display: flex; gap: .5rem; align-items: stretch; }
+  .code-row .auth-input { flex: 1; min-width: 0; }
+  #sendCodeBtn {
+    flex: 0 0 auto; white-space: nowrap;
+    padding: 0 .9rem; font-size: .85rem; margin-bottom: .8rem;
+    border-radius: 10px;
+  }
+  #sendCodeBtn:disabled { opacity: .55; cursor: not-allowed; }
   #authStatus { color: var(--muted); font-size: .85rem; min-height: 1.2em; }
   #authStatus.err { color: #ff6b6b; }
+  #authStatus.ok { color: #4ecb71; }
   #guestStatus { color: var(--muted); font-size: .85rem; min-height: 1.2em; }
   #guestStatus.err { color: #ff6b6b; }
   .auth-btns { display: flex; gap: .8rem; justify-content: center; }
@@ -435,6 +444,11 @@
       <input class="auth-input" id="nickInput" type="text" placeholder="昵称（注册后可修改）" maxlength="20">
       <input class="auth-input" id="emailInput" type="email" placeholder="邮箱" autocomplete="email">
       <input class="auth-input" id="passInput" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
+      <div class="code-row" id="codeRow">
+        <input class="auth-input" id="codeInput" type="text" inputmode="numeric" maxlength="6"
+               placeholder="邮箱验证码（注册时填）" autocomplete="one-time-code">
+        <button class="auth-btn" id="sendCodeBtn" type="button">获取验证码</button>
+      </div>
       <p id="authStatus"></p>
       <div class="auth-btns">
         <button class="auth-btn" id="registerBtn">注 册</button>
@@ -587,6 +601,11 @@
       var KEY = "bs_auth";
       var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
       var ADMIN_UID = "00000000";
+      /* 邮箱验证码服务地址（Cloudflare Worker）。
+         部署 server/worker.js 后，把 Worker 地址填到这里，形如
+         https://bs-verify.你的子域.workers.dev
+         留空时注册不需要验证码，保持原有流程不受影响。 */
+      var MAIL_API = "";
       var BAN_PAGE = "ban.html?email=";
       var C = window.BPCrypto;
       var USER_ENC_FIELDS = ["nick", "title"];   // 用户资料中需要加密的字段
@@ -605,6 +624,13 @@
       var nickIn = document.getElementById("nickInput");
       var passIn = document.getElementById("passInput");
       var statusEl = document.getElementById("authStatus");
+      var codeIn = document.getElementById("codeInput");
+      var sendCodeBtn = document.getElementById("sendCodeBtn");
+      /* 未配置验证码服务时，整行隐藏，不打扰访客 */
+      if (!MAIL_API) {
+        var cr = document.getElementById("codeRow");
+        if (cr) cr.style.display = "none";
+      }
       var me = null, myInfo = {};
       /* 游客模式：gs_nick / gs_uid / gs_mode 三个本地键，gs_uid 参与聊天加密的密钥派生 */
       var GUEST_NICK = "gs_nick", GUEST_UID = "gs_uid", GUEST_MODE = "gs_mode";
@@ -703,6 +729,28 @@
         var nick = (nickIn.value || "").trim().slice(0, 20);
         if (mode === "register" && !nick) { setStatus("请填写昵称", "err"); return; }
         if (!valid(email, pass)) { setStatus("邮箱格式不正确，或密码少于6位", "err"); return; }
+
+        /* 注册需先过邮箱验证码；未配置服务时跳过，保持原流程不受影响 */
+        if (mode === "register" && MAIL_API) {
+          var code = (codeIn.value || "").trim();
+          if (!/^[1-9]\d{5}$/.test(code)) { setStatus("请填写 6 位邮箱验证码", "err"); codeIn.focus(); return; }
+          setStatus("正在校验验证码…");
+          fetch(MAIL_API + "/verify-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email, code: code })
+          }).then(function (r) { return r.json(); }).then(function (j) {
+            if (!j || !j.ok) { setStatus((j && j.message) || "验证码不正确", "err"); return; }
+            doAuth(mode, email, pass, nick);
+          }).catch(function () {
+            setStatus("验证服务连接失败，请稍后再试", "err");
+          });
+          return;
+        }
+
+        doAuth(mode, email, pass, nick);
+      }
+      function doAuth(mode, email, pass, nick) {
         setStatus(mode === "register" ? "注册中…" : "登录中…");
         hash(email, pass).then(function (h) {
           return getDB().then(function (db) {
@@ -1164,6 +1212,56 @@
 
       document.getElementById("registerBtn").addEventListener("click", function () { tryAuth("register"); });
       document.getElementById("doLoginBtn").addEventListener("click", function () { tryAuth("login"); });
+
+      /* ===== 获取邮箱验证码（60 秒倒计时） ===== */
+      var codeCdTimer = null;
+      function startCodeCountdown(sec) {
+        var left = sec;
+        sendCodeBtn.disabled = true;
+        sendCodeBtn.textContent = left + "s 后重发";
+        clearInterval(codeCdTimer);
+        codeCdTimer = setInterval(function () {
+          left -= 1;
+          if (left <= 0) {
+            clearInterval(codeCdTimer);
+            sendCodeBtn.disabled = false;
+            sendCodeBtn.textContent = "重新获取";
+            return;
+          }
+          sendCodeBtn.textContent = left + "s 后重发";
+        }, 1000);
+      }
+      sendCodeBtn.addEventListener("click", function () {
+        if (sendCodeBtn.disabled) return;
+        if (!MAIL_API) { setStatus("验证码服务尚未接通，可先直接注册", "err"); return; }
+        var email = emailIn.value.trim().toLowerCase();
+        if (!/^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/.test(email)) {
+          setStatus("请先填写正确的邮箱", "err");
+          emailIn.focus();
+          return;
+        }
+        sendCodeBtn.disabled = true;
+        sendCodeBtn.textContent = "发送中…";
+        fetch(MAIL_API + "/send-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email })
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          if (j && j.ok) {
+            setStatus("验证码已发送，请查收（含垃圾箱）", "ok");
+            codeIn.focus();
+            startCodeCountdown(60);
+          } else {
+            setStatus((j && j.message) || "发送失败，请稍后再试", "err");
+            sendCodeBtn.disabled = false;
+            sendCodeBtn.textContent = "获取验证码";
+          }
+        }).catch(function () {
+          setStatus("网络异常，验证码发不出去", "err");
+          sendCodeBtn.disabled = false;
+          sendCodeBtn.textContent = "获取验证码";
+        });
+      });
       loginBtn.addEventListener("click", function () { mask.classList.add("show"); emailIn.focus(); });
       document.getElementById("modalClose").addEventListener("click", function () { mask.classList.remove("show"); });
 
