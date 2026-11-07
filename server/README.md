@@ -57,7 +57,22 @@ Worker 页面上会显示形如：
 https://bs-verify.你的子域.workers.dev
 ```
 
-打开这个地址，如果看到 `{"ok":false,"error":"not_found"}`，说明服务活着，部署成功。
+打开这个地址，会看到一个状态页，用来确认部署是否完整：
+
+```json
+{
+  "ok": true,
+  "service": "BlueprintStudio 邮箱验证码服务",
+  "status": "running",
+  "kv": "已绑定 CODES",
+  "smtp": "已配置 SMTP_USER / SMTP_PASS",
+  "endpoints": ["POST /send-code", "POST /verify-code"]
+}
+```
+
+`kv` 和 `smtp` 两行会告诉你还差什么。如果显示「未绑定 CODES」或「未配置 SMTP_USER…」，回到第 4、5 步检查。
+
+> 注意：在浏览器里直接打开时看到 `forbidden_origin` 说明你拿到的是没有状态页的旧版本代码，重新粘贴一次即可。这个错误本身不代表服务坏了 —— 它是因为代码拦截了所有非白名单来源的请求，而浏览器直接访问时不发 `Origin` 头。
 
 把这个地址发给我，我填进 `index.html` 的 `MAIL_API`，验证码功能就生效了。
 
