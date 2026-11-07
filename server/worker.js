@@ -323,6 +323,20 @@ export default {
 
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
 
+    /* 浏览器直接打开时不会带 Origin，这里返回一个状态页，方便部署后自检 */
+    if (req.method === "GET" && !origin) {
+      return json({
+        ok: true,
+        service: "BlueprintStudio 邮箱验证码服务",
+        status: "running",
+        kv: env.CODES ? "已绑定 CODES" : "未绑定 CODES",
+        smtp: (env.SMTP_USER && env.SMTP_PASS)
+          ? "已配置 SMTP_USER / SMTP_PASS"
+          : "未配置 SMTP_USER 或 SMTP_PASS",
+        endpoints: ["POST /send-code", "POST /verify-code"]
+      }, 200, cors);
+    }
+
     if (!ALLOW_ORIGINS.includes(origin)) {
       return json({ ok: false, error: "forbidden_origin" }, 403, cors);
     }
