@@ -214,6 +214,10 @@
   }
   #sendCodeBtn:disabled { opacity: .55; cursor: not-allowed; }
 
+  /* Turnstile 人机验证（托管模式：可见勾选框） */
+  #tsBox { width: 300px; max-width: 100%; margin: 0 auto .8rem; }
+  #tsBox:empty { display: none; }   /* 部件未加载时占位去掉，不留空隙 */
+
   #authStatus { color: var(--muted); font-size: .85rem; min-height: 1.2em; }
   #authStatus.err { color: #ff6b6b; }
   #authStatus.ok { color: #4ecb71; }
@@ -450,7 +454,7 @@
                placeholder="邮箱验证码（注册时填）" autocomplete="one-time-code">
         <button class="auth-btn" id="sendCodeBtn" type="button">获取验证码</button>
       </div>
-      <div id="tsBox" style="height:0;overflow:hidden;"></div>
+      <div id="tsBox"></div>
       <p id="authStatus"></p>
       <div class="auth-btns">
         <button class="auth-btn" id="registerBtn">注 册</button>
