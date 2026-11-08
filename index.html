@@ -450,6 +450,7 @@
                placeholder="邮箱验证码（注册时填）" autocomplete="one-time-code">
         <button class="auth-btn" id="sendCodeBtn" type="button">获取验证码</button>
       </div>
+      <div id="tsBox" style="height:0;overflow:hidden;"></div>
       <p id="authStatus"></p>
       <div class="auth-btns">
         <button class="auth-btn" id="registerBtn">注 册</button>
@@ -458,6 +459,8 @@
       <button class="close" id="modalClose">取消</button>
     </div>
   </div>
+
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
 
   <!-- 游客模式 -->
   <div class="modal-mask" id="guestModal">
@@ -634,6 +637,33 @@
       }
       var me = null, myInfo = {};
 
+      /* ===== 人机验证（Cloudflare Turnstile，不可见模式） =====
+         脚本加载失败时不阻拦用户（fail-open），避免验证服务成为单点故障；
+         真正校验 secret 需要后端，等自定义域名接入 Worker 后开启。 */
+      var TS_SITEKEY = "0x4AAAAAAF4SrhJkjWnIRl3K";
+      var tsWidgetId = null;
+      var tsReady = false;
+
+      window.onTurnstileLoad = function () {
+        try {
+          tsWidgetId = window.turnstile.render("#tsBox", {
+            sitekey: TS_SITEKEY,
+            theme: "auto",
+            callback: function () { tsReady = true; },
+            "expired-callback": function () { tsReady = false; },
+            "error-callback": function () { tsReady = false; tsWidgetId = null; }
+          });
+          window.turnstile.execute(tsWidgetId);   /* 提前跑，提交时基本不用等 */
+        } catch (_) { tsWidgetId = null; }
+      };
+
+      /* 重置并提前再跑一个，避免旧 token 被复用 */
+      function tsRefresh() {
+        if (tsWidgetId === null || !window.turnstile) return;
+        tsReady = false;
+        try { window.turnstile.reset(tsWidgetId); window.turnstile.execute(tsWidgetId); } catch (_) {}
+      }
+
       /* 游客模式：gs_nick / gs_uid / gs_mode 三个本地键，gs_uid 参与聊天加密的密钥派生 */
       var GUEST_NICK = "gs_nick", GUEST_UID = "gs_uid", GUEST_MODE = "gs_mode";
       var guestMask = document.getElementById("guestModal");
@@ -732,6 +762,13 @@
         if (mode === "register" && !nick) { setStatus("请填写昵称", "err"); return; }
         if (!valid(email, pass)) { setStatus("邮箱格式不正确，或密码少于6位", "err"); return; }
 
+        /* 人机验证：部件已就绪但还没通过时，提示稍候并触发一次 */
+        if (tsWidgetId !== null && !tsReady) {
+          setStatus("正在进行人机验证，请稍候再点一次…");
+          tsRefresh();
+          return;
+        }
+
 
         /* 注册需先过邮箱验证码；未配置服务时跳过，保持原流程不受影响 */
         if (mode === "register" && MAIL_API) {
@@ -773,6 +810,7 @@
                 showLogged({ email: email, nick: rec.nick, uid: rec.uid });
                 mask.classList.remove("show");
                 setStatus("", "");
+                tsRefresh();
               });
             } else {
               if (!u) { setStatus("该邮箱未注册", "err"); return; }
@@ -782,6 +820,7 @@
               showLogged({ email: email, nick: u.nick, uid: u.uid });
               mask.classList.remove("show");
               setStatus("", "");
+              tsRefresh();
             }
           });
         }).catch(function () { setStatus("网络异常，请稍后再试", "err"); });
