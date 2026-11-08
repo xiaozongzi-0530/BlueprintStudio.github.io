@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BlueprintStudio · 蓝图交流平台</title>
+<script src="logger.js"></script>
 <script>
   /* 首屏即应用主题，避免白屏闪烁 */
   (function () {
@@ -721,7 +722,10 @@
             theme: "auto",
             callback: function () { tsReady = true; },
             "expired-callback": function () { tsReady = false; },
-            "error-callback": function () { tsReady = false; tsWidgetId = null; }
+            "error-callback": function (code) {
+              tsReady = false; tsWidgetId = null;
+              try { BPLog.warn("turnstile", "人机验证加载失败", { detail: "code=" + code }); } catch (_) {}
+            }
           });
         } catch (_) { tsWidgetId = null; }
         try {
@@ -757,7 +761,11 @@
       /* 读取：解密每个用户的昵称/头衔（邮箱作为键保持明文，用于登录定位） */
       function getDB() {
         return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
-          .catch(function () { return { users: {} }; })
+          .catch(function (e) {
+            /* 用户库是登录/注册的根，读不到要留痕，方便事后排查 */
+            try { BPLog.warn("db", "用户库读取失败", { detail: (e && e.message) || "network" }); } catch (_) {}
+            return { users: {} };
+          })
           .then(function (db) {
             var users = (db && db.users) || {};
             var keys = Object.keys(users);
@@ -994,7 +1002,13 @@
               });
             }
           });
-        }).catch(function () { setStatus("网络异常，请稍后再试", "err"); });
+        }).catch(function (e) {
+          setStatus("网络异常，请稍后再试", "err");
+          try {
+            BPLog.error("auth", (mode === "register" ? "注册" : "登录") + "失败: 网络异常",
+              { detail: (e && e.message) || "" });
+          } catch (_) {}
+        });
       }
       function changeNick() {
         var nick = prompt("修改昵称（最长20字）：", myInfo.nick || "");
@@ -1485,6 +1499,10 @@
             setStatus("邮件发送失败，请稍后再试", "err");
           }
           try { console.error("[mail-code]", err); } catch (e) {}
+          /* 发信失败是线上最常见的问题，记下是超时、被拒还是网络不通 */
+          try {
+            BPLog.error("mail", "验证码发送失败: " + ((err && (err.message || err.name)) || "未知错误"));
+          } catch (e) {}
           sendCodeBtn.disabled = false;
           sendCodeBtn.textContent = "获取验证码";
         });
