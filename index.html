@@ -224,6 +224,29 @@
   #guestStatus { color: var(--muted); font-size: .85rem; min-height: 1.2em; }
   #guestStatus.err { color: #ff6b6b; }
   .auth-btns { display: flex; gap: .8rem; justify-content: center; }
+
+  /* 登录 / 注册 分段切换 */
+  .auth-tabs {
+    display: flex; gap: .25rem;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(79,124,255,.22);
+    border-radius: 12px; padding: .25rem;
+    margin-bottom: 1.1rem;
+  }
+  html[data-theme="light"] .auth-tabs { background: rgba(0,0,0,.05); }
+  .auth-tab {
+    flex: 1; padding: .5rem 0;
+    border: none; border-radius: 9px;
+    background: none; color: var(--muted);
+    font-size: .9rem; cursor: pointer;
+    transition: background .25s ease, color .25s ease;
+  }
+  .auth-tab:hover { color: var(--text); }
+  .auth-tab.active { background: rgba(79,124,255,.85); color: #fff; }
+  .modal .auth-sub {
+    font-size: .82rem; color: var(--muted);
+    text-align: left; margin: -.55rem 0 .95rem;
+  }
   .modal .close {
     margin-top: 1.2rem; cursor: pointer;
     color: var(--muted); font-size: .85rem;
@@ -363,7 +386,8 @@
       <button class="auth-btn" id="themeBtn" title="切换主题">🌙</button>
       <button class="auth-btn" id="adminBtn" style="display:none;">管理</button>
       <button class="auth-btn" id="guestBtn">游客模式</button>
-      <button class="auth-btn" id="loginBtn" style="display:none;">登录 / 注册</button>
+      <button class="auth-btn" id="loginBtn" style="display:none;">登录</button>
+      <button class="auth-btn" id="regBtn" style="display:none;">注册</button>
       <div class="user-chip" id="userChip" style="display:none;">
         <span class="badge-admin" id="adminBadge" style="display:none;">官方管理员</span>
         <span class="badge-admin" id="guestBadge" style="display:none; background:rgba(139,147,168,.9); color:#0b1020;">游客</span>
@@ -445,8 +469,13 @@
 
   <div class="modal-mask" id="authModal">
     <div class="modal">
-      <h3>账号注册 / 登录</h3>
-      <input class="auth-input" id="nickInput" type="text" placeholder="昵称（注册后可修改）" maxlength="20">
+      <div class="auth-tabs" id="authTabs">
+        <button class="auth-tab active" type="button" data-mode="login">登 录</button>
+        <button class="auth-tab" type="button" data-mode="register">注 册</button>
+      </div>
+      <h3 id="authTitle">登录账号</h3>
+      <p class="auth-sub" id="authSub">用邮箱和密码登录你的账号</p>
+      <input class="auth-input" id="nickInput" type="text" placeholder="昵称（注册后可修改）" maxlength="20" style="display:none;">
       <input class="auth-input" id="emailInput" type="email" placeholder="邮箱" autocomplete="email">
       <input class="auth-input" id="passInput" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
       <div class="code-row" id="codeRow">
@@ -457,8 +486,8 @@
       <div id="tsBox"></div>
       <p id="authStatus"></p>
       <div class="auth-btns">
-        <button class="auth-btn" id="registerBtn">注 册</button>
         <button class="auth-btn" id="doLoginBtn">登 录</button>
+        <button class="auth-btn" id="registerBtn" style="display:none;">注 册</button>
       </div>
       <button class="close" id="modalClose">取消</button>
     </div>
@@ -624,6 +653,7 @@
       var USER_ENC_FIELDS = ["nick", "title"];   // 用户资料中需要加密的字段
 
       var loginBtn = document.getElementById("loginBtn");
+      var regBtn = document.getElementById("regBtn");
       var chip = document.getElementById("userChip");
       var nameLink = document.getElementById("userName");
       var adminBadge = document.getElementById("adminBadge");
@@ -639,10 +669,38 @@
       var statusEl = document.getElementById("authStatus");
       var codeIn = document.getElementById("codeInput");
       var sendCodeBtn = document.getElementById("sendCodeBtn");
-      /* 未配置验证码服务时，整行隐藏，不打扰访客 */
-      if (!MAIL_READY) {
-        var cr = document.getElementById("codeRow");
-        if (cr) cr.style.display = "none";
+      var authTitle = document.getElementById("authTitle");
+      var authSub = document.getElementById("authSub");
+      var authTabs = document.getElementById("authTabs");
+      var codeRowEl = document.getElementById("codeRow");
+      var regSubmitBtn = document.getElementById("registerBtn");
+      var loginSubmitBtn = document.getElementById("doLoginBtn");
+
+      /* ===== 登录 / 注册分开：同一个弹窗内分段切换 =====
+         login    → 只要「邮箱 + 密码」
+         register → 「昵称 + 邮箱 + 密码 + 邮箱验证码」（验证码服务未接通时自动隐藏该行） */
+      var authMode = "login";
+      function setAuthMode(mode) {
+        authMode = (mode === "register") ? "register" : "login";
+        var isReg = authMode === "register";
+        Array.prototype.forEach.call(authTabs.querySelectorAll(".auth-tab"), function (b) {
+          b.classList.toggle("active", b.getAttribute("data-mode") === authMode);
+        });
+        authTitle.textContent = isReg ? "注册新账号" : "登录账号";
+        authSub.textContent = isReg
+          ? "填写邮箱并通过验证码校验，即可创建账号"
+          : "用邮箱和密码登录你的账号";
+        nickIn.style.display = isReg ? "" : "none";
+        codeRowEl.style.display = (isReg && MAIL_READY) ? "" : "none";
+        regSubmitBtn.style.display = isReg ? "" : "none";
+        loginSubmitBtn.style.display = isReg ? "none" : "";
+        passIn.setAttribute("autocomplete", isReg ? "new-password" : "current-password");
+        statusEl.textContent = ""; statusEl.className = "";
+      }
+      function openAuth(mode) {
+        setAuthMode(mode);
+        mask.classList.add("show");
+        setTimeout(function () { (authMode === "register" ? nickIn : emailIn).focus(); }, 60);
       }
       var me = null, myInfo = {};
 
@@ -754,6 +812,7 @@
         /* 游客不显示「注销账号」，改成「退出游客」 */
         deleteBtn.style.display = isGuest() ? "none" : "inline";
         loginBtn.style.display = "none";
+        regBtn.style.display = "none";
         guestBtn.style.display = "none";
         chip.style.display = "flex";
       }
@@ -761,6 +820,7 @@
       function showLogin() {
         me = null; myInfo = {};
         loginBtn.style.display = "inline-block";
+        regBtn.style.display = "inline-block";
         guestBtn.style.display = "inline-block";
         chip.style.display = "none";
       }
@@ -1345,8 +1405,19 @@
       });
       document.getElementById("admClose").addEventListener("click", function () { adminMask.classList.remove("show"); });
 
-      document.getElementById("registerBtn").addEventListener("click", function () { tryAuth("register"); });
-      document.getElementById("doLoginBtn").addEventListener("click", function () { tryAuth("login"); });
+      regSubmitBtn.addEventListener("click", function () { tryAuth("register"); });
+      loginSubmitBtn.addEventListener("click", function () { tryAuth("login"); });
+      authTabs.addEventListener("click", function (e) {
+        var b = e.target.closest(".auth-tab");
+        if (!b) return;
+        setAuthMode(b.getAttribute("data-mode"));
+      });
+      /* 回车 = 提交当前分段（登录 / 注册） */
+      mask.addEventListener("keydown", function (e) {
+        if (e.key !== "Enter" || e.shiftKey) return;
+        e.preventDefault();
+        tryAuth(authMode);
+      });
 
       /* ===== 获取邮箱验证码（60 秒倒计时） ===== */
       var codeCdTimer = null;
@@ -1400,7 +1471,8 @@
           sendCodeBtn.textContent = "获取验证码";
         });
       });
-      loginBtn.addEventListener("click", function () { mask.classList.add("show"); emailIn.focus(); });
+      loginBtn.addEventListener("click", function () { openAuth("login"); });
+      regBtn.addEventListener("click", function () { openAuth("register"); });
       document.getElementById("modalClose").addEventListener("click", function () { mask.classList.remove("show"); });
 
 
