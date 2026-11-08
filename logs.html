@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>错误日志 · BlueprintStudio</title>
+<style>
+  :root {
+    --bg:#0b1020; --panel:rgba(255,255,255,.04); --line:rgba(79,124,255,.25);
+    --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8;
+    --err:#ff6b6b; --warn:#f5b301; --info:#22d3ee;
+  }
+  html[data-theme="light"] {
+    --bg:#f4f7ff; --panel:#ffffff; --line:rgba(79,124,255,.22);
+    --text:#0b1020; --muted:#5b6478;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;
+    min-height:100vh;
+  }
+  .grid-bg {
+    pointer-events:none; position:fixed; inset:0; z-index:0;
+    background-image:
+      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+    background-size:40px 40px;
+  }
+  header {
+    position:sticky; top:0; z-index:10;
+    display:flex; justify-content:space-between; align-items:center; gap:1rem;
+    padding:1rem 2rem;
+    background:color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+    flex-wrap:wrap;
+  }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav { display:flex; gap:1.2rem; flex-wrap:wrap; }
+  nav a { color:var(--muted); text-decoration:none; font-size:.92rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+
+  main { position:relative; z-index:1; max-width:960px; margin:0 auto; padding:2.5rem 1.5rem 4rem; }
+  h1 { font-size:1.7rem; margin-bottom:.45rem; }
+  h1 em {
+    font-style:normal;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .sub { color:var(--muted); font-size:.9rem; line-height:1.8; margin-bottom:1.6rem; }
+
+  .panel {
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:14px; padding:1.2rem 1.3rem;
+  }
+  .lock { text-align:center; padding:2.6rem 1.4rem; }
+  .lock .ico { font-size:2.2rem; margin-bottom:.7rem; }
+  .lock h2 { font-size:1.1rem; margin-bottom:.6rem; }
+  .lock p { color:var(--muted); font-size:.88rem; line-height:1.9; }
+  .btn {
+    display:inline-block; margin-top:1.2rem;
+    padding:.55rem 1.2rem; border-radius:10px; text-decoration:none;
+    border:1px solid rgba(79,124,255,.55); color:var(--accent2);
+    background:rgba(79,124,255,.12); font-size:.88rem; cursor:pointer;
+    transition:background .2s, color .2s;
+  }
+  .btn:hover { background:rgba(79,124,255,.25); color:#fff; }
+  .btn.ghost { border-color:var(--line); color:var(--muted); background:none; }
+  .btn.ghost:hover { color:var(--text); background:rgba(255,255,255,.06); }
+  .btn.danger { border-color:rgba(255,107,107,.5); color:var(--err); background:rgba(255,107,107,.1); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+
+  .stats { display:flex; gap:.8rem; flex-wrap:wrap; margin-bottom:1rem; }
+  .stat {
+    flex:1 1 150px; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:.85rem 1rem;
+  }
+  .stat b { display:block; font-size:1.35rem; font-weight:700; }
+  .stat span { color:var(--muted); font-size:.78rem; }
+  .stat.err b { color:var(--err); }
+  .stat.warn b { color:var(--warn); }
+
+  .toolbar {
+    display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;
+    margin-bottom:1.1rem;
+  }
+  .toolbar input, .toolbar select {
+    background:rgba(255,255,255,.06); border:1px solid var(--line);
+    color:var(--text); border-radius:10px; padding:.5rem .8rem;
+    font-size:.85rem; outline:none; font-family:inherit;
+  }
+  html[data-theme="light"] .toolbar input, html[data-theme="light"] .toolbar select { background:#fff; }
+  .toolbar input { flex:1 1 200px; min-width:0; }
+  .toolbar input:focus, .toolbar select:focus { border-color:var(--accent2); }
+  .toolbar .spacer { flex:1 1 auto; }
+
+  .log-list { display:flex; flex-direction:column; gap:.7rem; }
+  .log {
+    background:var(--panel); border:1px solid var(--line);
+    border-left:3px solid var(--muted);
+    border-radius:12px; padding:.85rem 1rem;
+  }
+  .log.error { border-left-color:var(--err); }
+  .log.warn { border-left-color:var(--warn); }
+  .log.info { border-left-color:var(--info); }
+  .log-head {
+    display:flex; gap:.55rem; align-items:center; flex-wrap:wrap;
+    font-size:.75rem; color:var(--muted); margin-bottom:.4rem;
+  }
+  .tag {
+    padding:.1rem .5rem; border-radius:999px; font-size:.7rem; font-weight:700;
+    letter-spacing:.03em;
+  }
+  .tag.error { background:rgba(255,107,107,.16); color:var(--err); }
+  .tag.warn { background:rgba(245,179,1,.16); color:var(--warn); }
+  .tag.info { background:rgba(34,211,238,.14); color:var(--info); }
+  .tag.src { background:rgba(79,124,255,.14); color:var(--accent2); font-weight:500; }
+  .log-msg { font-size:.92rem; line-height:1.7; word-break:break-word; }
+  .log-meta { font-size:.76rem; color:var(--muted); margin-top:.4rem; line-height:1.7; word-break:break-all; }
+  details { margin-top:.5rem; }
+  summary {
+    cursor:pointer; font-size:.76rem; color:var(--muted);
+    list-style:none; user-select:none; outline:none;
+  }
+  summary::-webkit-details-marker { display:none; }
+  summary:hover { color:var(--accent2); }
+  pre {
+    margin-top:.45rem; padding:.7rem .8rem; border-radius:9px;
+    background:rgba(0,0,0,.28); border:1px solid var(--line);
+    font-size:.74rem; line-height:1.6; color:var(--muted);
+    overflow-x:auto; white-space:pre-wrap; word-break:break-all;
+  }
+  html[data-theme="light"] pre { background:rgba(0,0,0,.04); }
+
+  .empty { text-align:center; color:var(--muted); padding:2.6rem 1rem; font-size:.9rem; line-height:2; }
+  .empty .ico { font-size:2rem; display:block; margin-bottom:.5rem; }
+  .hint { color:var(--muted); font-size:.78rem; line-height:1.9; margin-top:1.4rem; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="forum.html">论坛</a>
+      <a href="chat.html">聊天</a>
+      <a href="notes.html">笔记</a>
+      <a class="active" href="logs.html">错误日志</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>前端<em>错误日志</em></h1>
+    <p class="sub">
+      全站页面自动上报的脚本异常、资源加载失败、验证码发信失败与接口异常。<br>
+      只记录错误本身和浏览器环境，<b>不记录任何输入内容</b>（密码、验证码、邮箱都不会进日志）。云端最多保留 100 条。
+    </p>
+
+    <!-- 未登录 / 非管理员 -->
+    <div class="panel lock hidden" id="lockBox">
+      <div class="ico">🔒</div>
+      <h2 id="lockTitle">需要管理员身份</h2>
+      <p id="lockDesc">请先在首页用管理员账号登录，再回到这里查看。<br>日志页仅对管理员开放。</p>
+      <a class="btn" href="index.html">回首页登录</a>
+    </div>
+
+    <!-- 日志主体 -->
+    <div id="logWrap" class="hidden">
+      <div class="stats">
+        <div class="stat"><b id="stTotal">0</b><span>日志总数</span></div>
+        <div class="stat err"><b id="stError">0</b><span>错误 error</span></div>
+        <div class="stat warn"><b id="stWarn">0</b><span>警告 warn</span></div>
+        <div class="stat"><b id="stLast" style="font-size:.9rem; padding-top:.35rem;">—</b><span>最近一条</span></div>
+      </div>
+
+      <div class="toolbar">
+        <input id="q" type="search" placeholder="搜索消息 / 页面 / 昵称 / UID…">
+        <select id="lv">
+          <option value="">全部级别</option>
+          <option value="error">仅 error</option>
+          <option value="warn">仅 warn</option>
+          <option value="info">仅 info</option>
+        </select>
+        <button class="btn ghost" id="reload">刷新</button>
+        <button class="btn ghost" id="export">导出 JSON</button>
+        <button class="btn danger" id="clear">清空</button>
+      </div>
+
+      <div class="log-list" id="list"></div>
+      <div class="empty hidden" id="emptyBox">
+        <span class="ico">🌤️</span>
+        目前没有任何错误记录，一切正常。
+      </div>
+
+      <p class="hint">
+        提示：日志存在公共的 textdb.dev 上，页面侧的访问控制只能挡住普通访客，<br>
+        懂技术的人仍可能直接读到数据，所以日志里刻意不放任何敏感信息。
+      </p>
+    </div>
+
+    <div class="panel lock hidden" id="errBox">
+      <div class="ico">⚠️</div>
+      <h2>日志读取失败</h2>
+      <p id="errDesc">网络异常或日志库暂时不可用，请稍后刷新。</p>
+      <button class="btn" id="retry">重试</button>
+    </div>
+  </main>
+
+<script>
+(function () {
+  "use strict";
+  var LOG_DB = "https://textdb.dev/api/data/blueprintstudio-logs-v1";
+  var USER_DB = "https://textdb.dev/api/data/blueprintstudio-users-v2";
+  var KEY = "bs_auth";
+  var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
+  var ADMIN_UID = "00000000";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var logs = [];
+
+  /* ---------- 主题跟随首页选择 ---------- */
+  try {
+    if (localStorage.getItem("bs_theme") === "light") {
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+  } catch (e) {}
+
+  /* ---------- 管理员校验：本地登录态 + 云端 hash 比对 ---------- */
+  function checkAdmin() {
+    var a = null;
+    try { a = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
+    if (!a || !a.email || !a.hash) return Promise.resolve({ ok: false, reason: "guest" });
+    return fetch(USER_DB + "?t=" + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (db) {
+        var u = (db && db.users && db.users[a.email]) || null;
+        /* hash 在用户库里是明文存放的（昵称/头衔才加密），可直接比对 */
+        if (!u || u.hash !== a.hash) return { ok: false, reason: "mismatch" };
+        if (u.banned) return { ok: false, reason: "banned" };
+        if (a.email !== ADMIN_EMAIL) return { ok: false, reason: "notadmin" };
+        return { ok: true };
+      })
+      .catch(function () { return { ok: false, reason: "offline" }; });
+  }
+
+  function showLock(r) {
+    $("lockBox").classList.remove("hidden");
+    $("logWrap").classList.add("hidden");
+    if (r === "banned") {
+      $("lockTitle").textContent = "该账号已被封禁";
+      $("lockDesc").innerHTML = "当前登录的账号处于封禁状态，无法查看日志。<br>如需恢复请联系站主。";
+    } else if (r === "notadmin") {
+      $("lockTitle").textContent = "当前账号不是管理员";
+      $("lockDesc").innerHTML = "日志页只对官方管理员开放。<br>请退出后改用管理员账号登录。";
+    } else if (r === "mismatch" || r === "offline") {
+      $("lockTitle").textContent = "登录状态已失效";
+      $("lockDesc").innerHTML = "本地保存的登录信息与云端不一致，可能已在别处修改密码或清理过数据。<br>请回首页重新登录。";
+    }
+  }
+
+  /* ---------- 渲染 ---------- */
+  function fmtTime(t) {
+    var d = new Date(t);
+    if (!t || isNaN(d.getTime())) return "—";
+    var p = function (n) { return n < 10 ? "0" + n : "" + n; };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate())
+      + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function render() {
+    var q = $("q").value.trim().toLowerCase();
+    var lv = $("lv").value;
+    var list = $("list");
+    list.innerHTML = "";
+
+    var shown = logs.filter(function (r) {
+      if (!r || typeof r !== "object") return false;
+      if (lv && r.lv !== lv) return false;
+      if (!q) return true;
+      var hay = [r.msg, r.page, r.src, r.detail, r.nick, r.uid, r.file].join(" ").toLowerCase();
+      return hay.indexOf(q) !== -1;
+    });
+
+    shown.forEach(function (r) {
+      var box = el("div", "log " + (r.lv || "info"));
+
+      var head = el("div", "log-head");
+      head.appendChild(el("span", "tag " + (r.lv || "info"), (r.lv || "info").toUpperCase()));
+      head.appendChild(el("span", "tag src", r.src || "unknown"));
+      head.appendChild(el("span", null, r.page || "—"));
+      head.appendChild(el("span", null, fmtTime(r.t)));
+      box.appendChild(head);
+
+      box.appendChild(el("div", "log-msg", r.msg || "（无消息）"));
+
+      var meta = [];
+      if (r.nick) meta.push("操作者：" + r.nick + (r.uid ? "（UID " + r.uid + "）" : ""));
+      else if (r.uid) meta.push("UID：" + r.uid);
+      if (r.guest) meta.push("游客身份");
+      if (r.file) meta.push("位置：" + r.file);
+      if (r.detail) meta.push("详情：" + r.detail);
+      if (meta.length) box.appendChild(el("div", "log-meta", meta.join(" · ")));
+
+      if (r.stack) {
+        var d = document.createElement("details");
+        var s = document.createElement("summary");
+        s.textContent = "查看堆栈";
+        d.appendChild(s);
+        d.appendChild(el("pre", null, r.stack));
+        box.appendChild(d);
+      }
+      list.appendChild(box);
+    });
+
+    $("emptyBox").classList.toggle("hidden", shown.length > 0);
+    $("stTotal").textContent = logs.length;
+    $("stError").textContent = logs.filter(function (r) { return r && r.lv === "error"; }).length;
+    $("stWarn").textContent = logs.filter(function (r) { return r && r.lv === "warn"; }).length;
+    var latest = logs.reduce(function (acc, r) {
+      var t = r && r.t ? new Date(r.t).getTime() : 0;
+      return t > acc ? t : acc;
+    }, 0);
+    $("stLast").textContent = latest ? fmtTime(latest) : "—";
+  }
+
+  /* ---------- 读取日志 ---------- */
+  function loadLogs() {
+    $("errBox").classList.add("hidden");
+    $("logWrap").classList.add("hidden");
+    return fetch(LOG_DB + "?t=" + Date.now(), { cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (db) {
+        var arr = (db && db.logs) || [];
+        logs = Array.isArray(arr) ? arr.filter(Boolean) : [];
+        /* 按时间倒序，兼容历史上写入顺序不一致的情况 */
+        logs.sort(function (a, b) {
+          return new Date(b.t || 0).getTime() - new Date(a.t || 0).getTime();
+        });
+        $("logWrap").classList.remove("hidden");
+        render();
+      })
+      .catch(function (e) {
+        $("errDesc").textContent = "读取日志失败（" + ((e && e.message) || "网络异常") + "），请稍后重试。";
+        $("errBox").classList.remove("hidden");
+      });
+  }
+
+  /* ---------- 事件 ---------- */
+  $("q").addEventListener("input", render);
+  $("lv").addEventListener("change", render);
+  $("reload").addEventListener("click", function () {
+    $("reload").disabled = true;
+    loadLogs().then(function () { $("reload").disabled = false; });
+  });
+  $("retry").addEventListener("click", loadLogs);
+
+  $("export").addEventListener("click", function () {
+    if (!logs.length) { alert("没有可导出的日志"); return; }
+    var blob = new Blob([JSON.stringify({ logs: logs }, null, 2)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "bp-logs-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  });
+
+  $("clear").addEventListener("click", function () {
+    if (!logs.length) { alert("本来就没有日志"); return; }
+    if (!confirm("确定清空全部 " + logs.length + " 条日志？清空后无法恢复。")) return;
+    $("clear").disabled = true;
+    fetch(LOG_DB, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ logs: [] })
+    }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      logs = [];
+      render();
+      alert("已清空");
+    }).catch(function (e) {
+      alert("清空失败：" + ((e && e.message) || "网络异常"));
+    }).then(function () { $("clear").disabled = false; });
+  });
+
+  /* ---------- 启动 ---------- */
+  checkAdmin().then(function (r) {
+    if (!r.ok) { showLock(r.reason); return; }
+    loadLogs();
+  });
+})();
+</script>
+</body>
+</html>
