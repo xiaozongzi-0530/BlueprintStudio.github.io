@@ -610,11 +610,19 @@
       var KEY = "bs_auth";
       var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
       var ADMIN_UID = "00000000";
-      /* 邮箱验证码服务地址（Cloudflare Worker）。
-         部署 server/worker.js 后，把 Worker 地址填到这里，形如
-         https://bs-verify.你的子域.workers.dev
-         留空时注册不需要验证码，保持原有流程不受影响。 */
-      var MAIL_API = "https://calm-boat-12e1.zhouxinyuan0530.workers.dev";
+      /* 邮箱验证码：使用 EmailJS 从浏览器发信，无需自建服务器。
+         在 EmailJS 后台创建「自定义 SMTP」服务与验证码模板后，填入下面三项。
+         模板的 To Email 必须填 {{to_email}}，正文包含 {{code}}。
+         三项未填全时，注册会自动跳过验证码，原有流程不受影响。 */
+      var EJS_SERVICE = "";
+      var EJS_TEMPLATE = "";
+      var EJS_KEY = "";
+      var EJS_READY = !!(EJS_SERVICE && EJS_TEMPLATE && EJS_KEY);
+      var MAIL_READY = EJS_READY;
+      var EJS_API = "https://api.emailjs.com/api/v1.0/email/send";
+      var CODE_STORE = "bs_mail_code_v1";
+      var CODE_TTL = 10 * 60 * 1000;
+      var CODE_MAX_TRIES = 5;
       var BAN_PAGE = "ban.html?email=";
       var C = window.BPCrypto;
       var USER_ENC_FIELDS = ["nick", "title"];   // 用户资料中需要加密的字段
@@ -636,7 +644,7 @@
       var codeIn = document.getElementById("codeInput");
       var sendCodeBtn = document.getElementById("sendCodeBtn");
       /* 未配置验证码服务时，整行隐藏，不打扰访客 */
-      if (!MAIL_API) {
+      if (!MAIL_READY) {
         var cr = document.getElementById("codeRow");
         if (cr) cr.style.display = "none";
       }
@@ -775,6 +783,86 @@
           return false;
         });
       }
+      /* ===== 邮箱验证码（EmailJS，无后端） ===== */
+      function mailCodeNew() {
+        var a = new Uint32Array(6);
+        crypto.getRandomValues(a);
+        var s = String(1 + (a[0] % 9));
+        for (var i = 1; i < 6; i++) s += String(a[i] % 10);
+        return s;
+      }
+      function mailCodeClear() {
+        try { sessionStorage.removeItem(CODE_STORE); } catch (e) {}
+      }
+      function mailCodeSave(email, code) {
+        var rec = { e: email, h: "", x: Date.now() + CODE_TTL, n: 0 };
+        return C.hashPassword(email, code).then(function (h) {
+          rec.h = h;
+          try { sessionStorage.setItem(CODE_STORE, JSON.stringify(rec)); }
+          catch (e) { throw new Error("浏览器无法保存验证码，请检查隐私设置"); }
+        });
+      }
+      function mailCodeLoad() {
+        try {
+          var rec = JSON.parse(sessionStorage.getItem(CODE_STORE) || "null");
+          return rec && typeof rec.h === "string" ? rec : null;
+        } catch (e) { return null; }
+      }
+      function mailCodeVerify(email, code) {
+        var rec = mailCodeLoad();
+        if (!rec || rec.e !== email) return Promise.resolve({ ok: false, message: "请先获取邮箱验证码" });
+        if (rec.x < Date.now()) {
+          mailCodeClear();
+          return Promise.resolve({ ok: false, message: "验证码已过期，请重新获取" });
+        }
+        if (rec.n >= CODE_MAX_TRIES) {
+          mailCodeClear();
+          return Promise.resolve({ ok: false, message: "验证码错误次数过多，请重新获取" });
+        }
+        return C.hashPassword(email, code).then(function (h) {
+          if (h !== rec.h) {
+            rec.n += 1;
+            try { sessionStorage.setItem(CODE_STORE, JSON.stringify(rec)); } catch (e) {}
+            return { ok: false, message: "验证码不正确" };
+          }
+          mailCodeClear();
+          return { ok: true };
+        });
+      }
+      function mailCodeSend(email) {
+        var code = mailCodeNew();
+        return mailCodeSave(email, code).then(function () {
+          var ctrl = new AbortController();
+          var killer = setTimeout(function () { ctrl.abort(); }, 20000);
+          return fetch(EJS_API, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              service_id: EJS_SERVICE,
+              template_id: EJS_TEMPLATE,
+              user_id: EJS_KEY,
+              template_params: {
+                to_email: email,
+                email: email,
+                code: code,
+                passcode: code,
+                site_name: "BlueprintStudio",
+                minutes: "10"
+              }
+            }),
+            signal: ctrl.signal
+          }).then(function (r) {
+            clearTimeout(killer);
+            if (!r.ok) throw new Error("EmailJS " + r.status);
+            return { ok: true };
+          }).catch(function (err) {
+            clearTimeout(killer);
+            mailCodeClear();
+            throw err;
+          });
+        });
+      }
+
       function tryAuth(mode) {
         var email = emailIn.value.trim().toLowerCase();
         var pass = passIn.value;
@@ -791,15 +879,11 @@
 
 
         /* 注册需先过邮箱验证码；未配置服务时跳过，保持原流程不受影响 */
-        if (mode === "register" && MAIL_API) {
+        if (mode === "register" && MAIL_READY) {
           var code = (codeIn.value || "").trim();
           if (!/^[1-9]\d{5}$/.test(code)) { setStatus("请填写 6 位邮箱验证码", "err"); codeIn.focus(); return; }
           setStatus("正在校验验证码…");
-          fetch(MAIL_API + "/verify-code", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: email, code: code })
-          }).then(function (r) { return r.json(); }).then(function (j) {
+          mailCodeVerify(email, code).then(function (j) {
             if (!j || !j.ok) { setStatus((j && j.message) || "验证码不正确", "err"); return; }
             doAuth(mode, email, pass, nick);
           }).catch(function () {
@@ -1295,7 +1379,7 @@
       }
       sendCodeBtn.addEventListener("click", function () {
         if (sendCodeBtn.disabled) return;
-        if (!MAIL_API) { setStatus("验证码服务尚未接通，可先直接注册", "err"); return; }
+        if (!MAIL_READY) { setStatus("验证码服务尚未接通，可先直接注册", "err"); return; }
         var email = emailIn.value.trim().toLowerCase();
         if (!/^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/.test(email)) {
           setStatus("请先填写正确的邮箱", "err");
@@ -1310,31 +1394,17 @@
         }
         sendCodeBtn.disabled = true;
         sendCodeBtn.textContent = "发送中…";
-        var ctrl = new AbortController();
-        var killer = setTimeout(function () { ctrl.abort(); }, 20000);
-        fetch(MAIL_API + "/send-code", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email }),
-          signal: ctrl.signal
-        }).then(function (r) { return r.json(); }).then(function (j) {
-          clearTimeout(killer);
-          if (j && j.ok) {
-            setStatus("验证码已发送，请查收（含垃圾箱）", "ok");
-            codeIn.focus();
-            startCodeCountdown(60);
-          } else {
-            setStatus((j && j.message) || "发送失败，请稍后再试", "err");
-            sendCodeBtn.disabled = false;
-            sendCodeBtn.textContent = "获取验证码";
-          }
+        mailCodeSend(email).then(function () {
+          setStatus("验证码已发送，请查收（含垃圾箱）", "ok");
+          codeIn.focus();
+          startCodeCountdown(60);
         }).catch(function (err) {
-          clearTimeout(killer);
           if (err && err.name === "AbortError") {
-            setStatus("验证码服务 20 秒没有响应，请稍后再试", "err");
+            setStatus("邮件服务 20 秒没有响应，请稍后再试", "err");
           } else {
-            setStatus("网络异常，验证码发不出去", "err");
+            setStatus("邮件发送失败，请稍后再试", "err");
           }
+          try { console.error("[mail-code]", err); } catch (e) {}
           sendCodeBtn.disabled = false;
           sendCodeBtn.textContent = "获取验证码";
         });
