@@ -215,8 +215,8 @@
   #sendCodeBtn:disabled { opacity: .55; cursor: not-allowed; }
 
   /* Turnstile 人机验证（托管模式：可见勾选框） */
-  #tsBox { width: 300px; max-width: 100%; margin: 0 auto .8rem; }
-  #tsBox:empty { display: none; }   /* 部件未加载时占位去掉，不留空隙 */
+  #tsBox, #guestTsBox { width: 300px; max-width: 100%; margin: 0 auto .8rem; }
+  #tsBox:empty, #guestTsBox:empty { display: none; }   /* 部件未加载时占位去掉，不留空隙 */
 
   #authStatus { color: var(--muted); font-size: .85rem; min-height: 1.2em; }
   #authStatus.err { color: #ff6b6b; }
@@ -464,7 +464,7 @@
     </div>
   </div>
 
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" defer></script>
 
   <!-- 游客模式 -->
   <div class="modal-mask" id="guestModal">
@@ -482,6 +482,7 @@
         你的 UID：<b id="guestUIDVal" style="color:var(--accent2); letter-spacing:.08em;">--------</b>
         <button class="auth-btn" id="guestReUID" style="padding:.2rem .7rem; font-size:.75rem; margin-left:.5rem;">重新生成</button>
       </div>
+      <div id="guestTsBox"></div>
       <p id="guestStatus" style="text-align:left;"></p>
       <div class="auth-btns" style="margin-top:1rem;">
         <button class="auth-btn" id="guestGo">进入</button>
@@ -613,7 +614,7 @@
          部署 server/worker.js 后，把 Worker 地址填到这里，形如
          https://bs-verify.你的子域.workers.dev
          留空时注册不需要验证码，保持原有流程不受影响。 */
-      var MAIL_API = "";
+      var MAIL_API = "https://calm-boat-12e1.zhouxinyuan0530.workers.dev";
       var BAN_PAGE = "ban.html?email=";
       var C = window.BPCrypto;
       var USER_ENC_FIELDS = ["nick", "title"];   // 用户资料中需要加密的字段
@@ -641,12 +642,14 @@
       }
       var me = null, myInfo = {};
 
-      /* ===== 人机验证（Cloudflare Turnstile，不可见模式） =====
-         脚本加载失败时不阻拦用户（fail-open），避免验证服务成为单点故障；
+      /* ===== 人机验证（Cloudflare Turnstile，托管模式） =====
+         账号与游客各用一个独立部件；脚本加载失败时不阻拦用户（fail-open）。
          真正校验 secret 需要后端，等自定义域名接入 Worker 后开启。 */
       var TS_SITEKEY = "0x4AAAAAAF4SrhJkjWnIRl3K";
       var tsWidgetId = null;
       var tsReady = false;
+      var tsGuestWidgetId = null;
+      var tsGuestReady = false;
 
       window.onTurnstileLoad = function () {
         try {
@@ -657,8 +660,16 @@
             "expired-callback": function () { tsReady = false; },
             "error-callback": function () { tsReady = false; tsWidgetId = null; }
           });
-          /* 不可见部件渲染后会自动执行一次挑战，无需手动 execute */
         } catch (_) { tsWidgetId = null; }
+        try {
+          tsGuestWidgetId = window.turnstile.render("#guestTsBox", {
+            sitekey: TS_SITEKEY,
+            theme: "auto",
+            callback: function () { tsGuestReady = true; },
+            "expired-callback": function () { tsGuestReady = false; },
+            "error-callback": function () { tsGuestReady = false; tsGuestWidgetId = null; }
+          });
+        } catch (_) { tsGuestWidgetId = null; }
       };
 
       /* 重置并提前再跑一个，避免旧 token 被复用 */
@@ -666,6 +677,11 @@
         if (tsWidgetId === null || !window.turnstile) return;
         tsReady = false;
         try { window.turnstile.reset(tsWidgetId); window.turnstile.execute(tsWidgetId); } catch (_) {}
+      }
+      function tsGuestRefresh() {
+        if (tsGuestWidgetId === null || !window.turnstile) return;
+        tsGuestReady = false;
+        try { window.turnstile.reset(tsGuestWidgetId); window.turnstile.execute(tsGuestWidgetId); } catch (_) {}
       }
 
       /* 游客模式：gs_nick / gs_uid / gs_mode 三个本地键，gs_uid 参与聊天加密的密钥派生 */
@@ -1412,6 +1428,14 @@
         if (/^[\s\u0000-\u001f]+$/.test(nick)) { st.textContent = "昵称不能只有空字符"; st.className = "err"; return; }
         nick = nick.slice(0, 12);
 
+        /* 游客也必须通过独立的人机验证，不复用账号弹窗的验证状态 */
+        if (tsGuestWidgetId !== null && !tsGuestReady) {
+          st.textContent = "请先完成人机验证，再进入游客模式";
+          st.className = "err";
+          tsGuestRefresh();
+          return;
+        }
+
         var r = rlCheck();
         if (!r.ok) { st.textContent = r.msg; st.className = "err"; return; }
 
@@ -1431,6 +1455,7 @@
         rlCommit(r.rec);
         guestMask.classList.remove("show");
         showLogged({ email: "guest:" + guestPendingUID, nick: nick, uid: guestPendingUID, title: "" });
+        tsGuestRefresh();
       });
 
       logoutBtn.addEventListener("click", logout);
