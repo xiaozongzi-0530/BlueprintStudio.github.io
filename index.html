@@ -1302,6 +1302,12 @@
           emailIn.focus();
           return;
         }
+        /* 人机验证未通过时，禁止调用发送接口 */
+        if (tsWidgetId !== null && !tsReady) {
+          setStatus("请先完成上方的人机验证，再获取验证码", "err");
+          tsRefresh();
+          return;
+        }
         sendCodeBtn.disabled = true;
         sendCodeBtn.textContent = "发送中…";
         var ctrl = new AbortController();
