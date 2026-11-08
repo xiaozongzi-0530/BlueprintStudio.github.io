@@ -378,10 +378,9 @@
       <a href="#team">成员</a>
       <a href="forum.html">论坛</a>
       <a href="chat.html">聊天</a>
-      <a href="#bugreport">反馈</a>
       <a href="notes.html">笔记</a>
       <a href="ann.html">公告</a>
-      <a href="join.html">加入我们</a>
+      <a href="join.html">联系我们</a>
     </nav>
     <div class="auth-area">
       <button class="auth-btn" id="themeBtn" title="切换主题">🌙</button>
@@ -412,7 +411,6 @@
           <button class="admin-tab" data-tab="create">分发账号</button>
           <button class="admin-tab" data-tab="ann">公告管理</button>
           <button class="admin-tab" data-tab="chat">聊天管理</button>
-          <button class="admin-tab" data-tab="bug">Bug 反馈</button>
         </aside>
 
         <div class="admin-main">
@@ -452,16 +450,6 @@
           <!-- 聊天 -->
           <div class="admin-pane" data-pane="chat">
             <div class="admin-scroll"><div id="chatAdminList" class="admin-list"></div></div>
-          </div>
-
-          <!-- Bug 反馈 -->
-          <div class="admin-pane" data-pane="bug">
-            <div class="admin-toolbar">
-              <input class="admin-search" id="bugSearch" type="search" placeholder="搜索提交人 / 内容 / 联系方式…">
-              <span class="admin-count" id="bugCount"></span>
-            </div>
-            <div class="admin-scroll"><div id="bugList" class="admin-list"></div></div>
-            <div class="admin-pager" id="bugPager"></div>
           </div>
         </div>
       </div>
@@ -533,7 +521,7 @@
       <h1>Blueprint<em>Studio</em> · 蓝图交流平台</h1>
       <p class="slogan">你只需要有想法，然后我们来实现。</p>
       <div class="btns">
-        <a class="btn" href="join.html">加入我们</a>
+        <a class="btn" href="join.html">联系我们</a>
       </div>
       <p class="leader-line">工作室室长：小粽子（GitHub: <a href="https://github.com/xiaozongzi-0530" target="_blank" rel="noopener">xiaozongzi-0530</a>）</p>
     </section>
@@ -581,19 +569,6 @@
             <p>工作室室长<br>GitHub: xiaozongzi-0530</p>
           </div>
         </div>
-      </div>
-    </section>
-
-    <section id="bugreport" class="reveal">
-      <h2 class="sec">报告 <em>Bug</em></h2>
-      <p class="sec-sub">发现网站问题？告诉我们，开发者会尽快修复</p>
-      <div class="card" style="max-width:640px; margin:0 auto;">
-        <textarea id="bugText" style="width:100%; min-height:90px; resize:vertical; background:rgba(255,255,255,.06); border:1px solid rgba(79,124,255,.3); border-radius:10px; color:var(--text); padding:.7rem .9rem; font-size:.95rem; outline:none; font-family:inherit;" placeholder="描述你遇到的问题（什么操作、预期是什么、实际发生了什么）"></textarea>
-        <div style="display:flex; gap:.8rem; align-items:center; flex-wrap:wrap; margin-top:.8rem;">
-          <input id="bugContact" type="text" placeholder="联系方式（选填，如邮箱/QQ）" style="flex:1; min-width:200px; background:rgba(255,255,255,.06); border:1px solid rgba(79,124,255,.3); border-radius:10px; color:var(--text); padding:.6rem .9rem; font-size:.92rem; outline:none;">
-          <button class="btn" id="bugSend">提交反馈</button>
-        </div>
-        <p id="bugStatus" style="color:var(--muted); font-size:.85rem; margin-top:.6rem; min-height:1.2em;"></p>
       </div>
     </section>
   </main>
@@ -1094,8 +1069,8 @@
       });
       /* ===== 管理后台：Tab / 搜索 / 分页 ===== */
       var PAGE_SIZE = 6;
-      var userPage = 1, bugPage = 1;
-      var userData = {}, bugData = [];
+      var userPage = 1;
+      var userData = {};
 
       function esc(s) {
         return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -1226,10 +1201,10 @@
         });
       });
       adminBtn.addEventListener("click", function () {
-        userPage = 1; bugPage = 1;
+        userPage = 1;
         var firstTab = document.querySelector('.admin-tab[data-tab="users"]');
         if (firstTab) firstTab.click();
-        renderAdmin(); renderBugList(); renderAnn(); renderChatAdmin();
+        renderAdmin(); renderAnn(); renderChatAdmin();
         adminMask.classList.add("show");
       });
       /* ===== 公告（加密存储） ===== */
@@ -1325,104 +1300,6 @@
           return fetch(CHAT_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(renderChatAdmin);
         });
       });
-      /* ===== Bug 反馈（加密存储） ===== */
-      var BUG_DB = "https://textdb.dev/api/data/blueprintstudio-bugs-v2";
-      var BUG_ENC = ["who", "contact", "text"];
-      function bugKey(b) { return "bug|" + (b.bid || "x"); }
-      function getBugs() {
-        return fetch(BUG_DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
-          .catch(function () { return { bugs: [] }; })
-          .then(function (db) {
-            var list = (db && db.bugs) || [];
-            return Promise.all(list.map(function (b, i) {
-              // 兼容旧数据：无 bid 时用索引兜底
-              var key = b.bid ? ("bug|" + b.bid) : ("bug|idx" + i);
-              return C.decryptFields(b, BUG_ENC, key).then(function (d) {
-                d._idx = i; return d;
-              });
-            })).then(function (dec) { return { bugs: dec }; });
-          });
-      }
-      function saveBugs(db) {
-        var list = (db && db.bugs) || [];
-        return Promise.all(list.map(function (b, i) {
-          // 保证每条反馈有稳定 bid，删除其它条目不影响解密
-          if (!b.bid) b.bid = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-          return C.encryptFields(b, BUG_ENC, "bug|" + b.bid);
-        })).then(function (enc) {
-          return fetch(BUG_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ bugs: enc }) });
-        });
-      }
-      document.getElementById("bugSend").addEventListener("click", function () {
-        var st = document.getElementById("bugStatus");
-        var text = document.getElementById("bugText").value.trim();
-        if (!text) { st.textContent = "请描述问题内容"; return; }
-        var bugBtn = this;
-        bugBtn.disabled = true; st.textContent = "提交中…";
-        var contact = document.getElementById("bugContact").value.trim();
-        var who = me ? (myInfo.nick || me) : "游客";
-        getBugs().then(function (db) {
-          db.bugs = db.bugs || [];
-          db.bugs.unshift({ who: who, contact: contact, text: text.slice(0, 3000), time: new Date().toISOString() });
-          return saveBugs(db);
-        }).then(function () {
-          document.getElementById("bugText").value = "";
-          document.getElementById("bugContact").value = "";
-          st.textContent = "反馈已提交，感谢你的帮助！";
-          bugBtn.disabled = false;
-        }).catch(function (err) {
-          st.textContent = "提交失败：" + err;
-          bugBtn.disabled = false;
-        });
-      });
-      function renderBugList() {
-        getBugs().then(function (db) {
-          bugData = db.bugs || [];
-          drawBugs();
-        });
-      }
-      function drawBugs() {
-        var box = document.getElementById("bugList");
-        var q = (document.getElementById("bugSearch").value || "").trim().toLowerCase();
-        var items = bugData.map(function (b, i) { return { b: b, i: i }; }).filter(function (o) {
-          var hay = [o.b.who, o.b.text, o.b.contact].join(" ");
-          return scoreMatch(hay, q);
-        });
-        var total = items.length;
-        var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-        if (bugPage > pages) bugPage = pages;
-        var slice = items.slice((bugPage - 1) * PAGE_SIZE, bugPage * PAGE_SIZE);
-        document.getElementById("bugCount").textContent = q ? ("匹配 " + total + " 条") : ("共 " + total + " 条");
-
-        if (!slice.length) {
-          box.innerHTML = '<p class="admin-empty">' + (q ? "没有匹配的反馈" : "暂无反馈") + "</p>";
-        } else {
-          box.innerHTML = slice.map(function (o) {
-            var b = o.b;
-            return '<div class="admin-row" style="display:block;">'
-              + '<div style="display:flex; align-items:center; gap:.5rem;">'
-              + "<b>" + esc(b.who) + "</b>"
-              + '<span class="admin-count">' + esc(String(b.time || "").slice(0, 16).replace("T", " ")) + "</span>"
-              + (b.contact ? '<span style="color:var(--accent2); font-size:.78rem;">联系: ' + esc(b.contact) + "</span>" : "")
-              + '<a data-bugdel="' + o.i + '" style="color:#ff6b6b; margin-left:auto; cursor:pointer; font-size:.8rem;">删除</a>'
-              + "</div>"
-              + '<div style="color:var(--muted); font-size:.82rem; margin-top:.25rem; white-space:pre-wrap;">' + esc(b.text) + "</div>"
-              + "</div>";
-          }).join("");
-        }
-        renderPager(document.getElementById("bugPager"), bugPage, total, function (p) { bugPage = p; drawBugs(); });
-      }
-      document.getElementById("bugSearch").addEventListener("input", function () { bugPage = 1; drawBugs(); });
-      document.getElementById("bugList").addEventListener("click", function (e) {
-        var i = e.target.getAttribute("data-bugdel");
-        if (i === null) return;
-        if (!confirm("确定删除这条反馈？")) return;
-        getBugs().then(function (db) {
-          db.bugs.splice(parseInt(i, 10), 1);
-          return saveBugs(db).then(renderBugList);
-        });
-      });
-
       /* ===== Tab 切换 ===== */
       document.getElementById("adminTabs").addEventListener("click", function (e) {
         var btn = e.target.closest(".admin-tab");
@@ -1432,7 +1309,7 @@
         document.querySelectorAll(".admin-pane").forEach(function (p) {
           p.classList.toggle("active", p.getAttribute("data-pane") === tab);
         });
-        var focusMap = { users: "userSearch", bug: "bugSearch" };
+        var focusMap = { users: "userSearch" };
         if (focusMap[tab]) setTimeout(function () { document.getElementById(focusMap[tab]).focus(); }, 30);
       });
       document.getElementById("admClose").addEventListener("click", function () { adminMask.classList.remove("show"); });
