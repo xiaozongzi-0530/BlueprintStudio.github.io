@@ -214,26 +214,6 @@
   }
   #sendCodeBtn:disabled { opacity: .55; cursor: not-allowed; }
 
-  /* 图形验证码（Steam 风格：5 位扭曲字符） */
-  .cap-wrap { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
-  #capCanvas {
-    flex: 0 0 auto; display: block;
-    border: 1px solid rgba(79,124,255,.3);
-    border-radius: 10px;
-    background: #f3f6fc;
-    cursor: pointer;
-    touch-action: manipulation;
-  }
-  #capRefresh {
-    flex: 0 0 auto; white-space: nowrap;
-    padding: .5rem .75rem; font-size: .8rem;
-    border-radius: 10px; cursor: pointer;
-    background: transparent;
-    border: 1px solid rgba(79,124,255,.35);
-    color: var(--muted);
-    transition: color .2s, border-color .2s;
-  }
-  #capRefresh:hover { color: var(--text); border-color: var(--accent2); }
   #authStatus { color: var(--muted); font-size: .85rem; min-height: 1.2em; }
   #authStatus.err { color: #ff6b6b; }
   #authStatus.ok { color: #4ecb71; }
@@ -465,13 +445,6 @@
       <input class="auth-input" id="nickInput" type="text" placeholder="昵称（注册后可修改）" maxlength="20">
       <input class="auth-input" id="emailInput" type="email" placeholder="邮箱" autocomplete="email">
       <input class="auth-input" id="passInput" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
-      <div class="cap-wrap">
-        <canvas id="capCanvas" width="180" height="58" title="点击换一张"></canvas>
-        <button id="capRefresh" type="button">换一张</button>
-      </div>
-      <input class="auth-input" id="capInput" type="text" maxlength="5"
-             placeholder="输入图中的 5 个字符（不分大小写）"
-             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
       <div class="code-row" id="codeRow">
         <input class="auth-input" id="codeInput" type="text" inputmode="numeric" maxlength="6"
                placeholder="邮箱验证码（注册时填）" autocomplete="one-time-code">
@@ -660,100 +633,6 @@
         if (cr) cr.style.display = "none";
       }
       var me = null, myInfo = {};
-      var loginFails = 0;   // 登录连续失败次数，超过 0 时强制图形验证码
-
-      /* ===== 图形验证码：5 位扭曲字符（Steam 风格），纯前端生成 ===== */
-      var capCanvas = document.getElementById("capCanvas");
-      var capInput = document.getElementById("capInput");
-      var CAP_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";   // 去掉 O/0/I/1 这类易混字符
-      var CAP_LEN = 5;
-      var capCode = "";
-
-      function capNewCode() {
-        var a = new Uint32Array(CAP_LEN);
-        crypto.getRandomValues(a);
-        var s = "";
-        for (var i = 0; i < CAP_LEN; i++) s += CAP_CHARS[a[i] % CAP_CHARS.length];
-        return s;
-      }
-
-      function capDraw() {
-        if (!capCanvas) return;
-        capCode = capNewCode();
-        var w = 180, h = 58;
-        var dpr = Math.min(window.devicePixelRatio || 1, 2);
-        capCanvas.width = w * dpr;
-        capCanvas.height = h * dpr;
-        capCanvas.style.width = w + "px";
-        capCanvas.style.height = h + "px";
-        var ctx = capCanvas.getContext("2d");
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.fillStyle = "#f3f6fc";
-        ctx.fillRect(0, 0, w, h);
-
-        /* 背景弧线 */
-        for (var i = 0; i < 3; i++) {
-          ctx.beginPath();
-          ctx.strokeStyle = "rgba(" + (100 + Math.random() * 70 | 0) + "," +
-            (120 + Math.random() * 60 | 0) + "," + (160 + Math.random() * 60 | 0) + ",.55)";
-          ctx.lineWidth = 1 + Math.random();
-          ctx.moveTo(Math.random() * w, Math.random() * h);
-          ctx.bezierCurveTo(Math.random() * w, Math.random() * h,
-            Math.random() * w, Math.random() * h, Math.random() * w, Math.random() * h);
-          ctx.stroke();
-        }
-
-        /* 5 个字符，各自随机旋转、字号、字体、颜色 */
-        var step = w / (CAP_LEN + 1);
-        for (var j = 0; j < CAP_LEN; j++) {
-          var size = 25 + Math.random() * 9;
-          ctx.save();
-          ctx.translate(step * (j + 0.85) + (Math.random() * 8 - 4), h / 2 + (Math.random() * 10 - 5));
-          ctx.rotate(Math.random() * 0.9 - 0.45);
-          ctx.font = "700 " + size.toFixed(0) + "px " +
-            (j % 2 ? "Georgia,'Times New Roman',serif" : "'Segoe UI',Arial,sans-serif");
-          ctx.fillStyle = "rgb(" + (28 + Math.random() * 45 | 0) + "," +
-            (34 + Math.random() * 45 | 0) + "," + (55 + Math.random() * 50 | 0) + ")";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(capCode[j], 0, 0);
-          ctx.restore();
-        }
-
-        /* 噪点 */
-        for (var k = 0; k < 60; k++) {
-          ctx.fillStyle = "rgba(60,72,98," + (0.15 + Math.random() * 0.5).toFixed(2) + ")";
-          ctx.fillRect(Math.random() * w, Math.random() * h, 1.4, 1.4);
-        }
-
-        /* 两条干扰横线 */
-        for (var m = 0; m < 2; m++) {
-          ctx.beginPath();
-          ctx.strokeStyle = "rgba(70,90,130,.45)";
-          ctx.lineWidth = 1;
-          var ly = 8 + Math.random() * (h - 16);
-          ctx.moveTo(6, ly);
-          ctx.bezierCurveTo(w * 0.3, ly + (Math.random() * 16 - 8),
-            w * 0.7, ly + (Math.random() * 16 - 8), w - 6, ly);
-          ctx.stroke();
-        }
-      }
-
-      function capReset() {
-        capDraw();
-        if (capInput) { capInput.value = ""; }
-      }
-
-      function capPass() {
-        return (capInput.value || "").trim().toUpperCase() === capCode;
-      }
-
-      if (capCanvas) {
-        capDraw();
-        capCanvas.addEventListener("click", capReset);
-        var capBtn = document.getElementById("capRefresh");
-        if (capBtn) capBtn.addEventListener("click", function () { capReset(); capInput.focus(); });
-      }
 
       /* 游客模式：gs_nick / gs_uid / gs_mode 三个本地键，gs_uid 参与聊天加密的密钥派生 */
       var GUEST_NICK = "gs_nick", GUEST_UID = "gs_uid", GUEST_MODE = "gs_mode";
@@ -853,13 +732,6 @@
         if (mode === "register" && !nick) { setStatus("请填写昵称", "err"); return; }
         if (!valid(email, pass)) { setStatus("邮箱格式不正确，或密码少于6位", "err"); return; }
 
-        /* 图形验证码：注册必须通过；同一会话内登录失败过一次后也要通过 */
-        if ((mode === "register" || loginFails > 0) && !capPass()) {
-          setStatus("图形验证码不正确，请对照图片重新输入", "err");
-          capReset();
-          if (capInput) capInput.focus();
-          return;
-        }
 
         /* 注册需先过邮箱验证码；未配置服务时跳过，保持原流程不受影响 */
         if (mode === "register" && MAIL_API) {
@@ -901,19 +773,15 @@
                 showLogged({ email: email, nick: rec.nick, uid: rec.uid });
                 mask.classList.remove("show");
                 setStatus("", "");
-                loginFails = 0;
-                capReset();          /* 用过一次就换新的，防止同一张图重复使用 */
               });
             } else {
-              if (!u) { setStatus("该邮箱未注册", "err"); loginFails++; capReset(); return; }
-              if (u.hash !== h) { setStatus("密码错误", "err"); loginFails++; capReset(); return; }
+              if (!u) { setStatus("该邮箱未注册", "err"); return; }
+              if (u.hash !== h) { setStatus("密码错误", "err"); return; }
               if (u.banned) { location.href = BAN_PAGE + encodeURIComponent(email); return; }
               localStorage.setItem(KEY, JSON.stringify({ email: email, hash: h }));
               showLogged({ email: email, nick: u.nick, uid: u.uid });
               mask.classList.remove("show");
               setStatus("", "");
-              loginFails = 0;
-              capReset();
             }
           });
         }).catch(function () { setStatus("网络异常，请稍后再试", "err"); });
