@@ -1,0 +1,14 @@
+# BlueprintStudio 验证码发信服务（Netlify）
+# 只托管函数与一个说明页，网站本身仍由 GitHub Pages 提供。
+
+[build]
+  publish = "netlify/publish"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Cache-Control = "no-store"
