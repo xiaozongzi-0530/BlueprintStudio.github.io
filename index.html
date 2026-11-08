@@ -653,7 +653,7 @@
             "expired-callback": function () { tsReady = false; },
             "error-callback": function () { tsReady = false; tsWidgetId = null; }
           });
-          window.turnstile.execute(tsWidgetId);   /* 提前跑，提交时基本不用等 */
+          /* 不可见部件渲染后会自动执行一次挑战，无需手动 execute */
         } catch (_) { tsWidgetId = null; }
       };
 
