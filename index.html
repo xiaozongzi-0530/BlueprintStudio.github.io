@@ -451,7 +451,7 @@
       <input class="auth-input" id="passInput" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
       <div class="code-row" id="codeRow">
         <input class="auth-input" id="codeInput" type="text" inputmode="numeric" maxlength="6"
-               placeholder="邮箱验证码（注册时填）" autocomplete="one-time-code">
+               placeholder="6 位验证码" autocomplete="one-time-code">
         <button class="auth-btn" id="sendCodeBtn" type="button">获取验证码</button>
       </div>
       <div id="tsBox"></div>
@@ -610,16 +610,12 @@
       var KEY = "bs_auth";
       var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
       var ADMIN_UID = "00000000";
-      /* 邮箱验证码：使用 EmailJS 从浏览器发信，无需自建服务器。
-         在 EmailJS 后台创建「自定义 SMTP」服务与验证码模板后，填入下面三项。
-         模板的 To Email 必须填 {{to_email}}，正文包含 {{code}}。
-         三项未填全时，注册会自动跳过验证码，原有流程不受影响。 */
-      var EJS_SERVICE = "";
-      var EJS_TEMPLATE = "";
-      var EJS_KEY = "";
-      var EJS_READY = !!(EJS_SERVICE && EJS_TEMPLATE && EJS_KEY);
-      var MAIL_READY = EJS_READY;
-      var EJS_API = "https://api.emailjs.com/api/v1.0/email/send";
+      /* 邮箱验证码：由 Netlify 函数发信，授权码只存在服务端。
+         部署后把函数地址填到 MAIL_API，形如
+         https://你的站点.netlify.app/.netlify/functions/send-code
+         留空时注册跳过验证码，原有流程不受影响。 */
+      var MAIL_API = "https://blueprintstudio-mail.netlify.app/.netlify/functions/send-code";
+      var MAIL_READY = !!MAIL_API;
       var CODE_STORE = "bs_mail_code_v1";
       var CODE_TTL = 10 * 60 * 1000;
       var CODE_MAX_TRIES = 5;
@@ -834,27 +830,20 @@
         return mailCodeSave(email, code).then(function () {
           var ctrl = new AbortController();
           var killer = setTimeout(function () { ctrl.abort(); }, 20000);
-          return fetch(EJS_API, {
+          return fetch(MAIL_API, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              service_id: EJS_SERVICE,
-              template_id: EJS_TEMPLATE,
-              user_id: EJS_KEY,
-              template_params: {
-                to_email: email,
-                email: email,
-                code: code,
-                passcode: code,
-                site_name: "BlueprintStudio",
-                minutes: "10"
-              }
-            }),
+            body: JSON.stringify({ email: email, code: code }),
             signal: ctrl.signal
           }).then(function (r) {
             clearTimeout(killer);
-            if (!r.ok) throw new Error("EmailJS " + r.status);
-            return { ok: true };
+            return r.json().catch(function () { return {}; }).then(function (j) {
+              if (!r.ok || !j.ok) {
+                var e = new Error((j && j.message) || ("HTTP " + r.status));
+                throw e;
+              }
+              return { ok: true };
+            });
           }).catch(function (err) {
             clearTimeout(killer);
             mailCodeClear();
@@ -1401,6 +1390,8 @@
         }).catch(function (err) {
           if (err && err.name === "AbortError") {
             setStatus("邮件服务 20 秒没有响应，请稍后再试", "err");
+          } else if (err && err.message && !/^HTTP \d+$/.test(err.message)) {
+            setStatus(err.message, "err");
           } else {
             setStatus("邮件发送失败，请稍后再试", "err");
           }
