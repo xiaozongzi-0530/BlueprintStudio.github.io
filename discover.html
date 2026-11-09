@@ -275,7 +275,7 @@
       <div class="field">
         <label>附件（选填，单个文件）</label>
         <label class="file-label">📦 选择文件<input type="file" class="file-input" id="fFile"></label>
-        <div class="fhint" id="fFileInfo">支持 zip / 源码 / 文档 / 图片，单个不超过 200KB。</div>
+        <div class="fhint" id="fFileInfo">支持 zip / 源码 / 文档 / 图片，单个不超过 300KB；更大的文件请放 GitHub Release 或 Gitee。</div>
       </div>
 
       <p class="mstatus" id="upStatus"></p>
@@ -292,7 +292,7 @@
       var DB = "https://textdb.dev/api/data/blueprintstudio-discover-v1";
       var KEY = "bs_auth";
       var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
-      var MAX_FILE = 200 * 1024;          /* 单文件 200KB */
+      var MAX_FILE = 300 * 1024;          /* 单文件 300KB，与论坛附件一致 */
       var MAX_ITEMS = 300;                /* 整库条数软上限 */
       var LICS = ["MIT", "Apache-2.0", "GPL-3.0", "AGPL-3.0", "LGPL-3.0", "BSD-3-Clause", "MPL-2.0", "Unlicense", "其他 / 自定义"];
 
@@ -569,9 +569,9 @@
         var f = e.target.files && e.target.files[0];
         var info = document.getElementById("fFileInfo");
         pickedFile = null;
-        if (!f) { info.textContent = "支持 zip / 源码 / 文档 / 图片，单个不超过 200KB。"; return; }
+        if (!f) { info.textContent = "支持 zip / 源码 / 文档 / 图片，单个不超过 300KB；更大的文件请放 GitHub Release 或 Gitee。"; return; }
         if (f.size > MAX_FILE) {
-          info.textContent = "「" + f.name + "」" + fmtSize(f.size) + " 超过 200KB，未添加。大文件请放 GitHub Release。";
+          info.textContent = "「" + f.name + "」" + fmtSize(f.size) + " 超过 300KB，未添加。大文件请放 GitHub Release 或 Gitee。";
           e.target.value = "";
           return;
         }
@@ -589,7 +589,7 @@
           document.getElementById(id).value = "";
         });
         document.getElementById("fLic").value = "MIT";
-        document.getElementById("fFileInfo").textContent = "支持 zip / 源码 / 文档 / 图片，单个不超过 200KB。";
+        document.getElementById("fFileInfo").textContent = "支持 zip / 源码 / 文档 / 图片，单个不超过 300KB；更大的文件请放 GitHub Release 或 Gitee。";
         pickedFile = null;
       }
 
