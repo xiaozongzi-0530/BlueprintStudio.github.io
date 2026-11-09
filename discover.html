@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发现 · BlueprintStudio</title>
+<script src="logger.js"></script>
+<style>
+  :root { --bg:#0b1020; --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; }
+  .grid-bg {
+    pointer-events:none;
+    position:fixed; inset:0; z-index:0;
+    background-image:
+      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+    background-size:40px 40px;
+  }
+  header {
+    position:sticky; top:0; z-index:10;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:1rem 2rem;
+    background:rgba(11,16,32,.85); backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(79,124,255,.15);
+  }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav a { color:var(--muted); text-decoration:none; margin-left:1.5rem; font-size:.95rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+  main { position:relative; z-index:1; max-width:860px; margin:0 auto; padding:2.5rem 1.5rem 3rem; }
+  h1 { font-size:1.7rem; margin-bottom:.4rem; }
+  h1 em {
+    font-style:normal;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .sub { color:var(--muted); font-size:.92rem; margin-bottom:1.6rem; line-height:1.8; }
+  .card {
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(79,124,255,.25);
+    border-radius:16px; padding:1.5rem; margin-bottom:1.2rem;
+  }
+
+  /* ===== 工具条 ===== */
+  .toolbar {
+    display:flex; align-items:center; gap:.8rem; flex-wrap:wrap;
+    padding:1rem 1.2rem; margin-bottom:1rem;
+  }
+  input[type="search"], input[type="text"], textarea, select {
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(79,124,255,.3);
+    border-radius:10px; color:var(--text);
+    padding:.62rem .9rem; font-size:.92rem;
+    outline:none; font-family:inherit;
+  }
+  input[type="search"] { flex:1; min-width:180px; }
+  input:focus, textarea:focus, select:focus { border-color:var(--accent2); }
+  select { color-scheme:dark; cursor:pointer; }
+  input[type="search"]::-webkit-search-cancel-button { filter:invert(.6); }
+  .chk {
+    display:inline-flex; align-items:center; gap:.4rem;
+    color:var(--muted); font-size:.85rem; cursor:pointer; white-space:nowrap;
+  }
+  .chk input { accent-color:var(--accent); width:14px; height:14px; cursor:pointer; }
+  .btn {
+    display:inline-block; text-decoration:none; border:none; cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#fff; padding:.6rem 1.4rem; border-radius:10px;
+    font-size:.92rem; font-weight:600; font-family:inherit; white-space:nowrap;
+    transition:opacity .2s;
+  }
+  .btn:hover { opacity:.88; }
+  .btn.ghost { background:transparent; border:1px solid rgba(79,124,255,.5); color:var(--accent2); }
+  .btn:disabled { opacity:.5; cursor:default; }
+
+  .tip {
+    color:var(--muted); font-size:.85rem; line-height:1.8;
+    margin-bottom:1rem; padding:.7rem .9rem;
+    background:rgba(245,179,1,.1); border:1px solid rgba(245,179,1,.35);
+    border-radius:10px;
+  }
+  .tip a { color:var(--accent2); }
+  .tip.flash { animation:tipFlash 1.2s ease; }
+  @keyframes tipFlash {
+    0%,100% { box-shadow:0 0 0 0 rgba(245,179,1,0); }
+    40% { box-shadow:0 0 0 3px rgba(245,179,1,.5); }
+  }
+
+  /* ===== 标签筛选 ===== */
+  .tagrow { display:flex; flex-wrap:wrap; gap:.45rem; margin-bottom:.9rem; }
+  .tagrow:empty { display:none; }
+  .tchip {
+    cursor:pointer; user-select:none;
+    font-size:.78rem; color:var(--muted);
+    border:1px solid rgba(139,147,168,.35);
+    background:transparent; border-radius:999px;
+    padding:.25rem .7rem;
+  }
+  .tchip:hover { color:var(--text); border-color:rgba(79,124,255,.6); }
+  .tchip.on { color:#0b1020; background:var(--accent2); border-color:var(--accent2); font-weight:600; }
+
+  .meta { color:var(--muted); font-size:.8rem; margin-bottom:1rem; }
+
+  /* ===== 项目卡片 ===== */
+  .item {
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(79,124,255,.22);
+    border-radius:14px; padding:1.2rem 1.3rem;
+    margin-bottom:.9rem; transition:border-color .2s, background .2s;
+  }
+  .item:hover { border-color:rgba(79,124,255,.45); background:rgba(255,255,255,.055); }
+  .item-top { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:.55rem; }
+  .item-top h3 { font-size:1.05rem; font-weight:700; word-break:break-word; }
+  .bd {
+    font-size:.66rem; font-weight:700; padding:.12rem .45rem; border-radius:999px;
+    white-space:nowrap;
+  }
+  .bd-lic { background:rgba(79,124,255,.18); color:#a9c0ff; border:1px solid rgba(79,124,255,.4); }
+  .bd-official { background:#f5b301; color:#1a1a1a; }
+  .item-time { color:var(--muted); font-size:.75rem; margin-left:auto; white-space:nowrap; }
+  .item-desc { font-size:.9rem; line-height:1.8; color:var(--text); white-space:pre-wrap; word-break:break-word; }
+  .itags { display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.6rem; }
+  .itag {
+    font-size:.72rem; color:var(--accent2);
+    background:rgba(34,211,238,.1); border:1px solid rgba(34,211,238,.3);
+    border-radius:6px; padding:.1rem .45rem;
+  }
+  .links { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.85rem; }
+  .lk {
+    font-size:.82rem; color:var(--accent2); text-decoration:none;
+    border:1px solid rgba(79,124,255,.4); border-radius:8px;
+    padding:.32rem .75rem; cursor:pointer;
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .lk:hover { border-color:var(--accent2); }
+  .lk.file { color:#ffd479; border-color:rgba(255,212,121,.4); }
+  .lk.file:hover { border-color:#ffd479; }
+  .item-foot {
+    display:flex; align-items:center; gap:.8rem; flex-wrap:wrap;
+    margin-top:.85rem; padding-top:.7rem;
+    border-top:1px solid rgba(255,255,255,.07);
+    color:var(--muted); font-size:.75rem;
+  }
+  .item-foot .del { margin-left:auto; color:#ff6b6b; cursor:pointer; }
+  .item-foot .del:hover { text-decoration:underline; }
+
+  .empty { color:var(--muted); text-align:center; padding:3rem 1rem; font-size:.9rem; line-height:2; }
+
+  @keyframes flashItem {
+    0%,100% { box-shadow:0 0 0 0 rgba(34,211,238,0); }
+    25% { box-shadow:0 0 0 3px rgba(34,211,238,.65); }
+    60% { box-shadow:0 0 0 3px rgba(34,211,238,.25); }
+  }
+  .item.flash { animation:flashItem 2.2s ease; }
+
+  /* ===== 上传弹窗 ===== */
+  .mask {
+    position:fixed; inset:0; z-index:50;
+    background:rgba(5,8,18,.78); backdrop-filter:blur(4px);
+    display:none; align-items:center; justify-content:center;
+    padding:1.2rem;
+  }
+  .mask.show { display:flex; }
+  .modal {
+    width:100%; max-width:520px; max-height:90vh; overflow-y:auto;
+    background:#111830;
+    border:1px solid rgba(79,124,255,.35);
+    border-radius:16px; padding:1.5rem;
+    box-shadow:0 24px 60px rgba(0,0,0,.55);
+  }
+  .modal h3 { font-size:1.15rem; margin-bottom:.3rem; }
+  .modal .mhint { color:var(--muted); font-size:.8rem; margin-bottom:1.1rem; line-height:1.7; }
+  .field { margin-bottom:.8rem; }
+  .field label { display:block; color:var(--muted); font-size:.78rem; margin-bottom:.3rem; }
+  .field label i { color:#ff6b6b; font-style:normal; }
+  .field input, .field textarea, .field select { width:100%; }
+  .field textarea { min-height:80px; resize:vertical; line-height:1.7; }
+  .file-label {
+    display:inline-block; cursor:pointer;
+    border:1px dashed rgba(79,124,255,.5); color:var(--accent2);
+    padding:.42rem 1rem; border-radius:10px; font-size:.84rem;
+  }
+  .file-label:hover { border-color:var(--accent2); }
+  .file-input { display:none; }
+  .fhint { color:var(--muted); font-size:.75rem; margin-top:.45rem; line-height:1.7; }
+  .modal-btns { display:flex; gap:.7rem; justify-content:flex-end; margin-top:1.1rem; }
+  .mstatus { font-size:.82rem; min-height:1.2em; margin-top:.7rem; color:var(--muted); }
+  .mstatus.err { color:#ff6b6b; }
+  .mstatus.ok { color:#22d3ee; }
+
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
+
+  @media (max-width: 720px) {
+    header { flex-wrap:wrap; padding:.8rem 1rem; gap:.5rem; }
+    nav { order:3; width:100%; display:flex; flex-wrap:wrap; gap:.3rem 1rem; margin-left:0; }
+    nav a { margin-left:0; font-size:.85rem; }
+    main { padding:1.8rem 1rem 2.5rem; }
+    h1 { font-size:1.45rem; }
+    .toolbar { padding:.9rem; }
+    input[type="search"] { min-width:100%; }
+  }
+  @media (max-width: 420px) {
+    nav a { font-size:.8rem; }
+    .item { padding:1rem; }
+    .item-time { width:100%; margin-left:0; }
+  }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="forum.html">论坛</a>
+      <a href="chat.html">聊天</a>
+      <a href="notes.html">笔记</a>
+      <a href="discover.html" class="active">发现</a>
+      <a href="ann.html">公告</a>
+      <a href="join.html">联系我们</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>开源<em>发现</em></h1>
+    <p class="sub">社区共享的开源项目。可以只登记仓库链接，也可以直接附带一个源码包或文档。下载不需要登录。</p>
+
+    <div class="tip" id="loginTip" style="display:none;">
+      ⚠️ 上传需要先在<a href="index.html">首页登录</a>（右上角）。浏览和下载不用登录。
+    </div>
+
+    <div class="card toolbar">
+      <input type="search" id="q" placeholder="搜索项目名 / 简介 / 标签 / 上传者…" autocomplete="off">
+      <label class="chk"><input type="checkbox" id="onlyFiles"> 只看有附件</label>
+      <button class="btn" id="upBtn">＋ 上传开源项目</button>
+    </div>
+
+    <div class="tagrow" id="tagRow"></div>
+    <div class="meta" id="meta">加载中…</div>
+    <div id="list"></div>
+  </main>
+
+  <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+
+  <div class="mask" id="upMask">
+    <div class="modal">
+      <h3>上传开源项目</h3>
+      <p class="mhint">填写项目信息即可收录。附件可选，建议把大文件放在 GitHub Release 或 Gitee，这里只放小体积源码包。</p>
+
+      <div class="field">
+        <label>项目名称 <i>*</i></label>
+        <input type="text" id="fName" maxlength="60" placeholder="例如 blueprint-ui">
+      </div>
+      <div class="field">
+        <label>一句话简介 <i>*</i></label>
+        <textarea id="fDesc" maxlength="200" placeholder="这个项目是做什么的、解决什么问题"></textarea>
+      </div>
+      <div class="field">
+        <label>仓库 / 下载链接 <i>*</i></label>
+        <input type="text" id="fRepo" placeholder="https://github.com/用户名/仓库">
+      </div>
+      <div class="field">
+        <label>演示 / 主页（选填）</label>
+        <input type="text" id="fDemo" placeholder="https://example.com">
+      </div>
+      <div class="field">
+        <label>开源许可证</label>
+        <select id="fLic"></select>
+      </div>
+      <div class="field">
+        <label>标签（选填，逗号分隔，最多 5 个）</label>
+        <input type="text" id="fTags" placeholder="例如 前端, 工具, Python">
+      </div>
+      <div class="field">
+        <label>附件（选填，单个文件）</label>
+        <label class="file-label">📦 选择文件<input type="file" class="file-input" id="fFile"></label>
+        <div class="fhint" id="fFileInfo">支持 zip / 源码 / 文档 / 图片，单个不超过 200KB。</div>
+      </div>
+
+      <p class="mstatus" id="upStatus"></p>
+      <div class="modal-btns">
+        <button class="btn ghost" id="upCancel">取消</button>
+        <button class="btn" id="upSend">发布</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="ratelimit.js"></script>
+  <script>
+    (function () {
+      var DB = "https://textdb.dev/api/data/blueprintstudio-discover-v1";
+      var KEY = "bs_auth";
+      var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
+      var MAX_FILE = 200 * 1024;          /* 单文件 200KB */
+      var MAX_ITEMS = 300;                /* 整库条数软上限 */
+      var LICS = ["MIT", "Apache-2.0", "GPL-3.0", "AGPL-3.0", "LGPL-3.0", "BSD-3-Clause", "MPL-2.0", "Unlicense", "其他 / 自定义"];
+
+      var me = null, myInfo = null;
+      try { myInfo = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
+      if (myInfo && myInfo.email) me = myInfo.email;
+      var isAdmin = me === ADMIN_EMAIL;
+
+      var all = [];            /* 全部项目 */
+      var keyword = "";
+      var tagFilter = "";
+      var onlyFiles = false;
+      var newId = "";          /* 刚发布的项目 id，用于高亮 */
+      var pickedFile = null;   /* 待上传附件 {name,type,size,data} */
+
+      /* ===== 基础工具 ===== */
+      function getDB() {
+        return fetch(DB + "?t=" + Date.now(), { cache: "no-store" })
+          .then(function (r) { return r.json(); })
+          .catch(function () {
+            if (window.BPLog) window.BPLog.error("discover", "项目库读取失败");
+            return { items: [] };
+          });
+      }
+      function saveDB(db) {
+        return fetch(DB, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(db)
+        }).then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r;
+        });
+      }
+      function esc(t) {
+        return String(t == null ? "" : t)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      }
+      function fmtTime(iso) {
+        try {
+          var d = new Date(iso);
+          var diff = (Date.now() - d.getTime()) / 1000;
+          if (diff < 60) return "刚刚";
+          if (diff < 3600) return Math.floor(diff / 60) + " 分钟前";
+          if (diff < 86400) return Math.floor(diff / 3600) + " 小时前";
+          if (diff < 86400 * 7) return Math.floor(diff / 86400) + " 天前";
+          return d.toLocaleDateString("zh-CN");
+        } catch (e) { return ""; }
+      }
+      function fmtSize(n) {
+        n = Number(n) || 0;
+        if (n < 1024) return n + " B";
+        if (n < 1024 * 1024) return (n / 1024).toFixed(0) + " KB";
+        return (n / 1024 / 1024).toFixed(1) + " MB";
+      }
+      /* 只放行 http/https，挡掉 javascript: 这类伪协议 */
+      function safeUrl(u) {
+        u = String(u == null ? "" : u).trim();
+        if (!u) return "";
+        return /^https?:\/\/[^\s]+$/i.test(u) ? u : "";
+      }
+
+      /* ===== 渲染 ===== */
+      function collectTags() {
+        var m = {}, arr = [];
+        all.forEach(function (it) {
+          (it.tags || []).forEach(function (t) { m[t] = (m[t] || 0) + 1; });
+        });
+        Object.keys(m).forEach(function (t) { arr.push({ t: t, n: m[t] }); });
+        arr.sort(function (a, b) { return b.n - a.n || (a.t > b.t ? 1 : -1); });
+        return arr.slice(0, 24);
+      }
+
+      function renderTags() {
+        var box = document.getElementById("tagRow");
+        var tags = collectTags();
+        if (!tags.length) { box.innerHTML = ""; return; }
+        var html = '<button class="tchip' + (tagFilter ? "" : " on") + '" data-tag="">全部</button>';
+        html += tags.map(function (o) {
+          return '<button class="tchip' + (tagFilter === o.t ? " on" : "") + '" data-tag="' + esc(o.t) + '">'
+            + esc(o.t) + " · " + o.n + "</button>";
+        }).join("");
+        box.innerHTML = html;
+      }
+
+      function canDelete(it) {
+        if (isAdmin) return true;
+        return !!(me && it.author === me);
+      }
+
+      function render() {
+        var box = document.getElementById("list");
+        var kw = keyword.trim().toLowerCase();
+
+        var list = all.filter(function (it) {
+          if (tagFilter && (it.tags || []).indexOf(tagFilter) === -1) return false;
+          if (onlyFiles && !(it.files || []).length) return false;
+          if (!kw) return true;
+          var hay = [it.name, it.desc, (it.tags || []).join(" "), it.nick, it.lic, it.author]
+            .join(" ").toLowerCase();
+          return hay.indexOf(kw) !== -1;
+        }).sort(function (a, b) {
+          return String(b.time || "").localeCompare(String(a.time || ""));
+        });
+
+        var fileCount = all.reduce(function (s, it) { return s + (it.files || []).length; }, 0);
+        document.getElementById("meta").textContent =
+          "共收录 " + all.length + " 个项目 · " + fileCount + " 个附件"
+          + (list.length !== all.length ? " · 当前筛选出 " + list.length + " 个" : "");
+
+        if (!all.length) {
+          box.innerHTML = '<div class="card empty">还没有项目，来做第一个分享者吧。<br>'
+            + '<span style="font-size:.82rem;">点上方「＋ 上传开源项目」，填名称和链接就能收录。</span></div>';
+          return;
+        }
+        if (!list.length) {
+          box.innerHTML = '<div class="card empty">没有匹配的项目。<br>'
+            + '<span style="font-size:.82rem;">换个关键词，或点「全部」清掉标签筛选。</span></div>';
+          return;
+        }
+
+        box.innerHTML = list.map(function (it) {
+          var id = esc(it.id);
+          var official = it.author === ADMIN_EMAIL;
+          var tags = (it.tags || []).map(function (t) {
+            return '<span class="itag">' + esc(t) + "</span>";
+          }).join("");
+          var links = "";
+          var repo = safeUrl(it.repo);
+          var demo = safeUrl(it.demo);
+          if (repo) links += '<a class="lk" href="' + esc(repo) + '" target="_blank" rel="noopener">🔗 仓库</a>';
+          if (demo) links += '<a class="lk" href="' + esc(demo) + '" target="_blank" rel="noopener">🌐 演示</a>';
+          (it.files || []).forEach(function (f, i) {
+            links += '<a class="lk file" data-dl="' + id + '" data-fi="' + i + '">📦 '
+              + esc(f.name) + " · " + fmtSize(f.size) + "</a>";
+          });
+          var del = canDelete(it) ? '<span class="del" data-del="' + id + '">删除</span>' : "";
+          return '<div class="item" id="item-' + id + '">'
+            + '<div class="item-top"><h3>' + esc(it.name) + "</h3>"
+            + (official ? '<span class="bd bd-official">官方</span>' : "")
+            + (it.lic ? '<span class="bd bd-lic">' + esc(it.lic) + "</span>" : "")
+            + '<span class="item-time">' + fmtTime(it.time) + "</span></div>"
+            + '<div class="item-desc">' + esc(it.desc) + "</div>"
+            + (tags ? '<div class="itags">' + tags + "</div>" : "")
+            + (links ? '<div class="links">' + links + "</div>" : "")
+            + '<div class="item-foot"><span>by ' + esc(it.nick || "匿名")
+            + (it.uid ? " · " + esc(it.uid) : "") + "</span>" + del + "</div>"
+            + "</div>";
+        }).join("");
+
+        if (newId) {
+          var el = document.getElementById("item-" + newId);
+          if (el) {
+            el.classList.add("flash");
+            setTimeout(function () { el.classList.remove("flash"); }, 2400);
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+          newId = "";
+        }
+      }
+
+      function load() {
+        return getDB().then(function (db) {
+          all = Array.isArray(db.items) ? db.items : [];
+          renderTags();
+          render();
+        });
+      }
+
+      /* ===== 下载附件：转 Blob 再触发，避免大 dataURL 直接跳转被浏览器拦 ===== */
+      function dataUrlToBlob(du) {
+        var parts = String(du || "").split(",");
+        if (parts.length < 2) return null;
+        var mime = (parts[0].match(/:(.*?);/) || [])[1] || "application/octet-stream";
+        try {
+          var bin = atob(parts[1]);
+          var len = bin.length;
+          var arr = new Uint8Array(len);
+          for (var i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+          return new Blob([arr], { type: mime });
+        } catch (e) { return null; }
+      }
+      function download(it, idx) {
+        var f = (it.files || [])[idx];
+        if (!f) return;
+        var blob = dataUrlToBlob(f.data);
+        if (!blob) {
+          if (window.BPLog) window.BPLog.warn("discover", "附件解析失败: " + f.name);
+          return;
+        }
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = f.name || "download";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      }
+
+      /* ===== 列表事件 ===== */
+      document.getElementById("list").addEventListener("click", function (e) {
+        var dl = e.target.getAttribute("data-dl");
+        if (dl) {
+          var it = all.filter(function (x) { return x.id === dl; })[0];
+          if (it) download(it, Number(e.target.getAttribute("data-fi")) || 0);
+          return;
+        }
+        var del = e.target.getAttribute("data-del");
+        if (del) {
+          var target = all.filter(function (x) { return x.id === del; })[0];
+          if (!target) return;
+          if (!confirm("确定删除「" + target.name + "」？此操作不可恢复。")) return;
+          getDB().then(function (db) {
+            db.items = (db.items || []).filter(function (x) { return x.id !== del; });
+            return saveDB(db).then(load);
+          }).catch(function () { alert("删除失败，请稍后再试"); });
+        }
+      });
+
+      /* ===== 搜索 / 筛选 ===== */
+      var qTimer = null;
+      document.getElementById("q").addEventListener("input", function () {
+        var v = this.value;
+        clearTimeout(qTimer);
+        qTimer = setTimeout(function () { keyword = v; render(); }, 150);
+      });
+      document.getElementById("onlyFiles").addEventListener("change", function () {
+        onlyFiles = this.checked; render();
+      });
+      document.getElementById("tagRow").addEventListener("click", function (e) {
+        var t = e.target.getAttribute("data-tag");
+        if (t === null) return;
+        tagFilter = (t === tagFilter) ? "" : t;
+        renderTags(); render();
+      });
+
+      /* ===== 上传弹窗 ===== */
+      var mask = document.getElementById("upMask");
+      var statusEl = document.getElementById("upStatus");
+      function setMsg(t, cls) { statusEl.textContent = t || ""; statusEl.className = "mstatus" + (cls ? " " + cls : ""); }
+
+      /* 许可证下拉由常量生成，避免和 HTML 两处维护 */
+      (function initLic() {
+        var sel = document.getElementById("fLic");
+        sel.innerHTML = LICS.map(function (x) { return '<option value="' + esc(x) + '">' + esc(x) + "</option>"; }).join("");
+        sel.value = "MIT";
+      })();
+
+      function openModal() {
+        if (!me) {
+          var tip = document.getElementById("loginTip");
+          tip.style.display = "";
+          tip.classList.add("flash");
+          setTimeout(function () { tip.classList.remove("flash"); }, 1300);
+          tip.scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
+        setMsg("");
+        mask.classList.add("show");
+        setTimeout(function () { document.getElementById("fName").focus(); }, 60);
+      }
+      function closeModal() { mask.classList.remove("show"); }
+
+      document.getElementById("upBtn").addEventListener("click", openModal);
+      document.getElementById("upCancel").addEventListener("click", closeModal);
+      mask.addEventListener("click", function (e) { if (e.target === mask) closeModal(); });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && mask.classList.contains("show")) closeModal();
+      });
+
+      document.getElementById("fFile").addEventListener("change", function (e) {
+        var f = e.target.files && e.target.files[0];
+        var info = document.getElementById("fFileInfo");
+        pickedFile = null;
+        if (!f) { info.textContent = "支持 zip / 源码 / 文档 / 图片，单个不超过 200KB。"; return; }
+        if (f.size > MAX_FILE) {
+          info.textContent = "「" + f.name + "」" + fmtSize(f.size) + " 超过 200KB，未添加。大文件请放 GitHub Release。";
+          e.target.value = "";
+          return;
+        }
+        var r = new FileReader();
+        r.onload = function () {
+          pickedFile = { name: f.name, type: f.type || "application/octet-stream", size: f.size, data: r.result };
+          info.textContent = "已选择：" + f.name + " · " + fmtSize(f.size);
+        };
+        r.onerror = function () { info.textContent = "文件读取失败，换一个试试。"; };
+        r.readAsDataURL(f);
+      });
+
+      function resetForm() {
+        ["fName", "fDesc", "fRepo", "fDemo", "fTags", "fFile"].forEach(function (id) {
+          document.getElementById(id).value = "";
+        });
+        document.getElementById("fLic").value = "MIT";
+        document.getElementById("fFileInfo").textContent = "支持 zip / 源码 / 文档 / 图片，单个不超过 200KB。";
+        pickedFile = null;
+      }
+
+      document.getElementById("upSend").addEventListener("click", function () {
+        var btn = this;
+        var name = document.getElementById("fName").value.trim();
+        var desc = document.getElementById("fDesc").value.trim();
+        var repoRaw = document.getElementById("fRepo").value.trim();
+        var demoRaw = document.getElementById("fDemo").value.trim();
+        var lic = document.getElementById("fLic").value;
+        var tagRaw = document.getElementById("fTags").value;
+
+        if (!name) { setMsg("请填写项目名称", "err"); document.getElementById("fName").focus(); return; }
+        if (name.length > 60) { setMsg("项目名称最多 60 个字", "err"); return; }
+        if (!desc) { setMsg("请填写一句话简介", "err"); document.getElementById("fDesc").focus(); return; }
+        if (!repoRaw) { setMsg("请填写仓库或下载链接", "err"); document.getElementById("fRepo").focus(); return; }
+        var repo = safeUrl(repoRaw);
+        if (!repo) { setMsg("链接必须以 http:// 或 https:// 开头", "err"); document.getElementById("fRepo").focus(); return; }
+        var demo = "";
+        if (demoRaw) {
+          demo = safeUrl(demoRaw);
+          if (!demo) { setMsg("演示链接格式不对，需以 http:// 或 https:// 开头", "err"); document.getElementById("fDemo").focus(); return; }
+        }
+
+        var tags = tagRaw.split(/[,，、\s]+/).map(function (t) { return t.trim().slice(0, 12); })
+          .filter(function (t) { return t; });
+        var seenTag = {};
+        tags = tags.filter(function (t) {
+          if (seenTag[t]) return false;
+          seenTag[t] = 1; return true;
+        }).slice(0, 5);
+
+        /* 防刷：5 分钟最多 5 条，两条间隔至少 5 秒；同名同链接由下面的精确去重拦 */
+        var rl = RLT.hit("discover:add", 5 * 60 * 1000, 5, 5000);
+        if (!rl.ok) { setMsg(rl.msg, "err"); return; }
+
+        if (all.length >= MAX_ITEMS) {
+          setMsg("收录已达 " + MAX_ITEMS + " 条上限，暂时无法新增。", "err");
+          return;
+        }
+
+        btn.disabled = true; btn.textContent = "发布中…";
+        setMsg("正在写入…");
+
+        getDB().then(function (db) {
+          db.items = Array.isArray(db.items) ? db.items : [];
+          /* 同名 + 同链接视为重复 */
+          var dup = db.items.some(function (x) {
+            return String(x.name).toLowerCase() === name.toLowerCase() && String(x.repo) === repo;
+          });
+          if (dup) throw new Error("DUP");
+
+          var item = {
+            id: Date.now() + "_" + Math.random().toString(36).slice(2, 8),
+            name: name,
+            desc: desc.slice(0, 200),
+            repo: repo,
+            demo: demo,
+            lic: lic,
+            tags: tags,
+            files: pickedFile ? [pickedFile] : [],
+            author: me,
+            nick: localStorage.getItem("bs_nick") || (me ? me.split("@")[0] : "匿名"),
+            uid: localStorage.getItem("bs_uid") || "",
+            time: new Date().toISOString()
+          };
+          db.items.unshift(item);
+          return saveDB(db).then(function () {
+            newId = item.id;
+            all = db.items;
+            return load();
+          });
+        }).then(function () {
+          btn.disabled = false; btn.textContent = "发布";
+          resetForm();
+          setMsg("");
+          closeModal();
+          if (window.BPLog) window.BPLog.info("discover", "上传开源项目: " + name);
+        }).catch(function (err) {
+          btn.disabled = false; btn.textContent = "发布";
+          if (err && err.message === "DUP") {
+            setMsg("这个项目和链接已经收录过了", "err");
+          } else {
+            setMsg("发布失败，请稍后再试", "err");
+            if (window.BPLog) window.BPLog.error("discover", "上传项目失败: " + (err && err.message));
+          }
+        });
+      });
+
+      /* ===== 初始化 ===== */
+      if (!me) document.getElementById("loginTip").style.display = "";
+      load();
+    })();
+  </script>
+</body>
+</html>
