@@ -118,6 +118,7 @@
   }
   .bd-lic { background:rgba(79,124,255,.18); color:#a9c0ff; border:1px solid rgba(79,124,255,.4); }
   .bd-official { background:#f5b301; color:#1a1a1a; }
+  .bd-guest { background:rgba(255,255,255,.1); color:var(--muted); border:1px solid rgba(255,255,255,.18); }
   .item-time { color:var(--muted); font-size:.75rem; margin-left:auto; white-space:nowrap; }
   .item-desc { font-size:.9rem; line-height:1.8; color:var(--text); white-space:pre-wrap; word-break:break-word; }
   .itags { display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.6rem; }
@@ -227,7 +228,7 @@
     <p class="sub">社区共享的开源项目。可以只登记仓库链接，也可以直接附带一个源码包或文档。下载不需要登录。</p>
 
     <div class="tip" id="loginTip" style="display:none;">
-      ⚠️ 上传需要先在<a href="index.html">首页登录</a>（右上角）。浏览和下载不用登录。
+      💡 你现在是<b>游客身份</b>，可以直接上传；<a href="index.html">登录</a>后署名会带上你的昵称和 UID，也能跨设备管理自己发的内容。
     </div>
 
     <div class="card toolbar">
@@ -300,6 +301,18 @@
       try { myInfo = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
       if (myInfo && myInfo.email) me = myInfo.email;
       var isAdmin = me === ADMIN_EMAIL;
+
+      /* 游客身份：本地生成一个稳定标识，让游客也能删掉自己刚发的内容 */
+      var GUEST_ID_KEY = "dc_guest_id";
+      var guestId = "";
+      try { guestId = localStorage.getItem(GUEST_ID_KEY) || ""; } catch (e) {}
+      function ensureGuestId() {
+        if (!guestId) {
+          guestId = "g" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+          try { localStorage.setItem(GUEST_ID_KEY, guestId); } catch (e) {}
+        }
+        return guestId;
+      }
 
       var all = [];            /* 全部项目 */
       var keyword = "";
@@ -381,7 +394,8 @@
 
       function canDelete(it) {
         if (isAdmin) return true;
-        return !!(me && it.author === me);
+        if (me) return it.author === me;
+        return !!guestId && it.author === "guest:" + guestId;
       }
 
       function render() {
@@ -434,6 +448,7 @@
           return '<div class="item" id="item-' + id + '">'
             + '<div class="item-top"><h3>' + esc(it.name) + "</h3>"
             + (official ? '<span class="bd bd-official">官方</span>' : "")
+            + (String(it.author || "").indexOf("guest:") === 0 ? '<span class="bd bd-guest">游客</span>' : "")
             + (it.lic ? '<span class="bd bd-lic">' + esc(it.lic) + "</span>" : "")
             + '<span class="item-time">' + fmtTime(it.time) + "</span></div>"
             + '<div class="item-desc">' + esc(it.desc) + "</div>"
@@ -544,14 +559,7 @@
       })();
 
       function openModal() {
-        if (!me) {
-          var tip = document.getElementById("loginTip");
-          tip.style.display = "";
-          tip.classList.add("flash");
-          setTimeout(function () { tip.classList.remove("flash"); }, 1300);
-          tip.scrollIntoView({ behavior: "smooth", block: "center" });
-          return;
-        }
+        /* 游客同样可以上传：不拦，署名记为游客 */
         setMsg("");
         mask.classList.add("show");
         setTimeout(function () { document.getElementById("fName").focus(); }, 60);
@@ -651,9 +659,13 @@
             lic: lic,
             tags: tags,
             files: pickedFile ? [pickedFile] : [],
-            author: me,
-            nick: localStorage.getItem("bs_nick") || (me ? me.split("@")[0] : "匿名"),
-            uid: localStorage.getItem("bs_uid") || "",
+            author: me || ("guest:" + ensureGuestId()),
+            /* 游客不能复用上次登录残留的昵称，只用游客昵称 */
+            nick: me
+              ? (localStorage.getItem("bs_nick") || me.split("@")[0])
+              : (localStorage.getItem("gs_nick") || localStorage.getItem("bs_guest_nick") || "游客"),
+            uid: me ? (localStorage.getItem("bs_uid") || "")
+                    : (localStorage.getItem("gs_uid") || ""),
             time: new Date().toISOString()
           };
           db.items.unshift(item);
