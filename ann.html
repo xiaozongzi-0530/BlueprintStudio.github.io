@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>公告 · BlueprintStudio</title>
 <script src="logger.js"></script>
+<script src="crypto.js"></script>
 <style>
   :root { --bg:#0b1020; --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -87,19 +88,38 @@
   <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
   <script>
     (function () {
-      var DB = "https://textdb.dev/api/data/blueprintstudio-announce-2026";
+      /* 公告库统一到 announce-v2（与首页管理后台同一份数据，正文为 AES 密文） */
+      var DB = "https://textdb.dev/api/data/blueprintstudio-announce-v2";
+      var C = window.BPCrypto;
       var ADMIN = "zhouxinyuan0530@qq.com";
       var me = null;
       try { me = JSON.parse(localStorage.getItem("bs_auth") || "null"); } catch (e) {}
       var isAdmin = me && me.email === ADMIN;
       if (isAdmin) document.getElementById("adminBox").style.display = "block";
 
+      /* 读：逐条解密公告正文 */
       function getDB() {
         return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
-          .catch(function () { return { anns: [] }; });
+          .catch(function () { return { anns: [] }; })
+          .then(function (db) {
+            var list = (db && db.anns) || [];
+            return Promise.all(list.map(function (a) {
+              return C.decrypt(a.text, "announce|text").then(function (t) {
+                return { text: t, time: a.time };
+              });
+            })).then(function (dec) { return { anns: dec }; });
+          });
       }
+      /* 写：逐条加密后再提交，与首页后台格式完全一致 */
       function saveDB(db) {
-        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+        var list = (db && db.anns) || [];
+        return Promise.all(list.map(function (a) {
+          return C.encrypt(a.text, "announce|text").then(function (t) {
+            return { text: t, time: a.time };
+          });
+        })).then(function (enc) {
+          return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ anns: enc }) });
+        });
       }
       function esc(t) { return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
       function fmt(t) { try { return new Date(t).toLocaleString("zh-CN", { hour12:false }); } catch (e) { return t; } }
