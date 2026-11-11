@@ -632,6 +632,8 @@
       var CODE_STORE = "bs_mail_code_v1";
       var CODE_TTL = 10 * 60 * 1000;
       var CODE_MAX_TRIES = 5;
+      var CODE_LOCK_STORE = "bs_mail_lock_v1";      // 连续输错的锁定记录（localStorage，关页面也保留）
+      var CODE_LOCK_MS = 24 * 60 * 60 * 1000;       // 锁定 24 小时
       var BAN_PAGE = "ban.html?email=";
       var C = window.BPCrypto;
       var USER_ENC_FIELDS = ["nick", "title"];   // 用户资料中需要加密的字段
@@ -856,28 +858,77 @@
           return rec && typeof rec.h === "string" ? rec : null;
         } catch (e) { return null; }
       }
+
+      /* ===== 连续输错锁定 24 小时 =====
+         记录存在 localStorage，关掉页面、重新获取验证码都不解除，
+         只对同一个邮箱生效（换邮箱不受影响）。到期自动清理。 */
+      function mailLockLoad() {
+        try {
+          var o = JSON.parse(localStorage.getItem(CODE_LOCK_STORE) || "null");
+          if (!o || !o.until || !o.e) return null;
+          if (o.until <= Date.now()) { localStorage.removeItem(CODE_LOCK_STORE); return null; }
+          return o;
+        } catch (e) { return null; }
+      }
+      function mailLockFor(email) {
+        var o = mailLockLoad();
+        return (o && o.e === email) ? o : null;
+      }
+      function mailLockSet(email) {
+        try {
+          localStorage.setItem(CODE_LOCK_STORE, JSON.stringify({
+            e: email, until: Date.now() + CODE_LOCK_MS
+          }));
+        } catch (e) {}
+      }
+      /* 剩余时长的中文描述 + 解锁的钟点 */
+      function mailLockMsg(o) {
+        if (!o) return "验证码已锁定，请稍后再试";
+        var left = Math.max(0, o.until - Date.now());
+        var h = Math.floor(left / 3600000);
+        var m = Math.floor((left % 3600000) / 60000);
+        var span = h > 0 ? (h + " 小时" + (m ? " " + m + " 分钟" : "")) : (m + " 分钟");
+        var d = new Date(o.until);
+        var when = (d.getMonth() + 1) + "月" + d.getDate() + "日 "
+          + ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+        return "验证码连续输错 " + CODE_MAX_TRIES + " 次，已锁定 24 小时。还需等 " + span + "（" + when + " 后可再试）。";
+      }
       function mailCodeVerify(email, code) {
+        /* 已锁定的邮箱，连校验都不做，直接告知解锁时间 */
+        var lk = mailLockFor(email);
+        if (lk) return Promise.resolve({ ok: false, message: mailLockMsg(lk) });
+
         var rec = mailCodeLoad();
         if (!rec || rec.e !== email) return Promise.resolve({ ok: false, message: "请先获取邮箱验证码" });
         if (rec.x < Date.now()) {
           mailCodeClear();
           return Promise.resolve({ ok: false, message: "验证码已过期，请重新获取" });
         }
+        /* 旧版本遗留的「已错满 5 次但没锁」记录，升级成锁定 */
         if (rec.n >= CODE_MAX_TRIES) {
+          mailLockSet(email);
           mailCodeClear();
-          return Promise.resolve({ ok: false, message: "验证码错误次数过多，请重新获取" });
+          return Promise.resolve({ ok: false, message: mailLockMsg(mailLockFor(email)) });
         }
         return C.hashPassword(email, code).then(function (h) {
           if (h !== rec.h) {
             rec.n += 1;
+            if (rec.n >= CODE_MAX_TRIES) {
+              /* 第 5 次错：锁 24 小时，当前验证码一并作废 */
+              mailLockSet(email);
+              mailCodeClear();
+              return { ok: false, message: mailLockMsg(mailLockFor(email)) };
+            }
             try { sessionStorage.setItem(CODE_STORE, JSON.stringify(rec)); } catch (e) {}
-            return { ok: false, message: "验证码不正确" };
+            return { ok: false, message: "验证码不正确，还可再试 " + (CODE_MAX_TRIES - rec.n) + " 次" };
           }
           mailCodeClear();
           return { ok: true };
         });
       }
       function mailCodeSend(email) {
+        var lk = mailLockFor(email);
+        if (lk) return Promise.reject(new Error(mailLockMsg(lk)));
         var code = mailCodeNew();
         return mailCodeSave(email, code).then(function () {
           var ctrl = new AbortController();
@@ -1352,6 +1403,9 @@
           emailIn.focus();
           return;
         }
+        /* 连续输错被锁的邮箱：连重新获取都不允许，否则重发就能绕过锁定 */
+        var lk = mailLockFor(email);
+        if (lk) { setStatus(mailLockMsg(lk), "err"); return; }
         /* 人机验证未通过时，禁止调用发送接口 */
         if (tsWidgetId !== null && !tsReady) {
           setStatus("请先完成上方的人机验证，再获取验证码", "err");
