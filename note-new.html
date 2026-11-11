@@ -194,6 +194,7 @@
   </main>
   <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
 
+  <script src="crypto.js"></script>
   <script src="ratelimit.js"></script>
   <script>
     (function () {
@@ -376,10 +377,15 @@
       });
       /* 已登录用户：同步一次云端昵称/头衔（游客与纯浏览者跳过） */
       if (myKey && !isGuest) {
-        fetch("https://textdb.dev/api/data/blueprintstudio-users-2026?t=" + Date.now())
+        /* 用户库统一到 users-v2：昵称/头衔是 AES 密文，取到后先解密 */
+        fetch("https://textdb.dev/api/data/blueprintstudio-users-v2?t=" + Date.now())
           .then(function (r) { return r.json(); })
           .then(function (db) {
-            var u = db.users && db.users[myKey];
+            var raw = db.users && db.users[myKey];
+            if (!raw) return null;
+            return window.BPCrypto.decryptFields(raw, ["nick", "title"], "user|" + myKey);
+          })
+          .then(function (u) {
             if (u) {
               myNick = u.nick || myNick; myUID = u.uid || myUID; myTitle = u.title || "";
               localStorage.setItem("bs_nick", myNick);
