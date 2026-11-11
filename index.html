@@ -546,7 +546,7 @@
         <div class="card feat">
           <div class="ico">⚡</div>
           <h3>简单注册</h3>
-          <p>邮箱 + 密码即可完成注册，一分钟开通账号，没有繁琐流程，立刻开始你的交流之旅。</p>
+          <p>邮箱 + 密码 + 邮箱验证码，一分钟开通账号，没有繁琐流程，立刻开始你的交流之旅。</p>
         </div>
         <div class="card feat">
           <div class="ico">💬</div>
@@ -661,9 +661,9 @@
       var loginSubmitBtn = document.getElementById("doLoginBtn");
 
       /* ===== 登录 / 注册分开：同一个弹窗内分段切换 =====
-         两个模式都是「邮箱 + 密码 + 邮箱验证码」，
-         区别只在注册多一个昵称、按钮文案不同。
-         验证码服务未接通时，验证码行自动隐藏，退化为「邮箱 + 密码」。 */
+         登录 → 只要「邮箱 + 密码」
+         注册 → 「昵称 + 邮箱 + 密码 + 邮箱验证码」
+         验证码服务未接通时，注册的验证码行也自动隐藏，退化为「邮箱 + 密码」。 */
       var authMode = "login";
       function setAuthMode(mode) {
         authMode = (mode === "register") ? "register" : "login";
@@ -674,9 +674,9 @@
         authTitle.textContent = isReg ? "注册新账号" : "登录账号";
         authSub.textContent = isReg
           ? "昵称 + 邮箱 + 密码，并通过邮箱验证码校验"
-          : "邮箱 + 密码，并通过邮箱验证码校验";
+          : "用邮箱和密码登录你的账号";
         nickIn.style.display = isReg ? "" : "none";
-        codeRowEl.style.display = MAIL_READY ? "" : "none";
+        codeRowEl.style.display = (isReg && MAIL_READY) ? "" : "none";
         regSubmitBtn.style.display = isReg ? "" : "none";
         loginSubmitBtn.style.display = isReg ? "none" : "";
         passIn.setAttribute("autocomplete", isReg ? "new-password" : "current-password");
@@ -918,22 +918,18 @@
           return;
         }
 
-        /* 邮箱验证码：未配置验证码服务时跳过，退回「邮箱 + 密码」 */
-        if (MAIL_READY) {
+        /* 邮箱验证码只在注册时要；登录只认邮箱 + 密码 */
+        if (mode === "register" && MAIL_READY) {
           var code = (codeIn.value || "").trim();
           if (!/^[1-9]\d{5}$/.test(code)) { setStatus("请填写 6 位邮箱验证码", "err"); codeIn.focus(); return; }
-          /* 注册：此刻就核销验证码
-             登录：先核密码、后核验证码（见 doAuth），密码输错不白白废掉一次验证码 */
-          if (mode === "register") {
-            setStatus("正在校验验证码…");
-            mailCodeVerify(email, code).then(function (j) {
-              if (!j || !j.ok) { setStatus((j && j.message) || "验证码不正确", "err"); return; }
-              doAuth(mode, email, pass, nick);
-            }).catch(function () {
-              setStatus("验证服务连接失败，请稍后再试", "err");
-            });
-            return;
-          }
+          setStatus("正在校验验证码…");
+          mailCodeVerify(email, code).then(function (j) {
+            if (!j || !j.ok) { setStatus((j && j.message) || "验证码不正确", "err"); return; }
+            doAuth(mode, email, pass, nick);
+          }).catch(function () {
+            setStatus("验证服务连接失败，请稍后再试", "err");
+          });
+          return;
         }
 
         doAuth(mode, email, pass, nick);
@@ -974,15 +970,8 @@
               if (!u) { setStatus("该邮箱未注册", "err"); return; }
               if (u.hash !== h) { setStatus("密码错误", "err"); return; }
               if (u.banned) { location.href = BAN_PAGE + encodeURIComponent(email); return; }
-              /* 密码正确，再核验邮箱验证码（一次性，成功即作废） */
-              if (!MAIL_READY) { finishLogin(email, h, u); return; }
-              setStatus("正在校验验证码…");
-              return mailCodeVerify(email, (codeIn.value || "").trim()).then(function (j) {
-                if (!j || !j.ok) { setStatus((j && j.message) || "验证码不正确", "err"); return; }
-                finishLogin(email, h, u);
-              }).catch(function () {
-                setStatus("验证服务连接失败，请稍后再试", "err");
-              });
+              /* 登录不再校验邮箱验证码，密码通过即可进入 */
+              finishLogin(email, h, u);
             }
           });
         }).catch(function (e) {
