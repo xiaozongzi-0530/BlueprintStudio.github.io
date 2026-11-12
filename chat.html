@@ -214,6 +214,10 @@
       var DB = "https://textdb.dev/api/data/blueprintstudio-chat-v2";
       var USER_DB = "https://textdb.dev/api/data/blueprintstudio-users-v2";
       var me = null, myUID = "", myNick = "", chatting = null, timer = null;
+      /* 轮询治理：跨境单次请求实测 1~4 秒，间隔必须远大于 RTT，否则请求堆积 */
+      var POLL_MS = 12000;          // 统一轮询间隔（原来聊天 3s、列表 5s 两条独立轮询）
+      var pollBusy = false;         // 单飞锁：上一次没回来就不发下一次
+      var pollFails = 0;            // 连续失败计数，用于退避
       var maskRanges = [], pendingFile = null, endedState = false;
       var MASK_CHAR = "█";
       var C = window.BPCrypto;
@@ -265,15 +269,28 @@
         }
         return Promise.all(tasks).then(function () { return out; });
       }
-      function getDB() {
-        return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
-          .catch(function () { return { msgs: [] }; })
+      /* 读取带 4 秒短缓存 + 单飞去重：一次轮询内多个调用方共用一个网络请求 */
+      var _dbCache = null, _dbAt = 0, _dbP = null, DB_TTL = 4000;
+      function getDB(force) {
+        var now = Date.now();
+        if (!force && _dbCache && now - _dbAt < DB_TTL) return Promise.resolve(_dbCache);
+        if (_dbP) return _dbP;
+        _dbP = fetch(DB + "?t=" + now).then(function (r) { return r.json(); })
+          .catch(function () {
+            _dbP = null;
+            /* 关键：读失败必须标记 _fail。若把失败当成空库继续写，会用空数据覆盖整库 */
+            return { msgs: [], sessions: {}, _fail: true };
+          })
           .then(function (db) {
             var raw = (db && db.msgs) || [];
             return Promise.all(raw.map(decryptMsg)).then(function (list) {
-              return { msgs: list, sessions: (db && db.sessions) || {} };
+              var out = { msgs: list, sessions: (db && db.sessions) || {}, _fail: !!db._fail };
+              if (!out._fail) { _dbCache = out; _dbAt = Date.now(); }
+              _dbP = null;
+              return out;
             });
-          });
+          }, function (e) { _dbP = null; throw e; });
+        return _dbP;
       }
       /* 保存：把明文消息重新加密后写入 */
       function encryptMsg(m) {
@@ -311,8 +328,7 @@
       }
 
       /* ===== 会话列表 ===== */
-      function renderList() {
-        getDB().then(function (db) {
+      function renderListFrom(db) {
           var msgs = db.msgs || [];
           var convs = {};
           msgs.forEach(function (m) {
@@ -327,8 +343,8 @@
           box.innerHTML = keys.length ? keys.map(function (uid) {
             return '<div class="conv" data-uid="' + uid + '"><span class="u">UID: ' + uid + "</span><span class='last'>" + esc(convs[uid].last).slice(0, 40) + "</span></div>";
           }).join("") : '<p class="tip">暂无会话，输入对方 UID 开始聊天</p>';
-        });
       }
+      function renderList() { getDB().then(renderListFrom); }
       document.getElementById("convList").addEventListener("click", function (e) {
         var c = e.target.closest(".conv");
         if (c) openChat(c.getAttribute("data-uid"));
@@ -347,15 +363,18 @@
         clearPendingFile();
         inputEl().value = "";
         autoGrow();
+        lastChatSig = "";
+        var _w = document.getElementById("chatWin");
+        if (_w) { delete _w.dataset.init; _w.scrollTop = 0; }
         renderChat();
-        if (timer) clearInterval(timer);
-        timer = setInterval(renderChat, 3000);
+        if (timer) { clearInterval(timer); timer = null; }   /* 页面级统一轮询接管，不再单独开 3 秒定时器 */
       }
       /* 结束聊天：生成10位编号归档，全站可查 */
       document.getElementById("endBtn").addEventListener("click", function () {
         if (!chatting) return;
         if (!confirm("结束后本轮对话将归档为全站可见的公开记录，确定结束？\n（结束后仍可重新发起新对话）")) return;
-        getDB().then(function (db) {
+        getDB(true).then(function (db) {
+          if (db._fail) { alert("网络不稳定，读取失败，请稍后重试。"); return; }
           db.sessions = db.sessions || {};
           var key = pairKey(myUID, chatting);
           var prev = db.sessions[key];
@@ -374,6 +393,7 @@
             startedAt: (prev && prev.startedAt) || null
           };
           return saveDB(db).then(function () {
+            _dbAt = 0;
             alert("对话已结束并归档！\n聊天编号：" + id + "\n任何人可在聊天页输入此编号查看记录。");
             endedState = true;
             renderChat();
@@ -415,9 +435,8 @@
         renderList();
       }
       document.getElementById("backBtn").addEventListener("click", backToList);
-      function renderChat() {
-        if (!chatting) return;
-        getDB().then(function (db) {
+      var lastChatSig = "";
+      function renderChatFrom(db) {
           var sess = isEnded(db, myUID, chatting);
           endedState = !!(sess && sess.ended);
           var newBtn = document.getElementById("newConvBtn");
@@ -431,21 +450,31 @@
             : "";
           var key = pairKey(myUID, chatting);
           var list = (db.msgs || []).filter(function (m) { return pairKey(m.from, m.to) === key; });
+          var last = list[list.length - 1];
+          var sig = list.length + "|" + (last ? last.time + last.from : "") + "|" + endedState;
+          if (sig === lastChatSig) return;   /* 内容没变就不重绘，避免每轮轮询把滚动条拽回底部 */
+          lastChatSig = sig;
           var win = document.getElementById("chatWin");
+          /* 用户主动往上翻历史时保留位置，只有原本就在底部才跟随新消息 */
+          var atBottom = win.scrollHeight - win.scrollTop - win.clientHeight < 80;
           win.innerHTML = notice + (list.map(function (m) {
             var mine = m.from === myUID;
             return '<div class="msg ' + (mine ? "me" : "other") + '">'
               + '<div class="meta">' + (mine ? "我" : "对方") + " · " + fmt(m.time) + "</div>"
               + textWithMask(m.text) + fileHtml(m.file) + "</div>";
           }).join("") || '<p class="tip" style="text-align:center;">开始你们的对话吧</p>');
-          win.scrollTop = win.scrollHeight;
-        });
+          if (atBottom || win.dataset.init !== "1") {
+            win.scrollTop = win.scrollHeight;
+            win.dataset.init = "1";
+          }
       }
+      function renderChat() { if (!chatting) return; getDB(true).then(renderChatFrom); }
       /* 开始新对话：解除归档标记，开启新一轮（旧消息仍可按编号查询） */
       document.getElementById("newConvBtn").addEventListener("click", function () {
         if (!chatting) return;
         if (!confirm("开启新一轮对话？\n本轮消息将从头开始，之前的记录仍可通过旧编号查询。")) return;
-        getDB().then(function (db) {
+        getDB(true).then(function (db) {
+          if (db._fail) { alert("网络不稳定，读取失败，请稍后重试。"); return; }
           db.sessions = db.sessions || {};
           var key = pairKey(myUID, chatting);
           if (db.sessions[key]) {
@@ -453,6 +482,7 @@
             db.sessions[key].restartedAt = new Date().toISOString();
           }
           return saveDB(db).then(function () {
+            _dbAt = 0;
             endedState = false;
             renderChat();
             document.getElementById("msgInput").focus();
@@ -617,10 +647,16 @@
         if (hasFile) {
           msg.file = { name: pendingFile.name, size: pendingFile.size, type: pendingFile.type, data: pendingFile.data };
         }
-        getDB().then(function (db) {
+        getDB(true).then(function (db) {
+          if (db._fail) {
+            alert("网络不稳定，未能读取到最新消息。\n为避免覆盖别人刚发的消息，本次发送已取消，请稍后重试。");
+            input.disabled = false;
+            return;
+          }
           db.msgs = db.msgs || [];
           db.msgs.push(msg);
           return saveDB(db).then(function () {
+            _dbAt = 0;              /* 写成功后作废读缓存，下次必定重新拉取 */
             input.value = "";
             input.disabled = false;
             clearPendingFile();
@@ -636,8 +672,33 @@
       });
       document.getElementById("targetUID").addEventListener("keydown", function (e) { if (e.key === "Enter") document.getElementById("openBtn").click(); });
 
+      /* ===== 统一轮询：单飞 + 后台暂停 + 失败退避 ===== */
+      var pollNextAt = 0;
+      function pollTick() {
+        if (document.hidden) return;                 /* 后台标签页不发任何跨境请求 */
+        if (pollBusy) return;                        /* 上一次还没回来，绝不叠加 */
+        if (Date.now() < pollNextAt) return;         /* 失败后的退避窗口内跳过 */
+        pollBusy = true;
+        getDB().then(function (db) {
+          pollBusy = false;
+          if (db._fail) {
+            pollFails++;
+            pollNextAt = Date.now() + POLL_MS * Math.min(pollFails, 4);
+            return;
+          }
+          pollFails = 0;
+          if (chatting) renderChatFrom(db); else renderListFrom(db);
+        }, function () {
+          pollBusy = false;
+          pollFails++;
+          pollNextAt = Date.now() + POLL_MS * Math.min(pollFails, 4);
+        });
+      }
       renderList();
-      setInterval(renderList, 5000);
+      setInterval(pollTick, POLL_MS);
+      document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) { pollNextAt = 0; pollTick(); }   /* 切回前台立即补一次 */
+      });
     })();
   </script>
 </body>
