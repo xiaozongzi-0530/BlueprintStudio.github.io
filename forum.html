@@ -164,12 +164,26 @@
         document.getElementById("loginTip").style.display = "none";
       }
 
-      function getDB() {
-        return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
-          .catch(function () { return { posts: [] }; });
+      /* 4 秒内复用同一份数据：首屏渲染和昵称刷新会各自调一次 render，
+         没有这层缓存就要跨境拉两遍帖子库 */
+      var _c = null, _cAt = 0, _cP = null, CACHE_MS = 4000;
+      function getDB(force) {
+        var now = Date.now();
+        if (!force && _c && now - _cAt < CACHE_MS) return Promise.resolve(_c);
+        if (_cP) return _cP;
+        _cP = fetch(DB + "?t=" + now).then(function (r) { return r.json(); })
+          .catch(function () { return { posts: [], _fail: true }; })
+          .then(function (d) {
+            /* 读失败的结果绝不入缓存：否则 4 秒内会拿空库去覆盖真实数据 */
+            if (!d._fail) { _c = d; _cAt = Date.now(); }
+            _cP = null;
+            return d;
+          });
+        return _cP;
       }
       function saveDB(db) {
-        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) })
+          .then(function (r) { _cAt = 0; return r; });
       }
       function esc(t) {
         return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -291,6 +305,7 @@
 
       /* 登录用户昵称/头衔从云端刷新，用于帖子署名（游客不查云端，直接用本地值） */
       if (me && !isGuest) {
+        render();   /* 先用本地昵称渲染首屏，不让页面干等跨境请求（单次 1~4 秒） */
         /* 用户库统一到 users-v2：昵称/头衔是 AES 密文，取到后先解密 */
         fetch("https://textdb.dev/api/data/blueprintstudio-users-v2?t=" + Date.now())
           .then(function (r) { return r.json(); })
@@ -307,7 +322,7 @@
               if (u.banned) { location.href = "ban.html?email=" + encodeURIComponent(me); return; }
             }
             render();
-          }).catch(render);
+          }).catch(function () {});
       } else {
         if (isGuest) {
           /* 用游客昵称覆盖 bs_nick，保证发帖署名一致 */
