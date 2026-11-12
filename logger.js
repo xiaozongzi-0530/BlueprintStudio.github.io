@@ -46,25 +46,56 @@
     return true;
   }
 
-  /* 读最新一份 → 头插 → 截断 → 整体写回；串行队列避免并发写互相覆盖 */
-  function send(rec) {
-    sent++;
+  /* 攒批上报：4 秒内的多条错误合并成一次「读-改-写」。
+     原来每条错误都单独跨境 GET+POST，textdb 单次 1~4 秒，几个错误就能把
+     首屏的关键请求堵死；合并后正常情况一次访问只产生一轮请求。 */
+  var BATCH_MS = 4000, FETCH_TIMEOUT = 8000;
+  var pending = [], flushTimer = null, flushing = false;
+
+  function fetchT(url, opt) {
+    var ctrl = null, tid = null;
+    if (typeof AbortController !== "undefined") {
+      ctrl = new AbortController();
+      opt = opt || {};
+      opt.signal = ctrl.signal;
+      tid = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, FETCH_TIMEOUT);
+    }
+    return fetch(url, opt).then(function (r) { if (tid) clearTimeout(tid); return r; },
+      function (e) { if (tid) clearTimeout(tid); throw e; });
+  }
+
+  function scheduleFlush() {
+    if (flushTimer) return;
+    flushTimer = setTimeout(function () { flushTimer = null; flush(); }, BATCH_MS);
+  }
+
+  function flush() {
+    if (flushing || !pending.length) return;
+    flushing = true;
+    var batch = pending.splice(0, pending.length);
     queue = queue.then(function () {
-      return fetch(LOG_DB + "?t=" + Date.now(), { cache: "no-store" })
+      return fetchT(LOG_DB + "?t=" + Date.now(), { cache: "no-store" })
         .then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; })
         .then(function (db) {
           var logs = (db && db.logs) || [];
           if (!Array.isArray(logs)) logs = [];
-          logs.unshift(rec);
-          if (logs.length > MAX_KEEP) logs = logs.slice(0, MAX_KEEP);
-          return fetch(LOG_DB, {
+          var merged = batch.concat(logs);
+          if (merged.length > MAX_KEEP) merged = merged.slice(0, MAX_KEEP);
+          return fetchT(LOG_DB, {
             method: "POST",
             headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify({ logs: logs })
+            body: JSON.stringify({ logs: merged })
           });
         });
-    }).catch(function () { /* 日志自身出错就放弃，绝不递归上报 */ });
+    }).catch(function () { /* 日志自身出错就放弃，绝不递归上报 */ })
+      .then(function () { flushing = false; });
+  }
+
+  function send(rec) {
+    sent++;
+    pending.push(rec);
+    scheduleFlush();
     return queue;
   }
 
