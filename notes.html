@@ -219,12 +219,24 @@
       }
       function myID() { return myKey || guestID; }
 
-      function getDB() {
-        return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
-          .catch(function () { return { notes: [] }; });
+      /* 4 秒内复用同一份数据，避免首屏和昵称刷新各拉一遍笔记库 */
+      var _c = null, _cAt = 0, _cP = null, CACHE_MS = 4000;
+      function getDB(force) {
+        var now = Date.now();
+        if (!force && _c && now - _cAt < CACHE_MS) return Promise.resolve(_c);
+        if (_cP) return _cP;
+        _cP = fetch(DB + "?t=" + now).then(function (r) { return r.json(); })
+          .catch(function () { return { notes: [], _fail: true }; })
+          .then(function (d) {
+            if (!d._fail) { _c = d; _cAt = Date.now(); }   /* 读失败不入缓存，防止空库覆盖 */
+            _cP = null;
+            return d;
+          });
+        return _cP;
       }
       function saveDB(db) {
-        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) });
+        return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) })
+          .then(function (r) { _cAt = 0; return r; });
       }
       function esc(t) {
         return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -391,6 +403,7 @@
 
       /* 已登录用户：同步一次云端昵称/头衔（游客与纯浏览者跳过） */
       if (myKey && !isGuest) {
+        render();   /* 先用本地昵称渲染首屏，不让页面干等跨境请求 */
         /* 用户库统一到 users-v2：昵称/头衔是 AES 密文，取到后先解密 */
         fetch("https://textdb.dev/api/data/blueprintstudio-users-v2?t=" + Date.now())
           .then(function (r) { return r.json(); })
@@ -408,7 +421,7 @@
             }
             if (u && u.banned) { location.href = "ban.html?email=" + encodeURIComponent(myKey); return; }
             render();
-          }).catch(render);
+          }).catch(function () {});
       } else render();
     })();
   </script>
