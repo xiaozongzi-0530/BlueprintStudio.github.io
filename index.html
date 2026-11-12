@@ -177,8 +177,8 @@
   .modal-mask {
     position: fixed; inset: 0; z-index: 20;
     background: rgba(0,0,0,.6);
-    display: none; align-items: flex-start; justify-content: center;
-    overflow-y: auto; padding: 0 0 4vh;
+    display: none; align-items: center; justify-content: center;
+    overflow-y: auto; padding: 1.5rem 0;
   }
   .modal-mask.show { display: flex; }
   .modal {
@@ -188,6 +188,8 @@
     padding: 2rem;
     max-width: 380px; width: 90%;
     text-align: center;
+    /* 内容高于视口时，auto 边距会让它从顶部开始排列并可滚动，避免被裁切 */
+    margin: auto;
     transition: background .35s ease;
   }
   html[data-theme="light"] .modal { background: #ffffff; border-color: rgba(79,124,255,.3); }
