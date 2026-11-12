@@ -745,9 +745,12 @@
 
       function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = cls || ""; }
       function isAdmin() { return me === ADMIN_EMAIL; }
-      /* 读取：解密每个用户的昵称/头衔（邮箱作为键保持明文，用于登录定位） */
+      /* 读取：解密每个用户的昵称/头衔（邮箱作为键保持明文，用于登录定位）
+         同一时刻的多处调用合并成一个网络请求，避免首屏并发重复拉全库 */
+      var _dbP = null;
       function getDB() {
-        return fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
+        if (_dbP) return _dbP;
+        _dbP = fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
           .catch(function (e) {
             /* 用户库是登录/注册的根，读不到要留痕，方便事后排查 */
             try { BPLog.warn("db", "用户库读取失败", { detail: (e && e.message) || "network" }); } catch (_) {}
@@ -765,6 +768,8 @@
               return { users: out };
             });
           });
+        _dbP.then(function () { _dbP = null; }, function () { _dbP = null; });
+        return _dbP;
       }
       /* 写入：加密昵称/头衔后保存 */
       function saveDB(db) {
@@ -823,9 +828,12 @@
       function valid(email, pass) {
         return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && pass.length >= 6;
       }
+      var banBusy = false;
       function enforceBan() {
-        if (!me) return Promise.resolve();
+        if (!me || banBusy || document.hidden) return Promise.resolve();
+        banBusy = true;
         return getDB().then(function (db) {
+          banBusy = false;
           var u = db.users && db.users[me];
           if (u && u.banned) {
             localStorage.removeItem(KEY);
@@ -833,7 +841,7 @@
             return true;
           }
           return false;
-        });
+        }).catch(function () { banBusy = false; return false; });
       }
       /* ===== 邮箱验证码（EmailJS，无后端） ===== */
       function mailCodeNew() {
@@ -1564,7 +1572,8 @@
       });
 
       logoutBtn.addEventListener("click", logout);
-      setInterval(enforceBan, 30000);
+      /* 封禁巡检：跨境请求开销大，3 分钟一次足够，页面在后台时跳过 */
+      setInterval(enforceBan, 180000);
       renderMembers();
       (function init() {
         /* GitHub 登录已移除：清理地址栏里可能残留的 OAuth 回跳参数 */
