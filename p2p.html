@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P2P 传输 · BlueprintStudio</title>
+<script>
+  /* 首屏即应用主题，避免白屏闪烁 */
+  try {
+    const t = localStorage.getItem("bs_theme");
+    if (t) document.documentElement.dataset.theme = t;
+  } catch (_) {}
+</script>
+<style>
+  :root {
+    --bg: #0b1020;
+    --card: #111731;
+    --accent: #4f7cff;
+    --accent2: #22d3ee;
+    --text: #e6ebf5;
+    --muted: #8a93a8;
+    --border: rgba(79,124,255,.2);
+  }
+  html[data-theme="light"] {
+    --bg: #eef1f8;
+    --card: #ffffff;
+    --text: #1b2235;
+    --muted: #5a6478;
+    --accent: #3b6cff;
+    --accent2: #0bb4d4;
+    --border: rgba(59,108,255,.25);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
+    min-height: 100vh; transition: background .35s ease, color .35s ease;
+  }
+  .grid-bg {
+    pointer-events: none; position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: drift 20s linear infinite;
+  }
+  @keyframes drift { to { background-position: 40px 40px; } }
+
+  header {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1rem 2rem;
+    background: rgba(11,16,32,.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  html[data-theme="light"] header { background: rgba(255,255,255,.88); }
+  .brand { font-weight: 700; letter-spacing: .05em; font-size: 1.1rem; text-decoration: none; color: var(--text); }
+  .brand span { color: var(--accent2); }
+  nav a { color: var(--muted); text-decoration: none; margin-left: 1.5rem; font-size: .95rem; transition: color .2s; white-space: nowrap; }
+  nav a:hover { color: var(--accent2); }
+
+  main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 3rem 1.2rem 4rem; }
+  h1 { font-size: 1.7rem; margin-bottom: .6rem; }
+  .sub { color: var(--muted); font-size: .95rem; line-height: 1.8; margin-bottom: 2rem; }
+  .sub b { color: var(--accent2); }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 1.5rem; margin-bottom: 1.4rem;
+  }
+  .row { display: flex; gap: .8rem; flex-wrap: wrap; align-items: center; }
+  input[type="text"] {
+    flex: 1; min-width: 180px; padding: .7rem 1rem; border-radius: 10px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text); font-size: .95rem; outline: none;
+  }
+  input[type="text"]:focus { border-color: var(--accent2); }
+  .btn {
+    padding: .7rem 1.4rem; border-radius: 10px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; font-size: .95rem; transition: opacity .2s;
+  }
+  .btn:hover { opacity: .88; }
+  .btn.ghost { background: transparent; border: 1px solid rgba(79,124,255,.5); color: var(--accent2); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  #status { color: var(--muted); font-size: .9rem; margin-top: .8rem; }
+  #status b { color: var(--accent2); }
+
+  #chatBox {
+    height: 300px; overflow-y: auto; border: 1px solid var(--border);
+    border-radius: 12px; padding: 1rem; margin: 1rem 0;
+    display: flex; flex-direction: column; gap: .6rem;
+  }
+  .msg { max-width: 78%; padding: .55rem .85rem; border-radius: 12px; font-size: .92rem; line-height: 1.6; word-break: break-all; }
+  .msg.me { align-self: flex-end; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+  .msg.peer { align-self: flex-start; background: rgba(127,140,170,.16); }
+  .msg .filelink { color: inherit; text-decoration: underline; cursor: pointer; }
+
+  .tip { color: var(--muted); font-size: .82rem; line-height: 1.8; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; background:#888; }
+  .dot.on { background:#2ecc71; box-shadow: 0 0 6px #2ecc71; }
+
+  footer { text-align: center; color: var(--muted); font-size: .85rem; padding: 2rem 0; position: relative; z-index: 1; }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+
+<header>
+  <a class="brand" href="index.html">Blueprint<span>_Studio_</span></a>
+  <nav>
+    <a href="index.html">首页</a>
+    <a href="chat.html">聊天</a>
+    <a href="p2p.html">P2P 传输</a>
+  </nav>
+</header>
+
+<main>
+  <h1>📡 P2P 点对点传输</h1>
+  <p class="sub">
+    两台设备<b>直接互传</b>文字与文件（WebRTC 端到端加密），数据<b>不经过任何服务器存储</b>。<br>
+    使用方法：双方各自打开本页并连入<b>同一个房间号</b>，连接建立后即可互发消息和文件。
+  </p>
+
+  <div class="card">
+    <div class="row">
+      <input id="roomInput" type="text" placeholder="房间号（自己起一个，例如 blueprint-42）" autocomplete="off">
+      <button id="joinBtn" class="btn">连接房间</button>
+      <button id="leaveBtn" class="btn ghost" disabled>断开</button>
+    </div>
+    <div id="status"><span class="dot"></span>未连接</div>
+  </div>
+
+  <div class="card" id="transferCard" style="display:none">
+    <div id="chatBox"></div>
+    <div class="row">
+      <input id="msgInput" type="text" placeholder="输入要发送的文字…" autocomplete="off"
+             onkeydown="if(event.key==='Enter')sendText()">
+      <button class="btn" onclick="sendText()">发送文字</button>
+      <button class="btn ghost" onclick="document.getElementById('fileInput').click()">发送文件</button>
+      <input id="fileInput" type="file" style="display:none" onchange="sendFile(this)">
+    </div>
+    <p class="tip" style="margin-top:.8rem">
+      ⚠️ 传输依赖双方页面同时在线；关掉页面连接即断开。文件直接写入对方浏览器，不在服务器留任何副本。
+    </p>
+  </div>
+</main>
+
+<footer>© 2026 BlueprintStudio · 非商业性质工作室</footer>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const statusEl = $("status"), chatBox = $("chatBox");
+
+  let peer = null, conn = null;
+  const incoming = {};   // fileId -> {name, chunks:[], size, received}
+
+  const PREFIX = "bs-p2p-";
+
+  function setStatus(text, on) {
+    statusEl.innerHTML = '<span class="dot' + (on ? " on" : "") + '"></span>' + text;
+  }
+  function addMsg(text, me) {
+    const d = document.createElement("div");
+    d.className = "msg " + (me ? "me" : "peer");
+    d.textContent = text;
+    chatBox.appendChild(d);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+  function addFileMsg(name, size, me, blob) {
+    const d = document.createElement("div");
+    d.className = "msg " + (me ? "me" : "peer");
+    const mb = (size / 1048576).toFixed(2);
+    if (blob) {
+      const a = document.createElement("a");
+      a.className = "filelink";
+      a.textContent = "📎 " + name + "（" + mb + " MB，点击下载）";
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      d.appendChild(a);
+    } else {
+      d.textContent = "📎 已发送：" + name + "（" + mb + " MB）";
+    }
+    chatBox.appendChild(d);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  function bindConn(c) {
+    conn = c;
+    c.on("open", () => {
+      setStatus('已连接 · 对方已进入房间，可以互传了', true);
+      addMsg("✅ 对方已连接", false);
+    });
+    c.on("data", onData);
+    c.on("close", () => {
+      setStatus("对方已断开", false);
+      addMsg("⚠️ 对方已断开连接", false);
+      conn = null;
+    });
+    c.on("error", e => addMsg("⚠️ 连接错误：" + (e.message || e), false));
+  }
+
+  /* 数据协议：
+     {t:"txt", v}                 文字
+     {t:"meta", id, name, size}   文件头
+     {t:"chunk", id, data}        base64 分片（64KB）
+     {t:"end", id}                传输结束 */
+  function onData(d) {
+    if (d.t === "txt") { addMsg(d.v, false); return; }
+    if (d.t === "meta") {
+      incoming[d.id] = { name: d.name, size: d.size, chunks: [], received: 0 };
+      addMsg("⬇️ 正在接收：" + d.name, false);
+      return;
+    }
+    if (d.t === "chunk") {
+      const f = incoming[d.id];
+      if (!f) return;
+      const bin = atob(d.data);
+      const buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      f.chunks.push(buf);
+      f.received += buf.length;
+      setStatus("接收中 " + (f.received / f.size * 100).toFixed(0) + "%", true);
+      return;
+    }
+    if (d.t === "end") {
+      const f = incoming[d.id];
+      if (!f) return;
+      const blob = new Blob(f.chunks);
+      addFileMsg(f.name, f.size, false, blob);
+      delete incoming[d.id];
+      setStatus("已连接 · 对方已进入房间，可以互传了", true);
+    }
+  }
+
+  function sendObj(o) { if (conn && conn.open) conn.send(o); }
+
+  window.sendText = () => {
+    const v = $("msgInput").value.trim();
+    if (!v || !conn || !conn.open) return;
+    sendObj({ t: "txt", v });
+    addMsg(v, true);
+    $("msgInput").value = "";
+  };
+
+  window.sendFile = function (input) {
+    const file = input.files[0];
+    input.value = "";
+    if (!file || !conn || !conn.open) return;
+    const id = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    sendObj({ t: "meta", id, name: file.name, size: file.size });
+    addFileMsg(file.name, file.size, true, null);
+    const CHUNK = 65536;
+    let off = 0;
+    (function next() {
+      if (off >= file.size) { sendObj({ t: "end", id }); return; }
+      const slice = file.slice(off, off + CHUNK);
+      const r = new FileReader();
+      r.onload = () => {
+        sendObj({ t: "chunk", id, data: r.result.split(",")[1] });
+        setStatus("发送中 " + (off / file.size * 100).toFixed(0) + "%", true);
+        off += CHUNK;
+        setTimeout(next, 0);   // 让出主线程，避免 UI 卡死
+      };
+      r.readAsDataURL(slice);
+    })();
+  };
+
+  $("joinBtn").onclick = () => {
+    const room = $("roomInput").value.trim();
+    if (!room) { setStatus("请先输入房间号", false); return; }
+    $("joinBtn").disabled = true;
+    setStatus("正在连接 PeerJS 网络…", false);
+
+    const selfId = PREFIX + room + "-" + Math.random().toString(36).slice(2, 8);
+    peer = new Peer(selfId);
+
+    peer.on("open", () => {
+      setStatus("已进入房间，等待对方加入…（把房间号告诉对方）", false);
+      // 尝试主动连一个已存在的对端（后进房的先连先进房的）
+      const target = PREFIX + room + "-host";
+      const c = peer.connect(target, { reliable: true });
+      let ok = false;
+      c.on("open", () => { ok = true; $("transferCard").style.display = ""; bindConn(c); });
+      c.on("error", () => { if (!ok) fallback(); });
+      setTimeout(() => { if (!ok && (!conn || !conn.open)) fallback(); }, 4000);
+    });
+
+    let fallbackTried = false;
+    function fallback() {
+      if (fallbackTried || (conn && conn.open)) return;
+      fallbackTried = true;
+      setStatus("对方似乎已在线，尝试监听连接…", false);
+      // 自己升级为 host，等对方来连
+      peer.on("connection", c => {
+        $("transferCard").style.display = "";
+        bindConn(c);
+      });
+    }
+
+    peer.on("error", e => {
+      if (e.type === "unavailable-id") {   // host 位被占，转成监听方
+        fallback();
+        return;
+      }
+      setStatus("连接出错：" + (e.message || e.type), false);
+      $("joinBtn").disabled = false;
+    });
+  };
+
+  $("leaveBtn").onclick = () => {
+    if (conn) { try { conn.close(); } catch (_) {} conn = null; }
+    if (peer) { try { peer.destroy(); } catch (_) {} peer = null; }
+    $("transferCard").style.display = "none";
+    $("joinBtn").disabled = false;
+    setStatus("未连接", false);
+    addMsg("ℹ️ 你已断开", false);
+  };
+
+  window.addEventListener("beforeunload", () => { if (peer) try { peer.destroy(); } catch (_) {} });
+})();
+</script>
+</body>
+</html>
