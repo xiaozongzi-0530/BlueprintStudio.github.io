@@ -1,0 +1,8 @@
+{
+  "name": "blueprintstudio-functions",
+  "private": true,
+  "description": "BlueprintStudio 数据服务（Netlify Functions + Blobs）",
+  "dependencies": {
+    "@netlify/blobs": "^7.4.0"
+  }
+}
