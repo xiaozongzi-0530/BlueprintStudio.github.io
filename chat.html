@@ -96,6 +96,8 @@
   }
   .tool-btn:hover { background:rgba(79,124,255,.22); border-color:var(--accent2); }
   .tool-btn:disabled { opacity:.4; cursor:default; }
+  .tool-btn.on { background:rgba(255,107,107,.18); border-color:rgba(255,107,107,.55); color:#ff6b6b; }
+  .eph-badge { font-size:.68rem; opacity:.85; }
   /* 打码遮盖 */
   .masked {
     background:#000; color:transparent !important;
@@ -197,12 +199,13 @@
         <textarea id="msgInput" placeholder="输入消息…（选中文字后点「打码」可永久遮盖）" maxlength="1000" rows="1"></textarea>
         <div class="input-tools">
           <button class="tool-btn" id="maskBtn" title="选中文字后点击，将其永久替换为黑色打码">打码</button>
+          <button class="tool-btn" id="ephBtn" title="阅后即焚：消息不进入公开归档，送达后约 90 秒自动销毁">🔥 不公开</button>
           <button class="tool-btn" id="fileBtn" title="发送文件（≤900KB 直接内嵌，更大走 P2P，上限 30MB）">文件</button>
           <input type="file" id="fileInput" style="display:none;">
         </div>
         <button class="btn" id="sendBtn">发送</button>
       </div>
-      <p class="tip" style="margin-top:.5rem; font-size:.78rem;">打码为永久遮盖：原文不会保存，发送后任何一方都无法恢复。文件建议小于 500KB。</p>
+      <p class="tip" style="margin-top:.5rem; font-size:.78rem;">打码为永久遮盖：原文不会保存，发送后任何一方都无法恢复。「🔥 不公开」为阅后即焚：消息不进公开归档，送达后约 90 秒自动销毁。</p>
     </div>
   </main>
   <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
@@ -223,6 +226,20 @@
       var maskRanges = [], pendingFile = null, endedState = false;
       var MASK_CHAR = "█";
       var C = window.BPCrypto;
+
+      /* ===== 阅后即焚（不公开消息）=====
+         eph 消息：写入时带 eph 标记，送达后约 90 秒由发送方客户端销毁；
+         所有客户端渲染时自动过滤超过 100 秒的 eph 消息（双保险）；
+         归档查询（按编号查聊天记录）永远排除 eph 消息。 */
+      var EPH_TTL = 90 * 1000;        // 发送方销毁延时
+      var EPH_SHOW = 100 * 1000;      // 渲染保留窗口
+      var ephOn = false;
+      function isEphGone(m) {
+        return !!(m && m.eph && (Date.now() - new Date(m.time).getTime() > EPH_SHOW));
+      }
+      function ephBadge() {
+        return '<span class="eph-badge">🔥 不公开 · 阅后即焚</span>';
+      }
 
       try { me = JSON.parse(localStorage.getItem("bs_auth") || "null"); } catch (e) {}
       myUID = localStorage.getItem("bs_uid") || localStorage.getItem("gs_uid") || "";
@@ -318,6 +335,8 @@
       }
       function saveDB(db) {
         var list = (db && db.msgs) || [];
+        /* 写库前顺手销毁已超时的不公开消息 */
+        list = list.filter(function (m) { return !isEphGone(m); });
         return Promise.all(list.map(encryptMsg)).then(function (encList) {
           var payload = { msgs: encList, sessions: (db && db.sessions) || {} };
           return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(payload) });
@@ -333,7 +352,7 @@
 
       /* ===== 会话列表 ===== */
       function renderListFrom(db) {
-          var msgs = db.msgs || [];
+          var msgs = (db.msgs || []).filter(function (m) { return !isEphGone(m); });
           var convs = {};
           msgs.forEach(function (m) {
             var other = m.from === myUID ? m.to : (m.to === myUID ? m.from : null);
@@ -419,7 +438,9 @@
           });
           if (!hit) { box.innerHTML = '<p class="tip" style="color:#ff6b6b;">未找到该编号对应的聊天记录</p>'; return; }
           var uidA = pair.split("|")[0], uidB = pair.split("|")[1];
-          var list = (db.msgs || []).filter(function (m) { return pairKey(m.from, m.to) === pair; });
+          var list = (db.msgs || []).filter(function (m) {
+            return pairKey(m.from, m.to) === pair && !m.eph;   /* 不公开消息不进归档查询 */
+          });
           box.innerHTML = '<p class="tip">编号 <b style="color:var(--accent2);">' + id + '</b> 的聊天记录（'
             + uidA + ' 与 ' + uidB + '，' + list.length + ' 条消息）：</p>'
             + '<div id="qWin" style="max-height:300px; overflow:auto; display:flex; flex-direction:column; gap:.5rem; margin-top:.6rem;">'
@@ -453,7 +474,7 @@
               + ' · 全站可查询<br>如需继续交流，点「开始新对话」开启新一轮</p>'
             : "";
           var key = pairKey(myUID, chatting);
-          var list = (db.msgs || []).filter(function (m) { return pairKey(m.from, m.to) === key; });
+          var list = (db.msgs || []).filter(function (m) { return pairKey(m.from, m.to) === key && !isEphGone(m); });
           var last = list[list.length - 1];
           var sig = list.length + "|" + (last ? last.time + last.from : "") + "|" + endedState;
           if (sig === lastChatSig) return;   /* 内容没变就不重绘，避免每轮轮询把滚动条拽回底部 */
@@ -464,7 +485,7 @@
           win.innerHTML = notice + (list.map(function (m) {
             var mine = m.from === myUID;
             return '<div class="msg ' + (mine ? "me" : "other") + '">'
-              + '<div class="meta">' + (mine ? "我" : "对方") + " · " + fmt(m.time) + "</div>"
+              + '<div class="meta">' + (mine ? "我" : "对方") + " · " + fmt(m.time) + (m.eph ? " · " + ephBadge() : "") + "</div>"
               + textWithMask(m.text) + fileHtml(m.file) + "</div>";
           }).join("") || '<p class="tip" style="text-align:center;">开始你们的对话吧</p>');
           if (atBottom || win.dataset.init !== "1") {
@@ -636,6 +657,27 @@
       }
       inputEl().addEventListener("input", autoGrow);
 
+      /* ===== 不公开（阅后即焚）开关 ===== */
+      var ephBtn = document.getElementById("ephBtn");
+      ephBtn.addEventListener("click", function () {
+        ephOn = !ephOn;
+        ephBtn.classList.toggle("on", ephOn);
+        ephBtn.title = ephOn ? "已开启：消息不进公开归档，约 90 秒后自动销毁（再次点击关闭）"
+                             : "阅后即焚：消息不进入公开归档，送达后约 90 秒自动销毁";
+      });
+      /* 发送方销毁自己发的不公开消息 */
+      function destroyEph(msg) {
+        getDB(true).then(function (db) {
+          if (db._fail) return;
+          var before = (db.msgs || []).length;
+          db.msgs = (db.msgs || []).filter(function (m) {
+            return !(m.eph && m.from === msg.from && m.time === msg.time);
+          });
+          if (db.msgs.length === before) return;   /* 已经被别的客户端销毁 */
+          return saveDB(db).then(function () { _dbAt = 0; renderChat(); });
+        }).catch(function () {});
+      }
+
       function send() {
         var input = document.getElementById("msgInput");
         var text = input.value.trim();
@@ -668,6 +710,7 @@
           text: applyMaskOnSend(text).slice(0, 1000),
           time: new Date().toISOString()
         };
+        if (ephOn) msg.eph = 1;   /* 不公开标记（明文标志位，不参与加密） */
         if (hasFile) {
           var fm = { name: pendingFile.name, size: pendingFile.size, type: pendingFile.type };
           if (pendingFile.p2p) fm.p2p = pendingFile.p2p; else fm.data = pendingFile.data;
@@ -688,6 +731,7 @@
             clearPendingFile();
             autoGrow();
             renderChat();
+            if (msg.eph) setTimeout(function () { destroyEph(msg); }, EPH_TTL);
           });
         }).catch(function (e) { alert("发送失败，文件可能过大：" + e); input.disabled = false; });
         }
