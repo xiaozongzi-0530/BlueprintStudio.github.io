@@ -72,6 +72,37 @@ async function writeAll(items) {
   await store().set("list", JSON.stringify({ items: items.slice(-MAX_ITEMS) }));
 }
 
+/* 封禁用户：优先 Blobs 用户库（/api/auth 体系），
+   查不到则回退 textdb users-v2（前端注册/登录实际使用的库，
+   banned 标记由各页面登录与巡检逻辑读取生效） */
+const TEXTDB_USERS = "https://textdb.dev/api/data/blueprintstudio-users-v2";
+async function banUser(target) {
+  let udb = await getUsersRaw();
+  if (udb.users && udb.users[target]) {
+    udb.users[target].banned = true;
+    await putUsersRaw(udb);
+    return { ok: true, where: "blobs" };
+  }
+  try {
+    const r = await fetch(TEXTDB_USERS + "?t=" + Date.now());
+    if (!r.ok) return { ok: false, why: "textdb 用户库读取失败 HTTP " + r.status };
+    const db = await r.json();
+    if (db && db.users && db.users[target]) {
+      db.users[target].banned = true;
+      const pr = await fetch(TEXTDB_USERS, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(db),
+      });
+      if (!pr.ok) return { ok: false, why: "textdb 用户库写回失败 HTTP " + pr.status };
+      return { ok: true, where: "textdb" };
+    }
+    return { ok: false, why: "目标账号不存在于用户库" };
+  } catch (e) {
+    return { ok: false, why: "textdb 用户库访问异常" };
+  }
+}
+
 function clamp(s, n) { s = String(s == null ? "" : s); return s.length > n ? s.slice(0, n) : s; }
 
 export default async (req) => {
@@ -115,15 +146,9 @@ export default async (req) => {
       } else if (target.indexOf("guest:") === 0) {
         banSkip = "目标为游客身份，无法服务端封禁";
       } else {
-        const udb = await getUsersRaw();
-        const u = udb.users && udb.users[target];
-        if (u) {
-          u.banned = true;
-          await putUsersRaw(udb);
-          bannedTarget = true;
-        } else {
-          banSkip = "目标账号不存在于用户库";
-        }
+        const ban = await banUser(target);
+        if (ban.ok) bannedTarget = true;
+        else banSkip = ban.why;
       }
     }
     it.bannedTarget = bannedTarget;
@@ -191,19 +216,12 @@ export default async (req) => {
     if (!del.ok) rec.deleteSkip = del.why;
 
     if (rec.target && rec.target !== ADMIN_EMAIL && rec.target.indexOf("guest:") !== 0) {
-      try {
-        const udb = await getUsersRaw();
-        const u = udb.users && udb.users[rec.target];
-        if (u) {
-          u.banned = true;
-          await putUsersRaw(udb);
-          rec.bannedTarget = true;
-          rec.autoBanned = true;
-        } else {
-          rec.banSkip = "目标账号不存在于用户库，未封禁";
-        }
-      } catch (e) {
-        rec.banSkip = "自动封禁失败：" + clamp(e.message, 80);
+      const ban = await banUser(rec.target);
+      if (ban.ok) {
+        rec.bannedTarget = true;
+        rec.autoBanned = true;
+      } else {
+        rec.banSkip = ban.why;
       }
     } else if (rec.target) {
       rec.banSkip = rec.target === ADMIN_EMAIL ? "目标为管理员，未封禁" : "目标为游客身份，无法服务端封禁";
