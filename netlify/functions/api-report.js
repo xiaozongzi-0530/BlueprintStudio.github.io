@@ -16,7 +16,7 @@
    环境变量（Netlify Site settings → Environment variables）：
      GLM_API_KEY   智谱开放平台 API Key（https://open.bigmodel.cn）
 */
-import { getStore, json, preflight, clientIP, rateLimit, verifyToken } from "./_lib.js";
+import { getStore, getUsersRaw, putUsersRaw, json, preflight, clientIP, rateLimit, verifyToken, ADMIN_EMAIL } from "./_lib.js";
 import { judge } from "./_glm.js";
 
 export const config = { path: "/api/report" };
@@ -69,8 +69,33 @@ export default async (req) => {
     it.outcome = clamp(body.outcome || "已处理", 40);
     it.handledBy = tok.email;
     it.handledAt = new Date().toISOString();
+
+    /* 举报成立 → 自动封禁被举报人（仅注册邮箱；游客是本地随机身份，服务端封不了，
+       请直接删除其内容；管理员账号永不自动封禁） */
+    let bannedTarget = false;
+    let banSkip = "";
+    const target = String(it.target || "");
+    if (it.outcome.indexOf("举报成立") !== -1 && target) {
+      if (target === ADMIN_EMAIL) {
+        banSkip = "目标为管理员，未封禁";
+      } else if (target.indexOf("guest:") === 0) {
+        banSkip = "目标为游客身份，无法服务端封禁，请手动删除其内容";
+      } else {
+        const db = await getUsersRaw();
+        const rec = db.users && db.users[target];
+        if (rec) {
+          rec.banned = true;
+          await putUsersRaw(db);
+          bannedTarget = true;
+        } else {
+          banSkip = "目标账号不存在于用户库";
+        }
+      }
+    }
+    it.bannedTarget = bannedTarget;
+    if (banSkip) it.banSkip = banSkip;
     await writeAll(items);
-    return json({ ok: true });
+    return json({ ok: true, bannedTarget: bannedTarget, banSkip: banSkip });
   }
 
   /* ---------- 用户提交举报 ---------- */
@@ -106,6 +131,7 @@ export default async (req) => {
     content: content,
     reportReason: clamp(body.reportReason, 500),
     who: clamp(body.who, 120),
+    target: clamp(body.target, 120),   // 被举报人的账号标识（邮箱或 guest:uid），举报成立时自动封禁用
     ip: ip,
     ai: ai,
     aiSkipped: aiSkipped,

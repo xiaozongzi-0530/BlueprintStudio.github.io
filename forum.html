@@ -300,6 +300,7 @@
               content: p.content,
               reportReason: reason,
               who: me,
+              target: p.author || "",
             }).then(function (r) {
               if (r && r.ok) {
                 var ai = (r.ai || {});

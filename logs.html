@@ -550,7 +550,16 @@
       head.appendChild(el("span", "tag src", BPMod.kindName(a.kind)));
       head.appendChild(el("span", null, fmtTime(a.t)));
       head.appendChild(el("span", null, "举报人：" + (a.who || "匿名")));
-      if (a.status !== "pending") head.appendChild(el("span", null, "人工判定：" + (a.outcome || "—") + "（" + fmtTime(a.handledAt) + "）"));
+      if (a.target) head.appendChild(el("span", null, "被举报人：" + a.target));
+      if (a.status !== "pending") {
+        head.appendChild(el("span", null, "人工判定：" + (a.outcome || "—") + "（" + fmtTime(a.handledAt) + "）"));
+        if (a.bannedTarget) {
+          var bt = el("span", "tag error", "已自动封禁");
+          head.appendChild(bt);
+        } else if (a.banSkip) {
+          head.appendChild(el("span", null, "⚠ " + a.banSkip));
+        }
+      }
       box.appendChild(head);
 
       /* AI 初判结果 */

@@ -391,6 +391,7 @@
               content: (n.title ? n.title + "\n" : "") + n.content,
               reportReason: reason,
               who: myKey,
+              target: n.author || "",
             }).then(function (r) {
               if (r && r.ok) {
                 var ai = (r.ai || {});
