@@ -194,6 +194,7 @@
 
   <script src="crypto.js"></script>
   <script src="ratelimit.js"></script>
+  <script src="p2p-file.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-notes-2026";
@@ -261,19 +262,20 @@
       function attsHtml(atts) {
         if (!atts || !atts.length) return "";
         return '<div class="note-atts">' + atts.map(function (a) {
-          if (!a || !a.data) return "";
-          var isImg = /^image\//.test(a.type || "");
+          if (!a || (!a.data && !P2PFile.isP2P(a))) return "";
+          var p2p = P2PFile.isP2P(a);
+          var isImg = /^image\//.test(a.type || "") && !p2p;
           var nm = safeName(a.name);
           if (isImg) {
             return '<a href="' + a.data + '" target="_blank" rel="noopener">'
               + '<img class="att-img" src="' + a.data + '" alt="' + esc(nm) + '" loading="lazy">'
               + "</a>"
-              + '<a class="file-card" href="' + a.data + '" download="' + esc(nm) + '">'
+              + '<a class="file-card" ' + P2PFile.attrs(a) + '>'
               + '<span class="fico img">IMG</span><span class="fname">' + esc(a.name) + "</span>"
               + '<span class="fsize">' + fmtSize(a.size || 0) + "</span></a>";
           }
-          return '<a class="file-card" href="' + a.data + '" download="' + esc(nm) + '">'
-            + '<span class="fico">' + extOf(a.name) + "</span>"
+          return '<a class="file-card" ' + P2PFile.attrs(a) + '>'
+            + '<span class="fico">' + (p2p ? "P2P" : extOf(a.name)) + "</span>"
             + '<span class="fname">' + esc(a.name) + "</span>"
             + '<span class="fsize">' + fmtSize(a.size || 0) + "</span></a>";
         }).join("") + "</div>";

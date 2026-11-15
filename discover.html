@@ -288,6 +288,7 @@
   </div>
 
   <script src="ratelimit.js"></script>
+  <script src="p2p-file.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-discover-v1";
@@ -453,7 +454,8 @@
           if (repo) links += '<a class="lk" href="' + esc(repo) + '" target="_blank" rel="noopener">🔗 仓库</a>';
           if (demo) links += '<a class="lk" href="' + esc(demo) + '" target="_blank" rel="noopener">🌐 演示</a>';
           (it.files || []).forEach(function (f, i) {
-            links += '<a class="lk file" data-dl="' + id + '" data-fi="' + i + '">📦 '
+            links += '<a class="lk file" data-dl="' + id + '" data-fi="' + i + '">'
+              + (P2PFile.isP2P(f) ? "📡 " : "📦 ")
               + esc(f.name) + " · " + fmtSize(f.size) + "</a>";
           });
           var del = canDelete(it) ? '<span class="del" data-del="' + id + '">删除</span>' : "";
@@ -506,6 +508,11 @@
       function download(it, idx) {
         var f = (it.files || [])[idx];
         if (!f) return;
+        if (P2PFile.isP2P(f)) {
+          P2PFile.download(f).then(function (r) { P2PFile.save(r.blob, r.name); })
+            .catch(function () { /* 浮层已提示 */ });
+          return;
+        }
         var blob = dataUrlToBlob(f.data);
         if (!blob) {
           if (window.BPLog) window.BPLog.warn("discover", "附件解析失败: " + f.name);
@@ -585,23 +592,25 @@
         if (e.key === "Escape" && mask.classList.contains("show")) closeModal();
       });
 
+      var MAX_P2P = 30 * 1024 * 1024;
       document.getElementById("fFile").addEventListener("change", function (e) {
         var f = e.target.files && e.target.files[0];
         var info = document.getElementById("fFileInfo");
         pickedFile = null;
-        if (!f) { info.textContent = "支持 zip / 源码 / 文档 / 图片，单个不超过 300KB；更大的文件请放 GitHub Release 或 Gitee。"; return; }
-        if (f.size > MAX_FILE) {
-          info.textContent = "「" + f.name + "」" + fmtSize(f.size) + " 超过 300KB，未添加。大文件请放 GitHub Release 或 Gitee。";
+        if (!f) { info.textContent = "支持 zip / 源码 / 文档 / 图片，单个 ≤300KB 直接内嵌；更大文件走 P2P 直传，上限 30MB。"; return; }
+        if (f.size > MAX_P2P) {
+          info.textContent = "「" + f.name + "」" + fmtSize(f.size) + " 超过 30MB，未添加。超大文件建议放 GitHub Release。";
           e.target.value = "";
           return;
         }
-        var r = new FileReader();
-        r.onload = function () {
-          pickedFile = { name: f.name, type: f.type || "application/octet-stream", size: f.size, data: r.result };
-          info.textContent = "已选择：" + f.name + " · " + fmtSize(f.size);
-        };
-        r.onerror = function () { info.textContent = "文件读取失败，换一个试试。"; };
-        r.readAsDataURL(f);
+        info.textContent = "正在准备「" + f.name + "」…";
+        P2PFile.prepare(f, { inlineMax: MAX_FILE }).then(function (meta) {
+          pickedFile = meta;
+          info.textContent = "已选择：" + f.name + " · " + fmtSize(f.size)
+            + (P2PFile.isP2P(meta) ? "（P2P 直传，需你或已下载者在线）" : "（已内嵌）");
+        }).catch(function (err) {
+          info.textContent = err.message || "文件读取失败，换一个试试。";
+        });
       });
 
       function resetForm() {

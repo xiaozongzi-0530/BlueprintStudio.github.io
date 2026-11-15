@@ -144,6 +144,7 @@
 
   <script src="crypto.js"></script>
   <script src="ratelimit.js"></script>
+  <script src="p2p-file.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-forum-2026";
@@ -223,7 +224,8 @@
             else if (p.guest || (p.author && String(p.author).indexOf("guest:") === 0)) badge = '<span class="badge-guest">游客</span>';
             else if (p.title) badge = '<span class="badge-title">' + esc(p.title) + "</span>";
             var files = (p.files || []).map(function (f) {
-              return '<a href="' + f.data + '" download="' + esc(f.name) + '">📎 ' + esc(f.name) + "</a>";
+              var tag = P2PFile.isP2P(f) ? " 📡" : "";
+              return '<a ' + P2PFile.attrs(f) + '>📎 ' + esc(f.name) + tag + "</a>";
             }).join("");
             var reportN = (p.reports || []).length;
             var repTxt = isAdmin && reportN ? '<span class="report-badge">被举报 ' + reportN + ' 次</span>' : "";

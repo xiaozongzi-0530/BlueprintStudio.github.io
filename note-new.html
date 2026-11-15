@@ -196,6 +196,7 @@
 
   <script src="crypto.js"></script>
   <script src="ratelimit.js"></script>
+  <script src="p2p-file.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-notes-2026";
@@ -234,10 +235,11 @@
         try { return new Date(t).toLocaleString("zh-CN", { hour12: false }); } catch (e) { return t; }
       }
 
-      /* ===== 附件：Base64 存库，随笔记一起保存 ===== */
-      var MAX_FILE = 400 * 1024;      // 单个 400KB
+      /* ===== 附件：小的内嵌存库，大的走 P2P ===== */
+      var MAX_FILE = 400 * 1024;      // 内嵌上限：单个 400KB
+      var MAX_P2P = 30 * 1024 * 1024; // P2P 上限：单个 30MB
       var MAX_ATTS = 3;               // 最多 3 个
-      var MAX_TOTAL = 1200 * 1024;    // 一条笔记附件总量 1.2MB（Base64 后约 1.6MB，留余量给 textdb 限制）
+      var MAX_TOTAL = 1200 * 1024;    // 内嵌附件总量 1.2MB（P2P 文件不计入，因为不占库）
       var pendingAtts = [];
 
       function fmtSize(n) {
@@ -246,7 +248,10 @@
         return (n / 1024 / 1024).toFixed(2) + " MB";
       }
       function attTotal() {
-        return pendingAtts.reduce(function (s, a) { return s + (a.size || 0); }, 0);
+        /* 只累计内嵌附件（P2P 附件不占数据库体积） */
+        return pendingAtts.reduce(function (s, a) {
+          return s + (P2PFile.isP2P(a) ? 0 : (a.size || 0));
+        }, 0);
       }
       /* 下载用文件名：去掉会破坏 HTML 属性的字符 */
       function safeName(s) { return String(s || "file").replace(/["'<>&]/g, "_"); }
@@ -257,18 +262,21 @@
       function drawPending() {
         var box = document.getElementById("attList");
         box.innerHTML = pendingAtts.map(function (a, i) {
-          var isImg = /^image\//.test(a.type || "");
+          var p2p = P2PFile.isP2P(a);
+          var isImg = /^image\//.test(a.type || "") && !p2p;
           return '<div class="ap">'
-            + '<span class="ico ' + (isImg ? "img" : "") + '">' + (isImg ? "IMG" : extOf(a.name)) + "</span>"
+            + '<span class="ico ' + (isImg ? "img" : "") + '">' + (p2p ? "P2P" : (isImg ? "IMG" : extOf(a.name))) + "</span>"
             + '<span class="nm" title="' + esc(safeName(a.name)) + '">' + esc(a.name) + "</span>"
             + '<span class="sz">' + fmtSize(a.size) + "</span>"
             + '<button class="rm" data-rm="' + i + '" title="移除">×</button>'
             + "</div>";
         }).join("");
         document.getElementById("attBtn").disabled = pendingAtts.length >= MAX_ATTS;
+        var hasP2P = pendingAtts.some(function (a) { return P2PFile.isP2P(a); });
         document.getElementById("attHint").textContent = pendingAtts.length
-          ? "已选 " + pendingAtts.length + "/" + MAX_ATTS + "，共 " + fmtSize(attTotal())
-          : "支持图片 / 文档 / 压缩包，单个 ≤ 400KB，最多 3 个";
+          ? "已选 " + pendingAtts.length + "/" + MAX_ATTS + "，共 " + fmtSize(attTotal() + pendingAtts.reduce(function (s, a) { return s + (P2PFile.isP2P(a) ? (a.size || 0) : 0); }, 0))
+            + (hasP2P ? " · ⚠️ 含 P2P 附件，需你或已下载者在线才能下载" : "")
+          : "图片 / 文档 / 压缩包，单个 ≤400KB 直接内嵌；更大文件走 P2P，上限 30MB，最多 3 个";
       }
       document.getElementById("attBtn").addEventListener("click", function () {
         document.getElementById("fileInput").click();
@@ -279,10 +287,10 @@
         if (!files.length) return;
         var queue = files.filter(function (f) {
           if (pendingAtts.length >= MAX_ATTS) { alert("最多只能添加 " + MAX_ATTS + " 个附件"); return false; }
-          if (f.size > MAX_FILE) { alert("「" + f.name + "」过大（" + fmtSize(f.size) + "），单个附件不能超过 400KB"); return false; }
+          if (f.size > MAX_P2P) { alert("「" + f.name + "」过大（" + fmtSize(f.size) + "），单个附件不能超过 30MB"); return false; }
           return true;
         });
-        /* 串行读取，保证顺序与用户选择一致 */
+        /* 串行处理，保证顺序与用户选择一致 */
         var i = 0;
         (function next() {
           if (i >= queue.length || pendingAtts.length >= MAX_ATTS) {
@@ -290,18 +298,19 @@
             return;
           }
           var f = queue[i++];
-          if (attTotal() + f.size > MAX_TOTAL) {
-            alert("附件总量超出 1.2MB，请删掉一些再加");
+          var willInline = f.size <= MAX_FILE;
+          if (willInline && attTotal() + f.size > MAX_TOTAL) {
+            alert("内嵌附件总量超出 1.2MB，请删掉一些再加（或换更大的文件走 P2P）");
             drawPending();
             return;
           }
-          var reader = new FileReader();
-          reader.onload = function () {
-            pendingAtts.push({ name: f.name, size: f.size, type: f.type || "", data: reader.result });
+          P2PFile.prepare(f, { inlineMax: MAX_FILE }).then(function (meta) {
+            pendingAtts.push(meta);
             next();
-          };
-          reader.onerror = function () { alert("读取「" + f.name + "」失败"); next(); };
-          reader.readAsDataURL(f);
+          }).catch(function (err) {
+            alert(err.message || ("读取「" + f.name + "」失败"));
+            next();
+          });
         })();
       });
       document.getElementById("attList").addEventListener("click", function (e) {
@@ -314,19 +323,20 @@
       function attsHtml(atts) {
         if (!atts || !atts.length) return "";
         return '<div class="note-atts">' + atts.map(function (a) {
-          if (!a || !a.data) return "";
-          var isImg = /^image\//.test(a.type || "");
+          if (!a || (!a.data && !P2PFile.isP2P(a))) return "";
+          var p2p = P2PFile.isP2P(a);
+          var isImg = /^image\//.test(a.type || "") && !p2p;
           var nm = safeName(a.name);
           if (isImg) {
             return '<a href="' + a.data + '" target="_blank" rel="noopener">'
               + '<img class="att-img" src="' + a.data + '" alt="' + esc(nm) + '" loading="lazy">'
               + "</a>"
-              + '<a class="file-card" href="' + a.data + '" download="' + esc(nm) + '">'
+              + '<a class="file-card" ' + P2PFile.attrs(a) + '>'
               + '<span class="fico img">IMG</span><span class="fname">' + esc(a.name) + "</span>"
               + '<span class="fsize">' + fmtSize(a.size || 0) + "</span></a>";
           }
-          return '<a class="file-card" href="' + a.data + '" download="' + esc(nm) + '">'
-            + '<span class="fico">' + extOf(a.name) + "</span>"
+          return '<a class="file-card" ' + P2PFile.attrs(a) + '>'
+            + '<span class="fico">' + (p2p ? "P2P" : extOf(a.name)) + "</span>"
             + '<span class="fname">' + esc(a.name) + "</span>"
             + '<span class="fsize">' + fmtSize(a.size || 0) + "</span></a>";
         }).join("") + "</div>";
@@ -359,7 +369,9 @@
             title: title.slice(0, 60),
             content: body.slice(0, 5000),
             atts: pendingAtts.map(function (a) {
-              return { name: a.name, size: a.size, type: a.type, data: a.data };
+              var o = { name: a.name, size: a.size, type: a.type };
+              if (a.p2p) o.p2p = a.p2p; else o.data = a.data;
+              return o;
             }),
             time: new Date().toISOString(),
             likes: [], dislikes: []

@@ -197,7 +197,7 @@
         <textarea id="msgInput" placeholder="输入消息…（选中文字后点「打码」可永久遮盖）" maxlength="1000" rows="1"></textarea>
         <div class="input-tools">
           <button class="tool-btn" id="maskBtn" title="选中文字后点击，将其永久替换为黑色打码">打码</button>
-          <button class="tool-btn" id="fileBtn" title="发送文件（建议小于 900KB）">文件</button>
+          <button class="tool-btn" id="fileBtn" title="发送文件（≤900KB 直接内嵌，更大走 P2P，上限 30MB）">文件</button>
           <input type="file" id="fileInput" style="display:none;">
         </div>
         <button class="btn" id="sendBtn">发送</button>
@@ -209,6 +209,7 @@
 
   <script src="crypto.js"></script>
   <script src="ratelimit.js"></script>
+  <script src="p2p-file.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-chat-v2";
@@ -302,7 +303,9 @@
           var plain = copy.text;
           tasks.push(C.encrypt(plain, pid + "|text").then(function (v) { copy.text = v; }));
         }
-        if (copy.file && copy.file.data && String(copy.file.data).indexOf("v2:") !== 0) {
+        if (copy.file && copy.file.p2p && !copy.file.data) {
+          /* P2P 附件：数据不走数据库，元信息无需加密 */
+        } else if (copy.file && copy.file.data && String(copy.file.data).indexOf("v2:") !== 0) {
           var fdata = copy.file.data;
           var fmeta = {};
           Object.keys(copy.file).forEach(function (k) { if (k !== "data") fmeta[k] = copy.file[k]; });
@@ -564,7 +567,8 @@
       });
 
       /* ===== 发送文件（Base64 存库） ===== */
-      var MAX_FILE = 900 * 1024;   // 约 900KB 原始文件，Base64 后约 1.2MB
+      var MAX_FILE = 900 * 1024;   // 内嵌上限：约 900KB 原始文件，Base64 后约 1.2MB
+      var MAX_P2P = 30 * 1024 * 1024; // P2P 上限 30MB
 
       function fmtSize(n) {
         if (n < 1024) return n + " B";
@@ -584,38 +588,42 @@
       document.getElementById("fileInput").addEventListener("change", function (e) {
         var f = e.target.files && e.target.files[0];
         if (!f) return;
-        if (f.size > MAX_FILE) {
-          alert("文件过大（" + fmtSize(f.size) + "），请选择小于 900KB 的文件。");
+        if (f.size > MAX_P2P) {
+          alert("文件过大（" + fmtSize(f.size) + "），单个文件不能超过 30MB。");
           clearPendingFile();
           return;
         }
-        var reader = new FileReader();
-        reader.onload = function () {
-          pendingFile = { name: f.name, size: f.size, type: f.type, data: reader.result };
-          var box = document.getElementById("attachPreview");
+        var box = document.getElementById("attachPreview");
+        box.style.display = "block";
+        box.innerHTML = '<div class="ap"><span style="padding:0 .5rem;color:var(--muted);font-size:.8rem;">正在准备…</span></div>';
+        P2PFile.prepare(f, { inlineMax: MAX_FILE }).then(function (meta) {
+          pendingFile = meta;
+          var isP2P = P2PFile.isP2P(meta);
           box.style.display = "block";
-          box.innerHTML = '<div class="ap"><span class="fico" style="width:24px;height:24px;border-radius:6px;background:rgba(79,124,255,.3);display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:700;">FILE</span>'
-            + '<span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(f.name) + '</span>'
+          box.innerHTML = '<div class="ap"><span class="fico" style="width:24px;height:24px;border-radius:6px;background:rgba(79,124,255,.3);display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:700;">' + (isP2P ? "P2P" : "FILE") + '</span>'
+            + '<span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(f.name) + (isP2P ? ' <span style="color:var(--accent2);font-size:.72rem;">P2P 直传</span>' : '') + '</span>'
             + '<span class="fsize" style="color:var(--muted); font-size:.75rem;">' + fmtSize(f.size) + '</span>'
             + '<button id="apDel" title="移除">×</button></div>';
           document.getElementById("apDel").addEventListener("click", clearPendingFile);
-        };
-        reader.onerror = function () { alert("读取文件失败"); clearPendingFile(); };
-        reader.readAsDataURL(f);
+        }).catch(function (err) {
+          alert(err.message || "读取文件失败");
+          clearPendingFile();
+        });
       });
 
       /* 渲染消息中的文件 */
       function fileHtml(f) {
-        if (!f || !f.data) return "";
-        var isImg = /^image\//.test(f.type || "");
+        if (!f || (!f.data && !P2PFile.isP2P(f))) return "";
+        var isP2P = P2PFile.isP2P(f);
+        var isImg = /^image\//.test(f.type || "") && !isP2P;
         if (isImg) {
           return '<img class="att-img" src="' + f.data + '" alt="' + esc(f.name) + '">'
-            + '<a class="file-card" href="' + f.data + '" download="' + esc(f.name) + '">'
+            + '<a class="file-card" ' + P2PFile.attrs(f) + '>'
             + '<span class="fico img">IMG</span><span class="fname">' + esc(f.name) + '</span>'
             + '<span class="fsize">' + fmtSize(f.size || 0) + '</span></a>';
         }
-        return '<a class="file-card" href="' + f.data + '" download="' + esc(f.name) + '">'
-          + '<span class="fico">FILE</span><span class="fname">' + esc(f.name) + '</span>'
+        return '<a class="file-card" ' + P2PFile.attrs(f) + '>'
+          + '<span class="fico">' + (isP2P ? "P2P" : "FILE") + '</span><span class="fname">' + esc(f.name) + '</span>'
           + '<span class="fsize">' + fmtSize(f.size || 0) + '</span></a>';
       }
 
@@ -645,7 +653,9 @@
           time: new Date().toISOString()
         };
         if (hasFile) {
-          msg.file = { name: pendingFile.name, size: pendingFile.size, type: pendingFile.type, data: pendingFile.data };
+          var fm = { name: pendingFile.name, size: pendingFile.size, type: pendingFile.type };
+          if (pendingFile.p2p) fm.p2p = pendingFile.p2p; else fm.data = pendingFile.data;
+          msg.file = fm;
         }
         getDB(true).then(function (db) {
           if (db._fail) {
