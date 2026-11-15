@@ -1,9 +1,10 @@
 /* /api/aicode —— AI 写代码（智谱 GLM，glm-4-flash）
    ------------------------------------------------------------
-   POST JSON {prompt, lang, mode}
+   POST JSON {prompt, lang, mode, history}
      prompt  需求描述（必填）
-     lang    目标语言：js / python / java / cpp / go / html / sql / shell / 其他（可空）
+     lang    目标语言（可空）
      mode    generate（写代码，默认）| explain（解释代码）| fix（找 bug）
+     history 多轮对话上下文 [{role:"user"|"assistant", content:"..."}]（可空，最多取最近 8 条）
    返回 {ok, text}    text 为模型输出（含 markdown 代码块）
    - 服务端代理 GLM，API Key 不下发前端
    - 未配置 GLM_API_KEY 或调用失败时返回明确错误
@@ -59,6 +60,17 @@ export default async (req) => {
     userMsg = "请用" + (lang || "合适的") + "语言实现以下需求：\n\n" + prompt;
   }
 
+  /* 多轮上下文：最多带最近 8 条历史，每条裁剪到 4000 字 */
+  const history = Array.isArray(body.history)
+    ? body.history.slice(-8).map(m => ({
+        role: m && m.role === "assistant" ? "assistant" : "user",
+        content: clamp(m && m.content, 4000),
+      })).filter(m => m.content.trim())
+    : [];
+  if (history.length > 12) history.length = 12;
+
+  const messages = [{ role: "system", content: SYSTEM }].concat(history, [{ role: "user", content: userMsg }]);
+
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 55000);   // 代码生成比审核慢，放宽到 55 秒
   try {
@@ -70,10 +82,7 @@ export default async (req) => {
       },
       body: JSON.stringify({
         model: MODEL,
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: userMsg },
-        ],
+        messages: messages,
         temperature: 0.3,
         max_tokens: MAX_OUTPUT,
       }),

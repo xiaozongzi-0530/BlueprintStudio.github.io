@@ -15,8 +15,8 @@
   })();
 </script>
 <style>
-  :root { --bg:#0b1020; --panel:rgba(255,255,255,.04); --line:rgba(79,124,255,.25); --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; --err:#ff6b6b; }
-  html[data-theme="light"] { --bg:#f4f7ff; --panel:#fff; --line:rgba(79,124,255,.22); --text:#0b1020; --muted:#5b6478; }
+  :root { --bg:#0b1020; --panel:rgba(255,255,255,.04); --panel2:rgba(255,255,255,.06); --line:rgba(79,124,255,.25); --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; --err:#ff6b6b; }
+  html[data-theme="light"] { --bg:#f4f7ff; --panel:#fff; --panel2:#eef2fb; --line:rgba(79,124,255,.22); --text:#0b1020; --muted:#5b6478; }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; min-height:100vh; }
   .grid-bg { pointer-events:none; position:fixed; inset:0; z-index:0; background-image:linear-gradient(rgba(79,124,255,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(79,124,255,.07) 1px,transparent 1px); background-size:40px 40px; }
@@ -26,37 +26,62 @@
   nav { display:flex; gap:1.2rem; flex-wrap:wrap; }
   nav a { color:var(--muted); text-decoration:none; font-size:.92rem; }
   nav a:hover, nav a.active { color:var(--accent2); }
-  main { position:relative; z-index:1; max-width:860px; margin:0 auto; padding:2.5rem 1.5rem 4rem; }
-  h1 { font-size:1.7rem; margin-bottom:.45rem; }
-  h1 em { font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-  .sub { color:var(--muted); font-size:.9rem; line-height:1.8; margin-bottom:1.6rem; }
+
+  /* ---------- 布局：左侧任务栏 + 右侧工作区 ---------- */
+  .layout { position:relative; z-index:1; display:flex; max-width:1200px; margin:0 auto; padding:1.5rem 1rem 4rem; gap:1rem; align-items:flex-start; }
+  /* 任务侧栏 */
+  #side { flex:0 0 240px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:.9rem; position:sticky; top:84px; max-height:calc(100vh - 110px); overflow-y:auto; }
+  #side h3 { font-size:.85rem; color:var(--muted); font-weight:600; margin-bottom:.6rem; letter-spacing:.06em; }
+  .new-task { width:100%; margin-bottom:.7rem; }
+  .task-item { display:flex; align-items:center; gap:.4rem; padding:.5rem .6rem; border-radius:9px; cursor:pointer; margin-bottom:.25rem; border:1px solid transparent; }
+  .task-item:hover { background:var(--panel2); }
+  .task-item.on { background:rgba(79,124,255,.16); border-color:var(--line); }
+  .task-item .tname { flex:1; font-size:.87rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .task-item .tdel { border:none; background:none; color:var(--muted); cursor:pointer; font-size:.85rem; padding:0 .2rem; border-radius:6px; }
+  .task-item .tdel:hover { color:var(--err); }
+  /* 工作区 */
+  #work { flex:1; min-width:0; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:1.2rem 1.3rem; margin-bottom:1.2rem; }
-  textarea, select, input[type="text"] { width:100%; background:rgba(255,255,255,.06); border:1px solid var(--line); border-radius:10px; color:var(--text); padding:.7rem .9rem; font-size:.92rem; outline:none; font-family:inherit; }
-  html[data-theme="light"] textarea, html[data-theme="light"] select, html[data-theme="light"] input { background:#fff; }
-  textarea { min-height:110px; resize:vertical; }
-  textarea:focus, select:focus { border-color:var(--accent2); }
-  .row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; margin-top:.8rem; }
-  select { width:auto; min-width:130px; }
-  .btn { display:inline-block; border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; padding:.6rem 1.5rem; border-radius:10px; font-size:.92rem; font-weight:600; }
-  .btn:disabled { opacity:.5; cursor:not-allowed; }
-  .btn.ghost { background:transparent; border:1px solid rgba(79,124,255,.5); color:var(--accent2); font-weight:500; }
   .mode-tabs { display:flex; gap:.5rem; margin-bottom:.9rem; flex-wrap:wrap; }
   .mode-tabs button { background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--muted); border-radius:999px; padding:.4rem 1rem; font-size:.85rem; cursor:pointer; font-family:inherit; }
   .mode-tabs button.on { background:rgba(79,124,255,.18); border-color:var(--accent2); color:var(--accent2); font-weight:600; }
-  #out { margin-top:.2rem; }
-  .code-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:.7rem; }
-  .code-head b { color:var(--accent2); font-size:.92rem; }
+  html[data-theme="light"] .mode-tabs button { background:#eef2fb; }
+  textarea, select, input[type="text"] { background:var(--panel2); border:1px solid var(--line); border-radius:10px; color:var(--text); padding:.7rem .9rem; font-size:.92rem; outline:none; font-family:inherit; }
+  html[data-theme="light"] textarea, html[data-theme="light"] select, html[data-theme="light"] input { background:#fff; }
+  textarea { width:100%; min-height:96px; resize:vertical; }
+  textarea:focus, select:focus, input:focus { border-color:var(--accent2); }
+  /* 语言选择：显式控制外观，修复下拉 UI 崩坏 */
+  select { appearance:none; -webkit-appearance:none; width:auto; min-width:170px; padding-right:2.1rem; cursor:pointer;
+    background-image:linear-gradient(45deg,transparent 49%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 51%);
+    background-position:calc(100% - 15px) 55%, calc(100% - 10px) 55%; background-size:5px 5px; background-repeat:no-repeat; }
+  select option { background:#121831; color:#e6ebf5; }
+  html[data-theme="light"] select option { background:#fff; color:#0b1020; }
+  .row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; margin-top:.8rem; }
+  .btn { display:inline-block; border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; padding:.6rem 1.5rem; border-radius:10px; font-size:.92rem; font-weight:600; font-family:inherit; }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn.ghost { background:transparent; border:1px solid rgba(79,124,255,.5); color:var(--accent2); font-weight:500; }
+  /* 对话流 */
+  .chat-msg { margin-bottom:1rem; }
+  .chat-msg .who { font-size:.78rem; color:var(--muted); margin-bottom:.3rem; }
+  .chat-msg.me .who b { color:var(--accent2); }
+  .chat-msg.ai .who b { color:var(--accent); }
   pre { background:rgba(0,0,0,.3); border:1px solid var(--line); border-radius:10px; padding:.9rem 1rem; font-family:ui-monospace,Consolas,monospace; font-size:.84rem; line-height:1.7; overflow-x:auto; white-space:pre-wrap; word-break:break-word; color:var(--text); }
   html[data-theme="light"] pre { background:rgba(0,0,0,.04); }
   .prose { font-size:.92rem; line-height:1.9; white-space:pre-wrap; word-break:break-word; color:var(--text); }
-  .status { color:var(--muted); font-size:.85rem; margin-top:.8rem; }
+  .code-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:.7rem; gap:.6rem; flex-wrap:wrap; }
+  .code-head b { color:var(--accent2); font-size:.92rem; }
+  .status { color:var(--muted); font-size:.85rem; margin-top:.8rem; min-height:1.2em; }
   .status.err { color:var(--err); }
-  .loading { display:inline-block; }
   .loading::after { content:""; animation:dots 1.2s steps(4,end) infinite; }
   @keyframes dots { 0%{content:"";} 25%{content:"·";} 50%{content:"··";} 75%{content:"···";} }
   .hint { color:var(--muted); font-size:.78rem; line-height:1.9; margin-top:1rem; }
-  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
   .err-box { background:rgba(255,107,107,.12); border:1px solid rgba(255,107,107,.4); color:var(--err); border-radius:10px; padding:.8rem 1rem; font-size:.88rem; }
+  .empty-tip { color:var(--muted); text-align:center; padding:2rem 0; font-size:.9rem; }
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
+  @media (max-width:760px) {
+    .layout { flex-direction:column; }
+    #side { position:static; flex:none; width:100%; max-height:none; }
+  }
 </style>
 </head>
 <body>
@@ -74,47 +99,61 @@
       <a href="join.html">联系我们</a>
     </nav>
   </header>
-  <main>
-    <h1>AI <em>写代码</em></h1>
-    <p class="sub"> powered by 智谱 GLM-4-Flash（免费模型）。写代码、解释代码、排查 bug 三合一。</p>
 
-    <div class="card">
-      <div class="mode-tabs" id="modeTabs">
-        <button data-mode="generate" class="on">✨ 写代码</button>
-        <button data-mode="explain">📖 解释代码</button>
-        <button data-mode="fix">🐛 排查 Bug</button>
+  <div class="layout">
+    <!-- 任务侧栏 -->
+    <aside id="side">
+      <h3>📁 我的任务</h3>
+      <button class="btn new-task" id="newTask">＋ 新建任务</button>
+      <div id="taskList"></div>
+    </aside>
+
+    <!-- 工作区 -->
+    <div id="work">
+      <h1 style="font-size:1.6rem; margin-bottom:.4rem;">AI <em style="font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;">写代码</em></h1>
+      <p style="color:var(--muted); font-size:.9rem; margin-bottom:1.2rem;">多任务 · 任务内多轮对话，支持追问和继续修改。powered by GLM-4-Flash。</p>
+
+      <div class="card">
+        <div class="mode-tabs" id="modeTabs">
+          <button data-mode="chat" class="on">💬 连续对话</button>
+          <button data-mode="generate" >✨ 写代码</button>
+          <button data-mode="explain">📖 解释代码</button>
+          <button data-mode="fix">🐛 排查 Bug</button>
+        </div>
+        <textarea id="prompt" maxlength="3000"
+          placeholder="描述需求、粘贴代码或继续追问，例如「把上面的函数改成支持 UTF-8」。Ctrl+Enter 发送"></textarea>
+        <div class="row">
+          <label style="color:var(--muted); font-size:.85rem;">语言</label>
+          <select id="lang">
+            <option value="">自动选择</option>
+            <option value="JavaScript">JavaScript</option>
+            <option value="TypeScript">TypeScript</option>
+            <option value="Python">Python</option>
+            <option value="Java">Java</option>
+            <option value="C++">C++</option>
+            <option value="Go">Go</option>
+            <option value="HTML/CSS">HTML/CSS</option>
+            <option value="SQL">SQL</option>
+            <option value="Shell">Shell</option>
+          </select>
+          <button class="btn ghost" id="clearMsgs" title="清空当前任务的对话记录">🧹 清空对话</button>
+          <span style="flex:1;"></span>
+          <button class="btn" id="goBtn">🚀 发送</button>
+        </div>
+        <div class="status" id="status"></div>
       </div>
-      <textarea id="prompt" maxlength="3000"
-        placeholder="✨ 写代码：描述你的需求，例如「写一个 JS 函数，把驼峰命名转下划线命名」&#10;📖 解释代码 / 🐛 排查 Bug：直接粘贴代码（可附上报错信息）"></textarea>
-      <div class="row">
-        <select id="lang">
-          <option value="">自动选择语言</option>
-          <option value="JavaScript">JavaScript</option>
-          <option value="Python">Python</option>
-          <option value="Java">Java</option>
-          <option value="C++">C++</option>
-          <option value="Go">Go</option>
-          <option value="HTML/CSS">HTML/CSS</option>
-          <option value="SQL">SQL</option>
-          <option value="Shell">Shell</option>
-          <option value="TypeScript">TypeScript</option>
-        </select>
-        <span style="flex:1;"></span>
-        <button class="btn" id="goBtn">🚀 生成</button>
+
+      <div class="card" id="chatCard">
+        <div id="chat"></div>
       </div>
-      <div class="status" id="status"></div>
-    </div>
 
-    <div class="card hidden" id="outCard">
-      <div id="out"></div>
+      <p class="hint">
+        ⏱ 限频：每人每分钟 10 次。任务与对话保存在你的浏览器本地（localStorage），换设备不同步。<br>
+        💡 连续对话模式下 AI 记得本轮任务的上下文，可以直接追问「改成异步」「加个错误处理」。
+      </p>
     </div>
-
-    <p class="hint">
-      ⏱ 限频：每人每分钟 10 次。生成结果由 AI 产出，请自行审查后再用于生产环境。<br>
-      💡 好作品可以发到<a href="discover.html">「发现」</a>展示，问题可以发<a href="forum.html">论坛</a>讨论。
-    </p>
-  </main>
-  <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+  </div>
+  <footer>© <span id="year"></span> BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
 
 <script src="mod.js"></script>
 <script>
@@ -122,94 +161,194 @@
   "use strict";
   var BASE = "https://blueprintstudio-mail.netlify.app";
   var $ = function (id) { return document.getElementById(id); };
-  var mode = "generate";
+  $("year").textContent = Math.max(2026, new Date().getFullYear());
 
-  try {
-    if (localStorage.getItem("bs_theme") === "light") document.documentElement.setAttribute("data-theme", "light");
-  } catch (e) {}
+  var LS_KEY = "bs_aicode_tasks_v1";
+  var tasks = [];        /* [{id, name, msgs:[{role, content}]}] */
+  var curId = null;
+  var mode = "chat";
+  var busy = false;
 
-  /* 模式切换 */
-  $("modeTabs").addEventListener("click", function (e) {
-    var b = e.target.closest("button[data-mode]");
-    if (!b) return;
-    mode = b.getAttribute("data-mode");
-    Array.prototype.forEach.call($("modeTabs").children, function (x) {
-      x.classList.toggle("on", x === b);
+  /* ---------- 本地存储 ---------- */
+  function load() {
+    try { tasks = JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch (e) { tasks = []; }
+    if (!tasks.length) tasks.push(newTaskObj("任务 1"));
+    curId = tasks[0].id;
+  }
+  function save() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(tasks)); } catch (e) {}
+  }
+  function newTaskObj(name) {
+    return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name || "新任务", msgs: [] };
+  }
+  function cur() { for (var i = 0; i < tasks.length; i++) if (tasks[i].id === curId) return tasks[i]; return tasks[0]; }
+
+  /* ---------- 任务侧栏渲染 ---------- */
+  function renderTasks() {
+    var box = $("taskList");
+    box.innerHTML = "";
+    tasks.forEach(function (t) {
+      var div = document.createElement("div");
+      div.className = "task-item" + (t.id === curId ? " on" : "");
+      var name = document.createElement("span");
+      name.className = "tname";
+      name.textContent = (t.msgs.length ? "💬 " : "📄 ") + t.name;
+      name.title = t.name + "（双击重命名）";
+      name.ondblclick = function () {
+        var n = prompt("重命名任务：", t.name);
+        if (n !== null && n.trim()) { t.name = n.trim().slice(0, 30); save(); renderTasks(); }
+      };
+      var del = document.createElement("button");
+      del.className = "tdel"; del.textContent = "✕"; del.title = "删除任务";
+      del.onclick = function (e) {
+        e.stopPropagation();
+        if (!confirm("删除任务「" + t.name + "」及其全部对话？")) return;
+        tasks = tasks.filter(function (x) { return x.id !== t.id; });
+        if (!tasks.length) tasks.push(newTaskObj("任务 1"));
+        if (curId === t.id) curId = tasks[0].id;
+        save(); renderTasks(); renderChat();
+      };
+      div.appendChild(name); div.appendChild(del);
+      div.onclick = function () { if (busy) { alert("AI 正在回复，请稍候再切换任务"); return; } curId = t.id; save(); renderTasks(); renderChat(); };
+      box.appendChild(div);
     });
-  });
+  }
+  $("newTask").onclick = function () {
+    if (busy) { alert("AI 正在回复，请稍候"); return; }
+    var t = newTaskObj("任务 " + (tasks.length + 1));
+    tasks.unshift(t); curId = t.id; save(); renderTasks(); renderChat();
+  };
+  $("clearMsgs").onclick = function () {
+    var t = cur();
+    if (!t.msgs.length) return;
+    if (!confirm("清空「" + t.name + "」的全部对话？")) return;
+    t.msgs = []; save(); renderChat();
+  };
 
-  /* 把模型输出的 markdown 粗渲染为 HTML：代码块 + 转义正文 */
+  /* ---------- markdown 渲染 ---------- */
   function esc(t) { return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
   function renderMarkdown(text) {
-    var out = "";
-    var parts = String(text).split(/```/);
+    var out = "", parts = String(text).split(/```/);
     for (var i = 0; i < parts.length; i++) {
       if (i % 2 === 1) {
-        /* 代码块：首行可能是语言名 */
-        var block = parts[i].replace(/^\w+\s*\n/, "");
+        var block = parts[i].replace(/^\w[\w+-]*\s*\n/, "");
         out += "<pre>" + esc(block) + "</pre>";
       } else if (parts[i].trim()) {
         out += '<div class="prose">' + esc(parts[i].trim()) + "</div>";
       }
     }
-    return out || "<pre></pre>";
+    return out;
   }
 
-  function copyCode() {
-    var pres = $("out").querySelectorAll("pre");
-    if (!pres.length) return;
+  /* ---------- 对话流渲染 ---------- */
+  function renderChat() {
+    var t = cur(), box = $("chat");
+    box.innerHTML = "";
+    if (!t.msgs.length) {
+      box.innerHTML = '<div class="empty-tip">还没有对话。描述你的需求开始吧 —— AI 会记住本任务的上下文，可连续追问。</div>';
+      return;
+    }
+    t.msgs.forEach(function (m, idx) {
+      var div = document.createElement("div");
+      div.className = "chat-msg " + (m.role === "user" ? "me" : "ai");
+      var who = document.createElement("div");
+      who.className = "who";
+      who.innerHTML = "<b>" + (m.role === "user" ? "🧑 我" : "🤖 GLM-4-Flash") + "</b>";
+      div.appendChild(who);
+      if (m.role === "user") {
+        var p = document.createElement("div");
+        p.className = "prose"; p.textContent = m.content;
+        div.appendChild(p);
+      } else {
+        var wrap = document.createElement("div");
+        wrap.innerHTML = renderMarkdown(m.content);
+        while (wrap.firstChild) div.appendChild(wrap.firstChild);
+        var head = document.createElement("div");
+        head.className = "code-head";
+        var cp = document.createElement("button");
+        cp.className = "btn ghost"; cp.textContent = "📋 复制代码";
+        cp.style.padding = ".3rem .8rem"; cp.style.fontSize = ".78rem";
+        cp.onclick = function () { copyLastPre(div); };
+        var b = document.createElement("b"); b.textContent = "输出";
+        head.appendChild(b); head.appendChild(cp);
+        div.insertBefore(head, who.nextSibling);
+      }
+      box.appendChild(div);
+    });
+    box.parentElement.scrollTop = box.parentElement.scrollHeight;
+    var card = $("chatCard");
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+  function copyLastPre(scope) {
+    var pres = scope.querySelectorAll("pre");
+    if (!pres.length) { alert("这条回复里没有代码块"); return; }
     var text = pres[pres.length - 1].textContent;
     (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
-      .then(function () { $("copyBtn").textContent = "✅ 已复制"; setTimeout(function () { $("copyBtn").textContent = "📋 复制代码"; }, 1500); })
+      .then(function () { flash(scope, "✅ 已复制"); })
       .catch(function () {
         var ta = document.createElement("textarea");
         ta.value = text; document.body.appendChild(ta); ta.select();
-        try { document.execCommand("copy"); $("copyBtn").textContent = "✅ 已复制"; } catch (e) { alert("复制失败"); }
-        ta.remove(); setTimeout(function () { $("copyBtn").textContent = "📋 复制代码"; }, 1500);
+        try { document.execCommand("copy"); flash(scope, "✅ 已复制"); } catch (e) { alert("复制失败"); }
+        ta.remove();
       });
   }
+  function flash(scope, msg) {
+    var btn = scope.querySelector(".btn.ghost");
+    if (!btn) return;
+    var old = btn.textContent; btn.textContent = msg;
+    setTimeout(function () { btn.textContent = old; }, 1500);
+  }
 
-  $("goBtn").addEventListener("click", function () {
+  /* ---------- 模式切换 ---------- */
+  $("modeTabs").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-mode]");
+    if (!b) return;
+    mode = b.getAttribute("data-mode");
+    Array.prototype.forEach.call($("modeTabs").children, function (x) { x.classList.toggle("on", x === b); });
+  });
+
+  /* ---------- 发送（多轮） ---------- */
+  function send() {
+    if (busy) return;
     var prompt = $("prompt").value.trim();
     var status = $("status");
-    if (!prompt) { status.textContent = "请先描述需求或粘贴代码"; status.className = "status err"; return; }
+    if (!prompt) { status.textContent = "请先输入内容"; status.className = "status err"; return; }
+    var t = cur();
+    busy = true;
     $("goBtn").disabled = true;
-    $("outCard").classList.add("hidden");
-    $("out").innerHTML = "";
     status.className = "status";
     status.innerHTML = '<span class="loading">🤖 AI 正在思考</span>';
     var started = Date.now();
 
+    /* 组装多轮上下文（本次输入暂不入库，成功后再存） */
+    var history = t.msgs.slice(-8).map(function (m) { return { role: m.role, content: m.content }; });
+    var payload = { prompt: prompt, lang: $("lang").value, mode: mode, history: history };
+
     fetch(BASE + "/api/aicode", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: prompt, lang: $("lang").value, mode: mode }),
+      body: JSON.stringify(payload),
     }).then(function (r) { return r.json(); }).then(function (res) {
       if (!res.ok) throw new Error(res.msg || "生成失败");
       status.textContent = "完成，用时 " + ((Date.now() - started) / 1000).toFixed(1) + " 秒";
-      $("out").innerHTML = renderMarkdown(res.text);
-      $("outCard").classList.remove("hidden");
-      var head = document.createElement("div");
-      head.className = "code-head";
-      head.innerHTML = "<b>🤖 GLM-4-Flash 输出</b>";
-      var cp = document.createElement("button");
-      cp.className = "btn ghost"; cp.id = "copyBtn"; cp.textContent = "📋 复制代码";
-      cp.style.padding = ".35rem .9rem"; cp.style.fontSize = ".8rem";
-      cp.onclick = copyCode;
-      head.appendChild(cp);
-      $("out").insertBefore(head, $("out").firstChild);
+      t.msgs.push({ role: "user", content: prompt });
+      t.msgs.push({ role: "assistant", content: res.text });
+      save();
+      $("prompt").value = "";
+      renderTasks(); renderChat();
     }).catch(function (e) {
       status.className = "status err";
       status.textContent = e.message || "网络异常，请稍后再试";
-      $("out").innerHTML = '<div class="err-box">' + esc(e.message || "生成失败，请稍后再试") + "</div>";
-      $("outCard").classList.remove("hidden");
-    }).then(function () { $("goBtn").disabled = false; });
+    }).then(function () { busy = false; $("goBtn").disabled = false; });
+  }
+  $("goBtn").onclick = send;
+  $("prompt").addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); send(); }
   });
 
-  /* Ctrl+Enter 快捷生成 */
-  $("prompt").addEventListener("keydown", function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") $("goBtn").click();
-  });
+  load();
+  renderTasks();
+  renderChat();
 })();
 </script>
 </body>
