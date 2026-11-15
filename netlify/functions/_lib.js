@@ -8,6 +8,9 @@
    - 旧数据源 textdb.dev 公开可写，迁移后原库中的密码 hash 会被脱敏删除 */
 import { getStore } from "@netlify/blobs";
 
+/* 重新导出，供 api-appeal / api-report 等函数使用 */
+export { getStore };
+
 export const ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
 
 /* 允许游客（无 token）写入的 key：UGC 区本来就是开放的，靠限流兜底 */
