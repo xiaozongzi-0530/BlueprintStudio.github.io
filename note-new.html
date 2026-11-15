@@ -197,6 +197,7 @@
   <script src="crypto.js"></script>
   <script src="ratelimit.js"></script>
   <script src="p2p-file.js"></script>
+  <script src="mod.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-notes-2026";
@@ -357,7 +358,21 @@
         /* 昵称：已登录/游客身份用其昵称；纯浏览者用「游客+ID后4位」 */
         var nick = myKey ? (myNick || (myKey.indexOf("guest:") === 0 ? ("游客" + myUID.slice(-4)) : myKey.split("@")[0]))
                          : ("游客" + guestID.slice(-4));
-        this.disabled = true;
+        var noteBtn = this;
+        noteBtn.disabled = true;
+        noteBtn.textContent = "AI 审核中…";
+        var noteText = "【" + title + "】\n" + body;
+        BPMod.check(noteText, "note").then(function (verdict) {
+          if (!verdict.clean) {
+            return BPMod.blockDialog(noteText, "note", myKey || ("游客" + guestID.slice(-4)), verdict).then(function () {
+              noteBtn.disabled = false; noteBtn.textContent = "发布";
+            });
+          }
+          return doPublish();
+        }).catch(function () { return doPublish(); });
+
+        function doPublish() {
+        noteBtn.textContent = "发布中…";
         getDB().then(function (db) {
           db.notes = db.notes || [];
           db.notes.unshift({
@@ -381,11 +396,12 @@
             document.getElementById("noteBody").value = "";
             pendingAtts = [];
             drawPending();
-            this.disabled = false;
+            noteBtn.disabled = false;
             /* 编写页只负责写，发布后跳回列表页 */
             location.href = "notes.html?new=" + encodeURIComponent(db.notes[0].id);
-          }.bind(this));
-        }.bind(this)).catch(function () { alert("发布失败，请稍后再试"); this.disabled = false; }.bind(this));
+          });
+        }).catch(function () { alert("发布失败，请稍后再试"); noteBtn.disabled = false; noteBtn.textContent = "发布"; });
+        }
       });
       /* 已登录用户：同步一次云端昵称/头衔（游客与纯浏览者跳过） */
       if (myKey && !isGuest) {

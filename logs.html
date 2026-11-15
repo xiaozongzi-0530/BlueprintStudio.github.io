@@ -203,6 +203,20 @@
       </p>
     </div>
 
+    <!-- AI 违规申诉（人工处理） -->
+    <div id="appealWrap" class="hidden" style="margin-top:2.2rem;">
+      <h2 style="font-size:1.15rem; margin-bottom:.4rem;">⚖️ 违规申诉（AI 判定 → 人工复核）</h2>
+      <p class="sub" style="margin-bottom:1rem;">用户对 AI 判定结果提交的申诉。处理结果只影响后续人工判断，AI 仍按原规则判定。</p>
+      <div class="toolbar">
+        <span style="color:var(--muted); font-size:.85rem;">待处理 <b id="apPending" style="color:var(--warn);">0</b> 条</span>
+        <span class="spacer" style="flex:1;"></span>
+        <button class="btn ghost" id="apReload">刷新申诉</button>
+      </div>
+      <div class="log-list" id="apList"></div>
+      <div class="empty hidden" id="apEmpty"><span class="ico">✅</span>没有申诉记录。</div>
+      <p class="hint" id="apTokenHint" style="margin-top:.8rem;"></p>
+    </div>
+
     <div class="panel lock hidden" id="errBox">
       <div class="ico">⚠️</div>
       <h2>日志读取失败</h2>
@@ -211,6 +225,7 @@
     </div>
   </main>
 
+<script src="mod.js"></script>
 <script>
 (function () {
   "use strict";
@@ -397,10 +412,98 @@
     }).then(function () { $("clear").disabled = false; });
   });
 
+  /* ---------- 违规申诉（人工处理） ---------- */
+  var appeals = [];
+
+  function loadAppeals() {
+    var tok = "";
+    try { tok = localStorage.getItem("bs_token_v1") || ""; } catch (e) {}
+    if (!tok) {
+      $("apTokenHint").innerHTML = "⚠️ 本地没有 API token，无法读取申诉。请回<a href='index.html'>首页</a>重新登录管理员账号后再来。";
+      return Promise.resolve();
+    }
+    $("apReload").disabled = true;
+    return BPMod.listAppeals(tok)
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.msg || "读取失败");
+        appeals = Array.isArray(r.items) ? r.items : [];
+        renderAppeals();
+      })
+      .catch(function (e) {
+        $("apTokenHint").textContent = "申诉读取失败：" + ((e && e.message) || "网络异常") + "（token 可能已过期，回首页重新登录可刷新）";
+      })
+      .then(function () { $("apReload").disabled = false; });
+  }
+
+  function renderAppeals() {
+    var list = $("apList");
+    list.innerHTML = "";
+    var pending = 0;
+    appeals.forEach(function (a) {
+      if (a.status === "pending") pending++;
+      var box = el("div", "log " + (a.status === "pending" ? "warn" : "info"));
+      var head = el("div", "log-head");
+      head.appendChild(el("span", "tag " + (a.status === "pending" ? "warn" : "info"), a.status === "pending" ? "待处理" : "已处理"));
+      head.appendChild(el("span", "tag src", BPMod.kindName(a.kind)));
+      head.appendChild(el("span", null, fmtTime(a.t)));
+      head.appendChild(el("span", null, "申诉人：" + (a.who || "匿名")));
+      if (a.status !== "pending") head.appendChild(el("span", null, "结果：" + (a.outcome || "—") + "（" + fmtTime(a.handledAt) + "）"));
+      box.appendChild(head);
+
+      var why = el("div", "log-msg");
+      why.innerHTML = "<b style='color:var(--warn);'>AI 判定理由：</b>";
+      why.appendChild(document.createTextNode(a.aiReason || "（无）"));
+      box.appendChild(why);
+
+      var d = document.createElement("details");
+      var sm = document.createElement("summary");
+      sm.textContent = "查看被判违规的原文";
+      d.appendChild(sm);
+      d.appendChild(el("pre", null, a.content || ""));
+      d.style.marginTop = ".45rem";
+      var pre = d.querySelector("pre");
+      pre.style.cssText = "white-space:pre-wrap;word-break:break-word;color:var(--muted);font-size:.82rem;margin-top:.45rem;line-height:1.7;";
+      box.appendChild(d);
+
+      if (a.status === "pending") {
+        var row = el("div", "log-meta");
+        row.style.marginTop = ".6rem";
+        var bOk = el("button", "btn", "标记：误判放行");
+        bOk.style.cssText = "margin:0 .5rem 0 0; padding:.35rem .9rem; font-size:.8rem;";
+        bOk.onclick = function () { resolve(a.id, "误判放行"); };
+        var bNo = el("button", "btn ghost", "标记：维持判定");
+        bNo.style.cssText = "margin:0; padding:.35rem .9rem; font-size:.8rem;";
+        bNo.onclick = function () { resolve(a.id, "维持判定"); };
+        row.appendChild(bOk);
+        row.appendChild(bNo);
+        box.appendChild(row);
+      }
+      list.appendChild(box);
+    });
+    $("apPending").textContent = pending;
+    $("apEmpty").classList.toggle("hidden", appeals.length > 0);
+  }
+
+  function resolve(id, outcome) {
+    var tok = "";
+    try { tok = localStorage.getItem("bs_token_v1") || ""; } catch (e) {}
+    if (!tok) { alert("token 缺失，请回首页重新登录"); return; }
+    BPMod.resolveAppeal(tok, id, outcome).then(function (r) {
+      if (!r.ok) throw new Error(r.msg || "处理失败");
+      return loadAppeals();
+    }).catch(function (e) {
+      alert("处理失败：" + ((e && e.message) || "网络异常"));
+    });
+  }
+
+  $("apReload").addEventListener("click", loadAppeals);
+
   /* ---------- 启动 ---------- */
   checkAdmin().then(function (r) {
     if (!r.ok) { showLock(r.reason); return; }
+    $("appealWrap").classList.remove("hidden");
     loadLogs();
+    loadAppeals();
   });
 })();
 </script>

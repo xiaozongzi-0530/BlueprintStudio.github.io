@@ -210,6 +210,7 @@
   <script src="crypto.js"></script>
   <script src="ratelimit.js"></script>
   <script src="p2p-file.js"></script>
+  <script src="mod.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-chat-v2";
@@ -647,6 +648,21 @@
           : RLT.hit("chat:user", 60 * 1000, 30, 400);
         if (!rl.ok) { alert(rl.msg); return; }
         input.disabled = true;
+
+        /* ===== AI 审核：明文先过审（聊天库里的密文模型看不懂，只能在发送前判） ===== */
+        if (text) {
+          BPMod.check(text, "chat").then(function (verdict) {
+            if (!verdict.clean) {
+              input.disabled = false;
+              return BPMod.blockDialog(text, "chat", myNick || myUID, verdict);
+            }
+            pushMsg();
+          }).catch(function () { pushMsg(); });
+          return;
+        }
+        pushMsg();
+
+        function pushMsg() {
         var msg = {
           from: myUID, to: chatting, nick: myNick,
           text: applyMaskOnSend(text).slice(0, 1000),
@@ -674,6 +690,7 @@
             renderChat();
           });
         }).catch(function (e) { alert("发送失败，文件可能过大：" + e); input.disabled = false; });
+        }
       }
       document.getElementById("sendBtn").addEventListener("click", send);
       document.getElementById("msgInput").addEventListener("keydown", function (e) { if (e.key === "Enter") send(); });

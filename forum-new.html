@@ -149,6 +149,7 @@
   <script src="crypto.js"></script>
   <script src="ratelimit.js"></script>
   <script src="p2p-file.js"></script>
+  <script src="mod.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-forum-2026";
@@ -237,7 +238,18 @@
         var sc = RLT.sameContent("forum", text, 60000);
         if (!sc.ok) { alert(sc.msg); return; }
         var btn = this;
-        btn.disabled = true; btn.textContent = "发布中…";
+        btn.disabled = true; btn.textContent = "AI 审核中…";
+        BPMod.check(text, "forum").then(function (verdict) {
+          if (!verdict.clean) {
+            return BPMod.blockDialog(text, "forum", me, verdict).then(function () {
+              btn.disabled = false; btn.textContent = "发布";
+            });
+          }
+          return doPublish();
+        }).catch(function () { return doPublish(); });
+
+        function doPublish() {
+        btn.textContent = "发布中…";
         getDB().then(function (db) {
           db.posts = db.posts || [];
           db.posts.unshift({
@@ -262,6 +274,7 @@
             location.href = "forum.html?new=" + encodeURIComponent(db.posts[0].id);
           });
         }).catch(function () { alert("发布失败，请稍后再试"); btn.disabled = false; btn.textContent = "发布"; });
+        }
       });
 
       /* 登录用户昵称/头衔从云端刷新，用于帖子署名（游客不查云端，直接用本地值） */

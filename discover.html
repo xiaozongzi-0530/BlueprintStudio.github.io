@@ -289,6 +289,7 @@
 
   <script src="ratelimit.js"></script>
   <script src="p2p-file.js"></script>
+  <script src="mod.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-discover-v1";
@@ -660,7 +661,21 @@
           return;
         }
 
-        btn.disabled = true; btn.textContent = "发布中…";
+        btn.disabled = true; btn.textContent = "AI 审核中…";
+        setMsg("AI 审核中…");
+        var pubText = "【" + name + "】" + desc;
+        BPMod.check(pubText, "discover").then(function (verdict) {
+          if (!verdict.clean) {
+            setMsg("AI 判定内容疑似违规，已拦截", "err");
+            return BPMod.blockDialog(pubText, "discover", "", verdict).then(function () {
+              btn.disabled = false; btn.textContent = "发布";
+            });
+          }
+          return doPublish();
+        }).catch(function () { return doPublish(); });
+
+        function doPublish() {
+        btn.textContent = "发布中…";
         setMsg("正在写入…");
 
         getDB().then(function (db) {
@@ -710,6 +725,7 @@
             if (window.BPLog) window.BPLog.error("discover", "上传项目失败: " + (err && err.message));
           }
         });
+        }
       });
 
       /* ===== 初始化 ===== */
