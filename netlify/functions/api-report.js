@@ -131,21 +131,44 @@ export default async (req) => {
     content: content,
     reportReason: clamp(body.reportReason, 500),
     who: clamp(body.who, 120),
-    target: clamp(body.target, 120),   // 被举报人的账号标识（邮箱或 guest:uid），举报成立时自动封禁用
+    target: clamp(body.target, 120),   // 被举报人的账号标识（邮箱或 guest:uid）
     ip: ip,
     ai: ai,
     aiSkipped: aiSkipped,
     status: "pending",
     t: new Date().toISOString(),
   };
+
+  /* AI 初判违规 → 立即自动封禁被举报人（仅注册邮箱；游客/管理员跳过）。
+     后台仍保留记录供管理员复核，误封可在首页「账号管理」解封。 */
+  if (!aiSkipped && ai.violates && rec.target && rec.target !== ADMIN_EMAIL
+      && rec.target.indexOf("guest:") !== 0) {
+    try {
+      const udb = await getUsersRaw();
+      const u = udb.users && udb.users[rec.target];
+      if (u) {
+        u.banned = true;
+        await putUsersRaw(udb);
+        rec.bannedTarget = true;
+        rec.autoBanned = true;
+      } else {
+        rec.banSkip = "目标账号不存在于用户库，未封禁";
+      }
+    } catch (e) {
+      rec.banSkip = "自动封禁失败：" + clamp(e.message, 80);
+    }
+  }
+
   items.push(rec);
   await writeAll(items);
+  const bannedMsg = rec.autoBanned ? "，被举报人已自动封禁（误封可在账号管理解封）" : "";
   return json({
     ok: true,
     ai: { violates: ai.violates, category: ai.category, reason: ai.reason },
     aiSkipped: aiSkipped,
+    autoBanned: !!rec.autoBanned,
     msg: aiSkipped
       ? "举报已提交，管理员将人工复核"
-      : (ai.violates ? "举报已提交：AI 初判疑似违规，已转管理员人工复核" : "举报已提交：AI 初判该内容未发现违规，仍会由管理员人工复核"),
+      : (ai.violates ? "举报已提交：AI 判定违规" + bannedMsg : "举报已提交：AI 初判该内容未发现违规，仍会由管理员人工复核"),
   });
 };
