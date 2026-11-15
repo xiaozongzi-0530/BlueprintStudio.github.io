@@ -6,13 +6,7 @@
 <title>AI 写代码 · BlueprintStudio</title>
 <script src="logger.js"></script>
 <script>
-  (function () {
-    try {
-      var t = localStorage.getItem("bs_theme");
-      if (!t) t = (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", t);
-    } catch (e) { document.documentElement.setAttribute("data-theme", "dark"); }
-  })();
+  (function () { document.documentElement.setAttribute("data-theme", "dark"); })();
 </script>
 <style>
   :root { --bg:#0b1020; --panel:rgba(255,255,255,.04); --panel2:rgba(255,255,255,.06); --line:rgba(79,124,255,.25); --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; --err:#ff6b6b; }

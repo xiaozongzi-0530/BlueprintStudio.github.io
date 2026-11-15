@@ -86,9 +86,6 @@
   var $ = function (id) { return document.getElementById(id); };
   var posts = [];
 
-  try {
-    if (localStorage.getItem("bs_theme") === "light") document.documentElement.setAttribute("data-theme", "light");
-  } catch (e) {}
 
   function checkAdmin() {
     var a = null;

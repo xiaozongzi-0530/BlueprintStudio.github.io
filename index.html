@@ -6,16 +6,8 @@
 <title>BlueprintStudio · 蓝图交流平台</title>
 <script src="logger.js"></script>
 <script>
-  /* 首屏即应用主题，避免白屏闪烁 */
-  (function () {
-    try {
-      var t = localStorage.getItem("bs_theme");
-      if (!t) t = (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", t);
-    } catch (e) {
-      document.documentElement.setAttribute("data-theme", "dark");
-    }
-  })();
+  /* 首屏固定深色主题 */
+  (function () { document.documentElement.setAttribute("data-theme", "dark"); })();
 </script>
 <style>
   :root {
@@ -397,7 +389,6 @@
       <a href="join.html">联系我们</a>
     </nav>
     <div class="auth-area">
-      <button class="auth-btn" id="themeBtn" title="切换主题">🌙</button>
       <button class="auth-btn" id="adminBtn" style="display:none;">管理</button>
       <button class="auth-btn" id="guestBtn">游客模式</button>
       <button class="auth-btn" id="loginBtn" style="display:none;">登录</button>
@@ -620,21 +611,10 @@
 
   <script src="crypto.js"></script>
   <script>
-    /* ===== 主题切换 ===== */
+    /* ===== 主题：固定深色（日间模式已移除） ===== */
     (function () {
-      var themeBtn = document.getElementById("themeBtn");
-      function syncIcon() {
-        var t = document.documentElement.getAttribute("data-theme");
-        themeBtn.textContent = (t === "light") ? "☀️" : "🌙";
-      }
-      themeBtn.addEventListener("click", function () {
-        var cur = document.documentElement.getAttribute("data-theme");
-        var nx = (cur === "light") ? "dark" : "light";
-        document.documentElement.setAttribute("data-theme", nx);
-        try { localStorage.setItem("bs_theme", nx); } catch (e) {}
-        syncIcon();
-      });
-      syncIcon();
+      document.documentElement.setAttribute("data-theme", "dark");
+      try { localStorage.removeItem("bs_theme"); } catch (e) {}
     })();
 
     /* ===== 区块滚动渐显 ===== */

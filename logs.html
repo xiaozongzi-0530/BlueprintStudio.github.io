@@ -257,12 +257,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var logs = [];
 
-  /* ---------- 主题跟随首页选择 ---------- */
-  try {
-    if (localStorage.getItem("bs_theme") === "light") {
-      document.documentElement.setAttribute("data-theme", "light");
-    }
-  } catch (e) {}
+  /* ---------- 主题固定深色（日间模式已移除） ---------- */
 
   /* ---------- 管理员校验：本地登录态 + 云端 hash 比对 ---------- */
   function checkAdmin() {
