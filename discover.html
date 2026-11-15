@@ -293,7 +293,27 @@
   <script src="mod.js"></script>
   <script>
     (function () {
-      var DB = "https://textdb.dev/api/data/blueprintstudio-discover-v1";
+      
+      /* ===== 服务端数据层（私有 Blobs，替代 textdb 公开库） ===== */
+      var API_BASE = "https://blueprintstudio-mail.netlify.app";
+      var DB_KEY = "blueprintstudio-discover-v1";
+      function authTok() {
+        try { var s = JSON.parse(localStorage.getItem("bs_auth") || "null"); if (s && s.token) return s.token; } catch (e) {}
+        try { return localStorage.getItem("bs_token_v1") || ""; } catch (e) { return ""; }
+      }
+      function dbWrite(obj) {
+        var h = { "Content-Type": "application/json" };
+        var t = authTok();
+        if (t) h.Authorization = "Bearer " + t;
+        return fetch(API_BASE + "/api/data", { method: "POST", headers: h, body: JSON.stringify({ key: DB_KEY, data: JSON.stringify(obj) }) })
+          .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+      }
+      function userListFetch() {
+        return fetch(API_BASE + "/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "list" }) })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { return { users: (j && j.db && j.db.users) || {} }; });
+      }
+var DB = API_BASE + "/api/data?key=blueprintstudio-discover-v1";
       var KEY = "bs_auth";
       var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
       var MAX_FILE = 300 * 1024;          /* 单文件 300KB，与论坛附件一致 */
@@ -345,11 +365,7 @@
         return _cP;
       }
       function saveDB(db) {
-        return fetch(DB, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify(db)
-        }).then(function (r) {
+        return dbWrite(db).then(function (r) {
           _cAt = 0;
           if (!r.ok) throw new Error("HTTP " + r.status);
           return r;

@@ -632,9 +632,8 @@
       els.forEach(function (e) { io.observe(e); });
     })();
 
-    /* ===== 账号系统：注册/登录/管理员/封禁/注销（加密存储 v2） ===== */
+    /* ===== 账号系统：注册/登录/管理员/封禁/注销（服务端私有库 v3） ===== */
     (function () {
-      var DB = "https://textdb.dev/api/data/blueprintstudio-users-v2";
       var KEY = "bs_auth";
       var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
       var ADMIN_UID = "00000000";
@@ -766,33 +765,45 @@
 
       function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = cls || ""; }
       function isAdmin() { return me === ADMIN_EMAIL; }
-      /* 读取：解密每个用户的昵称/头衔（邮箱作为键保持明文，用于登录定位）
-         同一时刻的多处调用合并成一个网络请求，避免首屏并发重复拉全库 */
+      /* ===== 数据层：账号走 /api/auth（私有 Blobs，密码哈希永不出服务端） ===== */
+      var API_BASE = "https://blueprintstudio-mail.netlify.app";
+      function authToken() {
+        try {
+          var s = JSON.parse(localStorage.getItem(KEY) || "null");
+          return (s && s.token) || localStorage.getItem("bs_token_v1") || "";
+        } catch (e) { return localStorage.getItem("bs_token_v1") || ""; }
+      }
+      function apiCall(body) {
+        var h = { "Content-Type": "application/json" };
+        var t = authToken();
+        if (t) h.Authorization = "Bearer " + t;
+        return fetch(API_BASE + "/api/auth", { method: "POST", headers: h, body: JSON.stringify(body) })
+          .then(function (r) { return r.json(); });
+      }
+      /* 读取：服务端 /api/auth list（hash 已剥离），解密每个用户的昵称/头衔 */
       var _dbP = null;
       function getDB() {
         if (_dbP) return _dbP;
-        _dbP = fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
-          .catch(function (e) {
-            /* 用户库是登录/注册的根，读不到要留痕，方便事后排查 */
-            try { BPLog.warn("db", "用户库读取失败", { detail: (e && e.message) || "network" }); } catch (_) {}
-            return { users: {} };
-          })
-          .then(function (db) {
-            var users = (db && db.users) || {};
-            var keys = Object.keys(users);
-            return Promise.all(keys.map(function (email) {
-              return C.decryptFields(users[email], USER_ENC_FIELDS, "user|" + email)
-                .then(function (u) { return { email: email, u: u }; });
-            })).then(function (arr) {
-              var out = {};
-              arr.forEach(function (x) { out[x.email] = x.u; });
-              return { users: out };
-            });
+        _dbP = apiCall({ action: "list" }).catch(function (e) {
+          /* 用户库是登录/注册的根，读不到要留痕，方便事后排查 */
+          try { BPLog.warn("db", "用户库读取失败", { detail: (e && e.message) || "network" }); } catch (_) {}
+          return { ok: false, users: {} };
+        }).then(function (res) {
+          var users = (res && (res.users || (res.db && res.db.users))) || {};
+          var keys = Object.keys(users);
+          return Promise.all(keys.map(function (email) {
+            return C.decryptFields(users[email], USER_ENC_FIELDS, "user|" + email)
+              .then(function (u) { return { email: email, u: u }; });
+          })).then(function (arr) {
+            var out = {};
+            arr.forEach(function (x) { out[x.email] = x.u; });
+            return { users: out };
           });
+        });
         _dbP.then(function () { _dbP = null; }, function () { _dbP = null; });
         return _dbP;
       }
-      /* 写入：加密昵称/头衔后保存 */
+      /* 写入：字段级合并（服务端只认白名单字段，hash 永远以服务端为准） */
       function saveDB(db) {
         var users = (db && db.users) || {};
         var keys = Object.keys(users);
@@ -802,7 +813,10 @@
         })).then(function (arr) {
           var out = {};
           arr.forEach(function (x) { out[x.email] = x.u; });
-          return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ users: out }) });
+          return apiCall({ action: "saveUsers", users: out }).then(function (res) {
+            if (!res || !res.ok) throw new Error((res && res.msg) || "保存失败");
+            return res;
+          });
         });
       }
       function genUID(db) {
@@ -851,12 +865,11 @@
       }
       var banBusy = false;
       function enforceBan() {
-        if (!me || banBusy || document.hidden) return Promise.resolve();
+        if (!me || banBusy || document.hidden || isGuest()) return Promise.resolve();
         banBusy = true;
-        return getDB().then(function (db) {
+        return apiCall({ action: "whoami" }).then(function (res) {
           banBusy = false;
-          var u = db.users && db.users[me];
-          if (u && u.banned) {
+          if (res && res.banned) {
             localStorage.removeItem(KEY);
             location.href = BAN_PAGE + encodeURIComponent(me);
             return true;
@@ -1017,45 +1030,49 @@
 
         doAuth(mode, email, pass, nick);
       }
-      /* 登录成功后的统一收尾 */
-      function finishLogin(email, h, u) {
-        localStorage.setItem(KEY, JSON.stringify({ email: email, hash: h }));
-        showLogged({ email: email, nick: u.nick, uid: u.uid });
-        mask.classList.remove("show");
-        setStatus("", "");
-        codeIn.value = "";
-        tsRefresh();
+      /* ===== 登录 / 注册：全部走服务端 /api/auth ===== */
+      function setSession(email, token) {
+        localStorage.setItem(KEY, JSON.stringify({ email: email, token: token }));
+        try { localStorage.setItem("bs_token_v1", token); } catch (e) {}
       }
       function doAuth(mode, email, pass, nick) {
         setStatus(mode === "register" ? "注册中…" : "登录中…");
         hash(email, pass).then(function (h) {
-          return getDB().then(function (db) {
-            db.users = db.users || {};
-            var u = db.users[email];
-            if (mode === "register") {
-              if (u) { setStatus("该邮箱已注册，请直接登录", "err"); return; }
-              var rec;
-              if (email === ADMIN_EMAIL) {
-                rec = { id: email, hash: h, nick: "小粽子", uid: ADMIN_UID, role: "admin", whips: 0, joined: new Date().toISOString() };
-              } else {
-                rec = { id: email, hash: h, nick: nick, uid: genUID(db), whips: 0, joined: new Date().toISOString() };
-              }
-              db.users[email] = rec;
-              return saveDB(db).then(function () {
-                localStorage.setItem(KEY, JSON.stringify({ email: email, hash: h }));
-                showLogged({ email: email, nick: rec.nick, uid: rec.uid });
-                mask.classList.remove("show");
-                setStatus("", "");
-                codeIn.value = "";
-                tsRefresh();
+          if (mode === "register") {
+            return getDB().then(function (db) {
+              var rec = email === ADMIN_EMAIL
+                ? { id: email, hash: h, nick: "小粽子", uid: ADMIN_UID, role: "admin", whips: 0, joined: new Date().toISOString() }
+                : { id: email, hash: h, nick: nick, uid: genUID(db), whips: 0, joined: new Date().toISOString() };
+              /* 昵称按约定加密后入库 */
+              return C.encryptFields(rec, USER_ENC_FIELDS, "user|" + email).then(function (enc) {
+                return apiCall({ action: "register", email: email, hash: h, rec: enc });
+              }).then(function (res) {
+                if (!res || !res.ok) { setStatus((res && res.msg) || "注册失败", "err"); return; }
+                setSession(email, res.token);
+                return C.decryptFields(enc, USER_ENC_FIELDS, "user|" + email).then(function (u2) {
+                  showLogged({ email: email, nick: u2.nick, uid: u2.uid });
+                  mask.classList.remove("show");
+                  setStatus("", "");
+                  codeIn.value = "";
+                  tsRefresh();
+                });
               });
-            } else {
-              if (!u) { setStatus("该邮箱未注册", "err"); return; }
-              if (u.hash !== h) { setStatus("密码错误", "err"); return; }
-              if (u.banned) { location.href = BAN_PAGE + encodeURIComponent(email); return; }
-              /* 登录不再校验邮箱验证码，密码通过即可进入 */
-              finishLogin(email, h, u);
+            });
+          }
+          return apiCall({ action: "login", email: email, hash: h }).then(function (res) {
+            if (!res || !res.ok) {
+              if (res && res.banned) { location.href = BAN_PAGE + encodeURIComponent(email); return; }
+              setStatus((res && res.msg) || "登录失败", "err");
+              return;
             }
+            setSession(email, res.token);
+            return C.decryptFields(res.user || {}, USER_ENC_FIELDS, "user|" + email).then(function (u) {
+              showLogged({ email: email, nick: u.nick, uid: u.uid });
+              mask.classList.remove("show");
+              setStatus("", "");
+              codeIn.value = "";
+              tsRefresh();
+            });
           });
         }).catch(function (e) {
           setStatus("网络异常，请稍后再试", "err");
@@ -1078,15 +1095,19 @@
           nameLink.textContent = myInfo.nick;
           return;
         }
-        getDB().then(function (db) {
-          if (db.users && db.users[me]) {
-            db.users[me].nick = nick.slice(0, 20);
-            saveDB(db).then(function () {
-              myInfo.nick = db.users[me].nick;
+        /* 昵称加密后经服务端字段合并保存（只能改自己的） */
+        C.encryptFields({ nick: nick.slice(0, 20) }, USER_ENC_FIELDS, "user|" + me).then(function (enc) {
+          var patch = {};
+          patch[me] = { nick: enc.nick };
+          apiCall({ action: "saveUsers", users: patch }).then(function (res) {
+            if (res && res.ok) {
+              myInfo.nick = nick.slice(0, 20);
               nameLink.textContent = myInfo.nick;
               localStorage.setItem("bs_nick", myInfo.nick);
-            });
-          }
+            } else {
+              alert("修改失败：" + ((res && res.msg) || "网络异常"));
+            }
+          });
         });
       }
       function logout() {
@@ -1121,29 +1142,21 @@
         });
       }
       deleteBtn.addEventListener("click", function () {
-        /* 历史 GitHub 账号（登录入口已移除）没有密码，确认后直接删除 */
+        /* 历史 GitHub 账号（登录入口已移除）没有密码：管理员账号走 adminDel，其余提示 */
         if (me && me.indexOf("gh:") === 0) {
           if (!confirm("注销后账号数据将永久删除且无法恢复！\n\n确认删除该账号？")) return;
-          getDB().then(function (db) {
-            if (db.users && db.users[me]) delete db.users[me];
-            return saveDB(db).then(function () {
-              alert("账号已注销");
-              logout();
-            });
+          apiCall({ action: "adminDel", email: me }).then(function (res) {
+            if (res && res.ok) { alert("账号已注销"); logout(); }
+            else alert("注销失败：" + ((res && res.msg) || "需要管理员权限，请联系站主"));
           });
           return;
         }
         var pass = prompt("注销后账号数据将永久删除且无法恢复！\n请输入密码确认：");
         if (pass === null) return;
         hash(me, pass).then(function (h) {
-          return getDB().then(function (db) {
-            var u = db.users && db.users[me];
-            if (!u || u.hash !== h) { alert("密码错误，注销失败"); return; }
-            delete db.users[me];
-            return saveDB(db).then(function () {
-              alert("账号已注销");
-              logout();
-            });
+          apiCall({ action: "deleteSelf", hash: h }).then(function (res) {
+            if (res && res.ok) { alert("账号已注销"); logout(); }
+            else alert((res && res.msg) || "注销失败，请稍后再试");
           });
         });
       });
@@ -1227,25 +1240,37 @@
         var t = e.target.getAttribute("data-act") ? e.target : null;
         if (!t) return;
         var act = t.getAttribute("data-act"), email = t.getAttribute("data-e");
-        getDB().then(function (db) {
-          var u = db.users && db.users[email];
-          if (!u) { alert("账号不存在"); return; }
-          if (act === "ban") {
-            if (email === ADMIN_EMAIL) { alert("不能封禁管理员"); return; }
-            u.banned = !u.banned;
-          } else if (act === "del") {
-            if (email === ADMIN_EMAIL) { alert("不能删除管理员"); return; }
-            if (!confirm("确定永久删除账号 " + email + " ？")) return;
-            delete db.users[email];
-          } else if (act === "uid") {
-            var v = prompt("设置新 UID（8位数字）：", u.uid || "");
-            if (v === null) return;
-            if (!/^\d{8}$/.test(v)) { alert("UID 必须是8位数字"); return; }
-            u.uid = v;
-          }
-          return saveDB(db).then(renderAdmin);
-        });
+        var patch = {};
+        if (act === "ban") {
+          if (email === ADMIN_EMAIL) { alert("不能封禁管理员"); return; }
+          getDB().then(function (db) {
+            var u = db.users && db.users[email];
+            if (!u) { alert("账号不存在"); return; }
+            patch[email] = { banned: !u.banned };
+            return saveDBUsers(patch).then(renderAdmin);
+          });
+        } else if (act === "del") {
+          if (email === ADMIN_EMAIL) { alert("不能删除管理员"); return; }
+          if (!confirm("确定永久删除账号 " + email + " ？")) return;
+          apiCall({ action: "adminDel", email: email }).then(function (res) {
+            if (res && res.ok) renderAdmin();
+            else alert((res && res.msg) || "删除失败");
+          });
+        } else if (act === "uid") {
+          var v = prompt("设置新 UID（8位数字）：", (userData[email] || {}).uid || "");
+          if (v === null) return;
+          if (!/^\d{8}$/.test(v)) { alert("UID 必须是8位数字"); return; }
+          patch[email] = { uid: v };
+          saveDBUsers(patch).then(renderAdmin);
+        }
       });
+      /* 管理员字段级补丁：不需要整库加密，直接发 patch（服务端合并白名单字段） */
+      function saveDBUsers(patch) {
+        return apiCall({ action: "saveUsers", users: patch }).then(function (res) {
+          if (!res || !res.ok) alert("操作失败：" + ((res && res.msg) || "网络异常"));
+          return res;
+        });
+      }
       document.getElementById("admCreate").addEventListener("click", function () {
         var st = document.getElementById("admStatus");
         var email = document.getElementById("admEmail").value.trim().toLowerCase();
@@ -1258,24 +1283,29 @@
         if (uid && !/^\d{8}$/.test(uid)) { st.textContent = "UID 必须是8位数字"; return; }
         hash(email, pass).then(function (h) {
           return getDB().then(function (db) {
-            db.users = db.users || {};
-            if (db.users[email]) { st.textContent = "该邮箱已存在"; return; }
+            var users = db.users || {};
+            if (users[email]) { st.textContent = "该邮箱已存在"; return; }
             if (uid) {
-              var dup = Object.keys(db.users).some(function (k) { return db.users[k].uid === uid; });
+              var dup = Object.keys(users).some(function (k) { return users[k].uid === uid; });
               if (dup) { st.textContent = "UID 已被占用"; return; }
             }
             var rec = { id: email, hash: h, nick: nick, uid: uid || genUID(db), whips: 0, joined: new Date().toISOString() };
             var title = document.getElementById("admTitle").value.trim().slice(0, 10);
             if (title) rec.title = title;
-            db.users[email] = rec;
-            return saveDB(db).then(function () {
-              st.textContent = "账号已创建：" + email;
-              document.getElementById("admEmail").value = "";
-              document.getElementById("admPass").value = "";
-              document.getElementById("admNick").value = "";
-              document.getElementById("admTitle").value = "";
-              document.getElementById("admUID").value = "";
-              renderAdmin();
+            return C.encryptFields(rec, USER_ENC_FIELDS, "user|" + email).then(function (enc) {
+              /* 管理员新建账号：hash 只能经此通道创建 */
+              var payload = {};
+              payload[email] = enc;
+              return apiCall({ action: "saveUsers", users: payload }).then(function (res) {
+                if (!res || !res.ok) { st.textContent = (res && res.msg) || "创建失败"; return; }
+                st.textContent = "账号已创建：" + email;
+                document.getElementById("admEmail").value = "";
+                document.getElementById("admPass").value = "";
+                document.getElementById("admNick").value = "";
+                document.getElementById("admTitle").value = "";
+                document.getElementById("admUID").value = "";
+                renderAdmin();
+              });
             });
           });
         });
@@ -1287,10 +1317,10 @@
         renderAdmin(); renderAnn(); renderChatAdmin();
         adminMask.classList.add("show");
       });
-      /* ===== 公告（加密存储） ===== */
-      var ANN_DB = "https://textdb.dev/api/data/blueprintstudio-announce-v2";
+      /* ===== 公告（私有库 /api/data：公开读、仅管理员写） ===== */
+      var ANN_KEY = "blueprintstudio-announce-v2";
       function getAnns() {
-        return fetch(ANN_DB + "?t=" + Date.now()).then(function (r) { return r.json(); })
+        return fetch(API_BASE + "/api/data?key=" + ANN_KEY + "&t=" + Date.now()).then(function (r) { return r.json(); })
           .catch(function () { return { anns: [] }; })
           .then(function (db) {
             var list = (db && db.anns) || [];
@@ -1308,7 +1338,12 @@
             return { text: t, time: a.time };
           });
         })).then(function (enc) {
-          return fetch(ANN_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ anns: enc }) });
+          var h = { "Content-Type": "application/json" };
+          var t = authToken();
+          if (t) h.Authorization = "Bearer " + t;
+          return fetch(API_BASE + "/api/data", { method: "POST", headers: h, body: JSON.stringify({ key: ANN_KEY, data: JSON.stringify({ anns: enc }) }) })
+            .then(function (r) { return r.json(); })
+            .then(function (res) { if (!res || !res.ok) throw new Error((res && res.msg) || "保存失败"); return res; });
         });
       }
       function showAnnBanner() {
@@ -1352,10 +1387,10 @@
           return saveAnns(db).then(renderAnn);
         });
       });
-      /* ===== 聊天管理（删除会话） ===== */
-      var CHAT_DB = "https://textdb.dev/api/data/blueprintstudio-chat-v2";
+      /* ===== 聊天管理（删除会话，走 /api/data） ===== */
+      var CHAT_KEY = "blueprintstudio-chat-v2";
       function getChats() {
-        return fetch(CHAT_DB + "?t=" + Date.now()).then(function (r) { return r.json(); }).catch(function () { return { msgs: [], sessions: {} }; });
+        return fetch(API_BASE + "/api/data?key=" + CHAT_KEY + "&t=" + Date.now()).then(function (r) { return r.json(); }).catch(function () { return { msgs: [], sessions: {} }; });
       }
       function renderChatAdmin() {
         getChats().then(function (db) {
@@ -1377,7 +1412,10 @@
         getChats().then(function (db) {
           delete db.sessions[k];
           db.msgs = (db.msgs || []).filter(function (m) { return (m.from + "|" + m.to) !== k && (m.to + "|" + m.from) !== k; });
-          return fetch(CHAT_DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(db) }).then(renderChatAdmin);
+          var h = { "Content-Type": "application/json" };
+          var t = authToken();
+          if (t) h.Authorization = "Bearer " + t;
+          return fetch(API_BASE + "/api/data", { method: "POST", headers: h, body: JSON.stringify({ key: CHAT_KEY, data: JSON.stringify(db) }) }).then(renderChatAdmin);
         });
       });
       /* ===== Tab 切换 ===== */
@@ -1604,16 +1642,19 @@
         }
         try {
           var s = JSON.parse(localStorage.getItem(KEY) || "null");
-          if (s && s.email) {
+          if (s && s.email && s.token) {
             showLogged({ email: s.email });
-            getDB().then(function (db) {
-              var u = db.users && db.users[s.email];
-              if (!u) { logout(); return; }
-              if (u.banned) { location.href = BAN_PAGE + encodeURIComponent(s.email); return; }
-              showLogged({ email: s.email, nick: u.nick, uid: u.uid, title: u.title });
-            });
+            apiCall({ action: "whoami" }).then(function (res) {
+              if (!res || !res.ok) { logout(); return; }
+              if (res.banned) { location.href = BAN_PAGE + encodeURIComponent(s.email); return; }
+              return C.decryptFields(res.user || {}, USER_ENC_FIELDS, "user|" + s.email).then(function (u) {
+                showLogged({ email: s.email, nick: u.nick, uid: u.uid, title: u.title });
+              });
+            }).catch(function () {});
             return;
           }
+          /* 旧版会话（存的是 hash 而非 token）：升级清理，要求重新登录一次 */
+          if (s && s.email) { localStorage.removeItem(KEY); }
           /* 游客身份恢复（本地保存，不查云端） */
           if (localStorage.getItem(GUEST_MODE) === "1") {
             var gn = localStorage.getItem(GUEST_NICK) || "游客";

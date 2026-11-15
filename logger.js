@@ -11,7 +11,9 @@
 (function () {
   "use strict";
 
-  var LOG_DB = "https://textdb.dev/api/data/blueprintstudio-logs-v1";
+  var API_BASE = "https://blueprintstudio-mail.netlify.app";
+  var LOG_DB = API_BASE + "/api/data?key=blueprintstudio-logs-v1";
+
   var MAX_KEEP = 100;      /* 云端最多保留 100 条，更早的自动丢弃 */
   var MAX_SESSION = 15;    /* 单次访问最多上报 15 条，防止死循环把库刷爆 */
   var DEDUP_MS = 60000;    /* 同一条错误 60 秒内只报一次 */
@@ -82,10 +84,10 @@
           if (!Array.isArray(logs)) logs = [];
           var merged = batch.concat(logs);
           if (merged.length > MAX_KEEP) merged = merged.slice(0, MAX_KEEP);
-          return fetchT(LOG_DB, {
+          return fetchT(API_BASE + "/api/data", {
             method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify({ logs: merged })
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: "blueprintstudio-logs-v1", data: JSON.stringify({ logs: merged }) })
           });
         });
     }).catch(function () { /* 日志自身出错就放弃，绝不递归上报 */ })

@@ -200,7 +200,7 @@
       </div>
 
       <p class="hint">
-        提示：日志存在公共的 textdb.dev 上，页面侧的访问控制只能挡住普通访客，<br>
+        提示：日志已迁移到服务端私有库，仅管理员可读写。<br>
         懂技术的人仍可能直接读到数据，所以日志里刻意不放任何敏感信息。
       </p>
     </div>
@@ -248,7 +248,19 @@
 <script>
 (function () {
   "use strict";
-  var LOG_DB = "https://textdb.dev/api/data/blueprintstudio-logs-v1";
+  var API_BASE = "https://blueprintstudio-mail.netlify.app";
+  var DB_KEY = "blueprintstudio-logs-v1";
+  function authTok() {
+    try { var s = JSON.parse(localStorage.getItem("bs_auth") || "null"); if (s && s.token) return s.token; } catch (e) {}
+    try { return localStorage.getItem("bs_token_v1") || ""; } catch (e) { return ""; }
+  }
+  function logWrite(obj) {
+    var h = { "Content-Type": "application/json" };
+    var t = authTok();
+    if (t) h.Authorization = "Bearer " + t;
+    return fetch(API_BASE + "/api/data", { method: "POST", headers: h, body: JSON.stringify({ key: DB_KEY, data: JSON.stringify(obj) }) });
+  }
+  var LOG_DB = API_BASE + "/api/data?key=blueprintstudio-logs-v1";
   var USER_DB = "https://textdb.dev/api/data/blueprintstudio-users-v2";
   var KEY = "bs_auth";
   var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
@@ -259,19 +271,21 @@
 
   /* ---------- 主题固定深色（日间模式已移除） ---------- */
 
-  /* ---------- 管理员校验：本地登录态 + 云端 hash 比对 ---------- */
+  /* ---------- 管理员校验：服务端 token 校验（/api/auth whoami） ---------- */
   function checkAdmin() {
     var a = null;
     try { a = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
-    if (!a || !a.email || !a.hash) return Promise.resolve({ ok: false, reason: "guest" });
-    return fetch(USER_DB + "?t=" + Date.now())
+    if (!a || !a.email || !a.token) return Promise.resolve({ ok: false, reason: "guest" });
+    return fetch(API_BASE + "/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + a.token },
+      body: JSON.stringify({ action: "whoami" })
+    })
       .then(function (r) { return r.json(); })
-      .then(function (db) {
-        var u = (db && db.users && db.users[a.email]) || null;
-        /* hash 在用户库里是明文存放的（昵称/头衔才加密），可直接比对 */
-        if (!u || u.hash !== a.hash) return { ok: false, reason: "mismatch" };
-        if (u.banned) return { ok: false, reason: "banned" };
-        if (a.email !== ADMIN_EMAIL) return { ok: false, reason: "notadmin" };
+      .then(function (j) {
+        if (!j || !j.ok) return { ok: false, reason: "mismatch" };
+        if (j.banned) return { ok: false, reason: "banned" };
+        if (!j.admin) return { ok: false, reason: "notadmin" };
         return { ok: true };
       })
       .catch(function () { return { ok: false, reason: "offline" }; });
@@ -412,11 +426,7 @@
     if (!logs.length) { alert("本来就没有日志"); return; }
     if (!confirm("确定清空全部 " + logs.length + " 条日志？清空后无法恢复。")) return;
     $("clear").disabled = true;
-    fetch(LOG_DB, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ logs: [] })
-    }).then(function (r) {
+    logWrite({ logs: [] }).then(function (r) {
       if (!r.ok) throw new Error("HTTP " + r.status);
       logs = [];
       render();

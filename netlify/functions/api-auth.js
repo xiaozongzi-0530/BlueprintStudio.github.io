@@ -64,9 +64,10 @@ export default async (req) => {
   if (!tok) return bad("请先登录", 401);
 
   if (act === "whoami") {
-    /* 轻量身份探测：logs.html 等页面用它确认 token 是否有效、是否管理员 */
+    /* 轻量身份探测：logs.html 等页面用它确认 token 是否有效、是否管理员；
+       附带剥离 hash 的用户记录，供首页会话恢复使用 */
     const rec = users[tok.email];
-    return json({ ok: true, email: tok.email, admin: tok.email === ADMIN_EMAIL, banned: !!(rec && rec.banned) });
+    return json({ ok: true, email: tok.email, admin: tok.email === ADMIN_EMAIL, banned: !!(rec && rec.banned), user: stripUser(rec) });
   }
 
   if (act === "saveUsers") {

@@ -90,7 +90,27 @@
   <script>
     (function () {
       /* 公告库统一到 announce-v2（与首页管理后台同一份数据，正文为 AES 密文） */
-      var DB = "https://textdb.dev/api/data/blueprintstudio-announce-v2";
+      
+      /* ===== 服务端数据层（私有 Blobs，替代 textdb 公开库） ===== */
+      var API_BASE = "https://blueprintstudio-mail.netlify.app";
+      var DB_KEY = "blueprintstudio-announce-v2";
+      function authTok() {
+        try { var s = JSON.parse(localStorage.getItem("bs_auth") || "null"); if (s && s.token) return s.token; } catch (e) {}
+        try { return localStorage.getItem("bs_token_v1") || ""; } catch (e) { return ""; }
+      }
+      function dbWrite(obj) {
+        var h = { "Content-Type": "application/json" };
+        var t = authTok();
+        if (t) h.Authorization = "Bearer " + t;
+        return fetch(API_BASE + "/api/data", { method: "POST", headers: h, body: JSON.stringify({ key: DB_KEY, data: JSON.stringify(obj) }) })
+          .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+      }
+      function userListFetch() {
+        return fetch(API_BASE + "/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "list" }) })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { return { users: (j && j.db && j.db.users) || {} }; });
+      }
+var DB = API_BASE + "/api/data?key=blueprintstudio-announce-v2";
       var C = window.BPCrypto;
       var ADMIN = "zhouxinyuan0530@qq.com";
       var me = null;
@@ -119,7 +139,7 @@
             return { text: t, time: a.time };
           });
         })).then(function (enc) {
-          return fetch(DB, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ anns: enc }) });
+          return dbWrite({ anns: enc });
         });
       }
       function esc(t) { return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
