@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 写代码 · BlueprintStudio</title>
+<script src="logger.js"></script>
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("bs_theme");
+      if (!t) t = (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", t);
+    } catch (e) { document.documentElement.setAttribute("data-theme", "dark"); }
+  })();
+</script>
+<style>
+  :root { --bg:#0b1020; --panel:rgba(255,255,255,.04); --line:rgba(79,124,255,.25); --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; --err:#ff6b6b; }
+  html[data-theme="light"] { --bg:#f4f7ff; --panel:#fff; --line:rgba(79,124,255,.22); --text:#0b1020; --muted:#5b6478; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; min-height:100vh; }
+  .grid-bg { pointer-events:none; position:fixed; inset:0; z-index:0; background-image:linear-gradient(rgba(79,124,255,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(79,124,255,.07) 1px,transparent 1px); background-size:40px 40px; }
+  header { position:sticky; top:0; z-index:10; display:flex; justify-content:space-between; align-items:center; padding:1rem 2rem; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav { display:flex; gap:1.2rem; flex-wrap:wrap; }
+  nav a { color:var(--muted); text-decoration:none; font-size:.92rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+  main { position:relative; z-index:1; max-width:860px; margin:0 auto; padding:2.5rem 1.5rem 4rem; }
+  h1 { font-size:1.7rem; margin-bottom:.45rem; }
+  h1 em { font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { color:var(--muted); font-size:.9rem; line-height:1.8; margin-bottom:1.6rem; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:1.2rem 1.3rem; margin-bottom:1.2rem; }
+  textarea, select, input[type="text"] { width:100%; background:rgba(255,255,255,.06); border:1px solid var(--line); border-radius:10px; color:var(--text); padding:.7rem .9rem; font-size:.92rem; outline:none; font-family:inherit; }
+  html[data-theme="light"] textarea, html[data-theme="light"] select, html[data-theme="light"] input { background:#fff; }
+  textarea { min-height:110px; resize:vertical; }
+  textarea:focus, select:focus { border-color:var(--accent2); }
+  .row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; margin-top:.8rem; }
+  select { width:auto; min-width:130px; }
+  .btn { display:inline-block; border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; padding:.6rem 1.5rem; border-radius:10px; font-size:.92rem; font-weight:600; }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn.ghost { background:transparent; border:1px solid rgba(79,124,255,.5); color:var(--accent2); font-weight:500; }
+  .mode-tabs { display:flex; gap:.5rem; margin-bottom:.9rem; flex-wrap:wrap; }
+  .mode-tabs button { background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--muted); border-radius:999px; padding:.4rem 1rem; font-size:.85rem; cursor:pointer; font-family:inherit; }
+  .mode-tabs button.on { background:rgba(79,124,255,.18); border-color:var(--accent2); color:var(--accent2); font-weight:600; }
+  #out { margin-top:.2rem; }
+  .code-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:.7rem; }
+  .code-head b { color:var(--accent2); font-size:.92rem; }
+  pre { background:rgba(0,0,0,.3); border:1px solid var(--line); border-radius:10px; padding:.9rem 1rem; font-family:ui-monospace,Consolas,monospace; font-size:.84rem; line-height:1.7; overflow-x:auto; white-space:pre-wrap; word-break:break-word; color:var(--text); }
+  html[data-theme="light"] pre { background:rgba(0,0,0,.04); }
+  .prose { font-size:.92rem; line-height:1.9; white-space:pre-wrap; word-break:break-word; color:var(--text); }
+  .status { color:var(--muted); font-size:.85rem; margin-top:.8rem; }
+  .status.err { color:var(--err); }
+  .loading { display:inline-block; }
+  .loading::after { content:""; animation:dots 1.2s steps(4,end) infinite; }
+  @keyframes dots { 0%{content:"";} 25%{content:"·";} 50%{content:"··";} 75%{content:"···";} }
+  .hint { color:var(--muted); font-size:.78rem; line-height:1.9; margin-top:1rem; }
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
+  .err-box { background:rgba(255,107,107,.12); border:1px solid rgba(255,107,107,.4); color:var(--err); border-radius:10px; padding:.8rem 1rem; font-size:.88rem; }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="forum.html">论坛</a>
+      <a href="chat.html">聊天</a>
+      <a href="notes.html">笔记</a>
+      <a href="discover.html">发现</a>
+      <a href="ai-code.html" class="active">AI 写代码</a>
+      <a href="ann.html">公告</a>
+      <a href="join.html">联系我们</a>
+    </nav>
+  </header>
+  <main>
+    <h1>AI <em>写代码</em></h1>
+    <p class="sub"> powered by 智谱 GLM-4-Flash（免费模型）。写代码、解释代码、排查 bug 三合一。</p>
+
+    <div class="card">
+      <div class="mode-tabs" id="modeTabs">
+        <button data-mode="generate" class="on">✨ 写代码</button>
+        <button data-mode="explain">📖 解释代码</button>
+        <button data-mode="fix">🐛 排查 Bug</button>
+      </div>
+      <textarea id="prompt" maxlength="3000"
+        placeholder="✨ 写代码：描述你的需求，例如「写一个 JS 函数，把驼峰命名转下划线命名」&#10;📖 解释代码 / 🐛 排查 Bug：直接粘贴代码（可附上报错信息）"></textarea>
+      <div class="row">
+        <select id="lang">
+          <option value="">自动选择语言</option>
+          <option value="JavaScript">JavaScript</option>
+          <option value="Python">Python</option>
+          <option value="Java">Java</option>
+          <option value="C++">C++</option>
+          <option value="Go">Go</option>
+          <option value="HTML/CSS">HTML/CSS</option>
+          <option value="SQL">SQL</option>
+          <option value="Shell">Shell</option>
+          <option value="TypeScript">TypeScript</option>
+        </select>
+        <span style="flex:1;"></span>
+        <button class="btn" id="goBtn">🚀 生成</button>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div class="card hidden" id="outCard">
+      <div id="out"></div>
+    </div>
+
+    <p class="hint">
+      ⏱ 限频：每人每分钟 10 次。生成结果由 AI 产出，请自行审查后再用于生产环境。<br>
+      💡 好作品可以发到<a href="discover.html">「发现」</a>展示，问题可以发<a href="forum.html">论坛</a>讨论。
+    </p>
+  </main>
+  <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+
+<script src="mod.js"></script>
+<script>
+(function () {
+  "use strict";
+  var BASE = "https://blueprintstudio-mail.netlify.app";
+  var $ = function (id) { return document.getElementById(id); };
+  var mode = "generate";
+
+  try {
+    if (localStorage.getItem("bs_theme") === "light") document.documentElement.setAttribute("data-theme", "light");
+  } catch (e) {}
+
+  /* 模式切换 */
+  $("modeTabs").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-mode]");
+    if (!b) return;
+    mode = b.getAttribute("data-mode");
+    Array.prototype.forEach.call($("modeTabs").children, function (x) {
+      x.classList.toggle("on", x === b);
+    });
+  });
+
+  /* 把模型输出的 markdown 粗渲染为 HTML：代码块 + 转义正文 */
+  function esc(t) { return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function renderMarkdown(text) {
+    var out = "";
+    var parts = String(text).split(/```/);
+    for (var i = 0; i < parts.length; i++) {
+      if (i % 2 === 1) {
+        /* 代码块：首行可能是语言名 */
+        var block = parts[i].replace(/^\w+\s*\n/, "");
+        out += "<pre>" + esc(block) + "</pre>";
+      } else if (parts[i].trim()) {
+        out += '<div class="prose">' + esc(parts[i].trim()) + "</div>";
+      }
+    }
+    return out || "<pre></pre>";
+  }
+
+  function copyCode() {
+    var pres = $("out").querySelectorAll("pre");
+    if (!pres.length) return;
+    var text = pres[pres.length - 1].textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+      .then(function () { $("copyBtn").textContent = "✅ 已复制"; setTimeout(function () { $("copyBtn").textContent = "📋 复制代码"; }, 1500); })
+      .catch(function () {
+        var ta = document.createElement("textarea");
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); $("copyBtn").textContent = "✅ 已复制"; } catch (e) { alert("复制失败"); }
+        ta.remove(); setTimeout(function () { $("copyBtn").textContent = "📋 复制代码"; }, 1500);
+      });
+  }
+
+  $("goBtn").addEventListener("click", function () {
+    var prompt = $("prompt").value.trim();
+    var status = $("status");
+    if (!prompt) { status.textContent = "请先描述需求或粘贴代码"; status.className = "status err"; return; }
+    $("goBtn").disabled = true;
+    $("outCard").classList.add("hidden");
+    $("out").innerHTML = "";
+    status.className = "status";
+    status.innerHTML = '<span class="loading">🤖 AI 正在思考</span>';
+    var started = Date.now();
+
+    fetch(BASE + "/api/aicode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: prompt, lang: $("lang").value, mode: mode }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.msg || "生成失败");
+      status.textContent = "完成，用时 " + ((Date.now() - started) / 1000).toFixed(1) + " 秒";
+      $("out").innerHTML = renderMarkdown(res.text);
+      $("outCard").classList.remove("hidden");
+      var head = document.createElement("div");
+      head.className = "code-head";
+      head.innerHTML = "<b>🤖 GLM-4-Flash 输出</b>";
+      var cp = document.createElement("button");
+      cp.className = "btn ghost"; cp.id = "copyBtn"; cp.textContent = "📋 复制代码";
+      cp.style.padding = ".35rem .9rem"; cp.style.fontSize = ".8rem";
+      cp.onclick = copyCode;
+      head.appendChild(cp);
+      $("out").insertBefore(head, $("out").firstChild);
+    }).catch(function (e) {
+      status.className = "status err";
+      status.textContent = e.message || "网络异常，请稍后再试";
+      $("out").innerHTML = '<div class="err-box">' + esc(e.message || "生成失败，请稍后再试") + "</div>";
+      $("outCard").classList.remove("hidden");
+    }).then(function () { $("goBtn").disabled = false; });
+  });
+
+  /* Ctrl+Enter 快捷生成 */
+  $("prompt").addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") $("goBtn").click();
+  });
+})();
+</script>
+</body>
+</html>
