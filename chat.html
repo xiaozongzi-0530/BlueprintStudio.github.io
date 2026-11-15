@@ -238,7 +238,6 @@
           .then(function (j) { return { users: (j && j.db && j.db.users) || {} }; });
       }
 var DB = API_BASE + "/api/data?key=blueprintstudio-chat-v2";
-      var USER_DB = "https://textdb.dev/api/data/blueprintstudio-users-v2";
       var me = null, myUID = "", myNick = "", chatting = null, timer = null;
       /* 轮询治理：跨境单次请求实测 1~4 秒，间隔必须远大于 RTT，否则请求堆积 */
       var POLL_MS = 12000;          // 统一轮询间隔（原来聊天 3s、列表 5s 两条独立轮询）
