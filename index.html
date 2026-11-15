@@ -583,7 +583,16 @@
     </section>
   </main>
 
-  <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+  <footer>© <span id="footerYear">2026</span> BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+  <script>
+    /* 页脚年份自动跟随当前年份，避免每年手动改 */
+    (function () {
+      try {
+        var y = new Date().getFullYear();
+        if (y >= 2026) document.getElementById("footerYear").textContent = y;
+      } catch (e) {}
+    })();
+  </script>
 
   <script src="crypto.js"></script>
   <script>
@@ -1090,10 +1099,10 @@
             var card = document.createElement("div");
             card.className = "card member";
             card.setAttribute("data-uid", u.uid || "");
-            card.innerHTML = '<div class="avatar">' + (u.nick || "?").charAt(0).toUpperCase() + "</div>"
-              + '<div><h3>' + (u.nick || "-")
-              + ' <span class="badge-title">' + u.title + "</span></h3>"
-              + "<p>UID: " + (u.uid || "-") + "</p></div>";
+            card.innerHTML = '<div class="avatar">' + esc((u.nick || "?").charAt(0).toUpperCase()) + "</div>"
+              + '<div><h3>' + esc(u.nick || "-")
+              + ' <span class="badge-title">' + esc(u.title) + "</span></h3>"
+              + "<p>UID: " + esc(u.uid || "-") + "</p></div>";
             grid.appendChild(card);
           });
         });
@@ -1304,7 +1313,7 @@
           var box = document.getElementById("annList");
           var list = db.anns || [];
           box.innerHTML = list.length ? list.map(function (a, i) {
-            return '<div style="border-bottom:1px solid rgba(255,255,255,.08);">' + a.text.replace(/</g, "&lt;")
+            return '<div style="border-bottom:1px solid rgba(255,255,255,.08);">' + esc(a.text)
               + ' <a href="javascript:void(0)" data-anndel="' + i + '" style="color:#ff6b6b;">删除</a></div>';
           }).join("") : '<p style="color:var(--muted);">暂无公告</p>';
         });
