@@ -6,15 +6,15 @@
 <title>聊天 · BlueprintStudio</title>
 <script src="logger.js"></script>
 <style>
-  :root { --bg:#0b1020; --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
+  :root { --bg:#000000; --accent:#2e52b4; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; }
   .grid-bg {
   pointer-events: none;
     position:fixed; inset:0; z-index:0;
     background-image:
-      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+      linear-gradient(rgba(40,72,168,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(40,72,168,.07) 1px, transparent 1px);
     background-size:40px 40px;
   }
   header {
@@ -22,7 +22,7 @@
     display:flex; justify-content:space-between; align-items:center;
     padding:1rem 2rem;
     background:rgba(11,16,32,.85); backdrop-filter:blur(10px);
-    border-bottom:1px solid rgba(79,124,255,.15);
+    border-bottom:1px solid rgba(40,72,168,.15);
   }
   .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
   .brand span { color:var(--accent2); }
@@ -38,12 +38,12 @@
   .sub { color:var(--muted); font-size:.92rem; margin-bottom:1.8rem; }
   .card {
     background:rgba(255,255,255,.04);
-    border:1px solid rgba(79,124,255,.25);
+    border:1px solid rgba(40,72,168,.25);
     border-radius:16px; padding:1.5rem; margin-bottom:1.2rem;
   }
   input[type="text"] {
     background:rgba(255,255,255,.06);
-    border:1px solid rgba(79,124,255,.3);
+    border:1px solid rgba(40,72,168,.3);
     border-radius:10px; color:var(--text);
     padding:.65rem .9rem; font-size:.95rem; outline:none; font-family:inherit;
   }
@@ -54,7 +54,7 @@
     color:#fff; padding:.6rem 1.5rem; border-radius:10px;
     font-size:.92rem; font-weight:600;
   }
-  .btn.ghost { background:transparent; border:1px solid rgba(79,124,255,.5); color:var(--accent2); }
+  .btn.ghost { background:transparent; border:1px solid rgba(40,72,168,.5); color:var(--accent2); }
   .row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; }
   .tip { color:var(--muted); font-size:.85rem; line-height:1.8; }
   .tip a { color:var(--accent2); }
@@ -65,7 +65,7 @@
     padding:.7rem .4rem; border-bottom:1px solid rgba(255,255,255,.08);
     cursor:pointer; border-radius:8px; transition:background .2s;
   }
-  .conv:hover { background:rgba(79,124,255,.08); }
+  .conv:hover { background:rgba(40,72,168,.08); }
   .conv .u { font-weight:700; }
   .conv .last { color:var(--muted); font-size:.85rem; max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   /* 聊天窗口 */
@@ -80,7 +80,7 @@
   #msgInput {
     flex:1; min-width:140px; resize:none;
     background:rgba(255,255,255,.06);
-    border:1px solid rgba(79,124,255,.3);
+    border:1px solid rgba(40,72,168,.3);
     border-radius:10px; color:var(--text);
     padding:.65rem .9rem; font-size:.95rem; outline:none; font-family:inherit;
     line-height:1.5; max-height:120px; overflow-y:auto;
@@ -89,12 +89,12 @@
   #msgInput:disabled { opacity:.5; }
   .input-tools { display:flex; gap:.4rem; flex-shrink:0; }
   .tool-btn {
-    background:rgba(79,124,255,.1); border:1px solid rgba(79,124,255,.35);
+    background:rgba(40,72,168,.1); border:1px solid rgba(40,72,168,.35);
     color:var(--accent2); border-radius:10px; cursor:pointer;
     font-size:.82rem; font-family:inherit; padding:.55rem .75rem;
     transition:background .2s, border-color .2s;
   }
-  .tool-btn:hover { background:rgba(79,124,255,.22); border-color:var(--accent2); }
+  .tool-btn:hover { background:rgba(40,72,168,.22); border-color:var(--accent2); }
   .tool-btn:disabled { opacity:.4; cursor:default; }
   .tool-btn.on { background:rgba(255,107,107,.18); border-color:rgba(255,107,107,.55); color:#ff6b6b; }
   .eph-badge { font-size:.68rem; opacity:.85; }
@@ -131,14 +131,14 @@
   .msg img.att-img { max-width:100%; border-radius:8px; margin-top:.45rem; display:block; }
   #attachPreview .ap {
     display:flex; align-items:center; gap:.6rem;
-    background:rgba(79,124,255,.1); border:1px dashed rgba(79,124,255,.5);
+    background:rgba(40,72,168,.1); border:1px dashed rgba(40,72,168,.5);
     border-radius:10px; padding:.5rem .8rem; font-size:.85rem;
   }
   #attachPreview .ap button {
     margin-left:auto; background:none; border:none; cursor:pointer;
     color:#ff6b6b; font-size:1rem; line-height:1;
   }
-  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(40,72,168,.12); }
 </style>
 </head>
 <body>
@@ -623,7 +623,7 @@
           pendingFile = meta;
           var isP2P = P2PFile.isP2P(meta);
           box.style.display = "block";
-          box.innerHTML = '<div class="ap"><span class="fico" style="width:24px;height:24px;border-radius:6px;background:rgba(79,124,255,.3);display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:700;">' + (isP2P ? "P2P" : "FILE") + '</span>'
+          box.innerHTML = '<div class="ap"><span class="fico" style="width:24px;height:24px;border-radius:6px;background:rgba(40,72,168,.3);display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:700;">' + (isP2P ? "P2P" : "FILE") + '</span>'
             + '<span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(f.name) + (isP2P ? ' <span style="color:var(--accent2);font-size:.72rem;">P2P 直传</span>' : '') + '</span>'
             + '<span class="fsize" style="color:var(--muted); font-size:.75rem;">' + fmtSize(f.size) + '</span>'
             + '<button id="apDel" title="移除">×</button></div>';

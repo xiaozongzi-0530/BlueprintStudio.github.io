@@ -6,15 +6,15 @@
 <title>论坛 · BlueprintStudio</title>
 <script src="logger.js"></script>
 <style>
-  :root { --bg:#0b1020; --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
+  :root { --bg:#000000; --accent:#2e52b4; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; }
   .grid-bg {
   pointer-events: none;
     position:fixed; inset:0; z-index:0;
     background-image:
-      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+      linear-gradient(rgba(40,72,168,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(40,72,168,.07) 1px, transparent 1px);
     background-size:40px 40px;
   }
   header {
@@ -22,7 +22,7 @@
     display:flex; justify-content:space-between; align-items:center;
     padding:1rem 2rem;
     background:rgba(11,16,32,.85); backdrop-filter:blur(10px);
-    border-bottom:1px solid rgba(79,124,255,.15);
+    border-bottom:1px solid rgba(40,72,168,.15);
   }
   .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
   .brand span { color:var(--accent2); }
@@ -38,13 +38,13 @@
   .sub { color:var(--muted); font-size:.92rem; margin-bottom:1.8rem; }
   .card {
     background:rgba(255,255,255,.04);
-    border:1px solid rgba(79,124,255,.25);
+    border:1px solid rgba(40,72,168,.25);
     border-radius:16px; padding:1.5rem; margin-bottom:1.2rem;
   }
   textarea, input[type="text"] {
     width:100%;
     background:rgba(255,255,255,.06);
-    border:1px solid rgba(79,124,255,.3);
+    border:1px solid rgba(40,72,168,.3);
     border-radius:10px; color:var(--text);
     padding:.7rem .9rem; font-size:.95rem;
     outline:none; font-family:inherit;
@@ -57,10 +57,10 @@
     color:#fff; padding:.6rem 1.5rem; border-radius:10px;
     font-size:.92rem; font-weight:600;
   }
-  .btn.ghost { background:transparent; border:1px solid rgba(79,124,255,.5); color:var(--accent2); }
+  .btn.ghost { background:transparent; border:1px solid rgba(40,72,168,.5); color:var(--accent2); }
   .file-label {
     display:inline-block; cursor:pointer;
-    border:1px dashed rgba(79,124,255,.5); color:var(--accent2);
+    border:1px dashed rgba(40,72,168,.5); color:var(--accent2);
     padding:.45rem 1rem; border-radius:10px; font-size:.85rem; margin-right:.8rem;
   }
   input[type="file"] { display:none; }
@@ -82,7 +82,7 @@
   .post-files { margin-top:.8rem; display:flex; flex-wrap:wrap; gap:.6rem; }
   .post-files a {
     color:var(--accent2); text-decoration:none; font-size:.85rem;
-    border:1px solid rgba(79,124,255,.4);
+    border:1px solid rgba(40,72,168,.4);
     padding:.35rem .8rem; border-radius:8px;
   }
   .post-foot { margin-top:.8rem; display:flex; gap:1.2rem; align-items:center; }
@@ -107,7 +107,7 @@
   .card.flash { animation:flashNew 2.2s ease; }
   .tip { color:var(--muted); font-size:.85rem; margin-bottom:1.5rem; line-height:1.8; }
   .tip a { color:var(--accent2); }
-  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(79,124,255,.12); }
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(40,72,168,.12); }
 </style>
 </head>
 <body>

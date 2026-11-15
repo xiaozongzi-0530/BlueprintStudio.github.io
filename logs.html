@@ -6,12 +6,12 @@
 <title>错误日志 · BlueprintStudio</title>
 <style>
   :root {
-    --bg:#0b1020; --panel:rgba(255,255,255,.04); --line:rgba(79,124,255,.25);
-    --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8;
+    --bg:#000000; --panel:rgba(40,72,168,.12); --line:rgba(40,72,168,.25);
+    --accent:#2e52b4; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8;
     --err:#ff6b6b; --warn:#f5b301; --info:#22d3ee;
   }
   html[data-theme="light"] {
-    --bg:#f4f7ff; --panel:#ffffff; --line:rgba(79,124,255,.22);
+    --bg:#f4f7ff; --panel:#ffffff; --line:rgba(40,72,168,.22);
     --text:#0b1020; --muted:#5b6478;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -23,8 +23,8 @@
   .grid-bg {
     pointer-events:none; position:fixed; inset:0; z-index:0;
     background-image:
-      linear-gradient(rgba(79,124,255,.07) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(79,124,255,.07) 1px, transparent 1px);
+      linear-gradient(rgba(40,72,168,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(40,72,168,.07) 1px, transparent 1px);
     background-size:40px 40px;
   }
   header {
@@ -62,11 +62,11 @@
   .btn {
     display:inline-block; margin-top:1.2rem;
     padding:.55rem 1.2rem; border-radius:10px; text-decoration:none;
-    border:1px solid rgba(79,124,255,.55); color:var(--accent2);
-    background:rgba(79,124,255,.12); font-size:.88rem; cursor:pointer;
+    border:1px solid rgba(40,72,168,.55); color:var(--accent2);
+    background:rgba(40,72,168,.12); font-size:.88rem; cursor:pointer;
     transition:background .2s, color .2s;
   }
-  .btn:hover { background:rgba(79,124,255,.25); color:#fff; }
+  .btn:hover { background:rgba(40,72,168,.25); color:#fff; }
   .btn.ghost { border-color:var(--line); color:var(--muted); background:none; }
   .btn.ghost:hover { color:var(--text); background:rgba(255,255,255,.06); }
   .btn.danger { border-color:rgba(255,107,107,.5); color:var(--err); background:rgba(255,107,107,.1); }
@@ -116,7 +116,7 @@
   .tag.error { background:rgba(255,107,107,.16); color:var(--err); }
   .tag.warn { background:rgba(245,179,1,.16); color:var(--warn); }
   .tag.info { background:rgba(34,211,238,.14); color:var(--info); }
-  .tag.src { background:rgba(79,124,255,.14); color:var(--accent2); font-weight:500; }
+  .tag.src { background:rgba(40,72,168,.14); color:var(--accent2); font-weight:500; }
   .log-msg { font-size:.92rem; line-height:1.7; word-break:break-word; }
   .log-meta { font-size:.76rem; color:var(--muted); margin-top:.4rem; line-height:1.7; word-break:break-all; }
   details { margin-top:.5rem; }

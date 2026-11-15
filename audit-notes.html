@@ -6,8 +6,8 @@
 <title>审核笔记 · BlueprintStudio</title>
 <script src="logger.js"></script>
 <style>
-  :root { --bg:#0b1020; --panel:rgba(255,255,255,.04); --line:rgba(79,124,255,.25); --accent:#4f7cff; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; --err:#ff6b6b; }
-  html[data-theme="light"] { --bg:#f4f7ff; --panel:#fff; --line:rgba(79,124,255,.22); --text:#0b1020; --muted:#5b6478; }
+  :root { --bg:#000000; --panel:rgba(40,72,168,.12); --line:rgba(40,72,168,.25); --accent:#2e52b4; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; --err:#ff6b6b; }
+  html[data-theme="light"] { --bg:#f4f7ff; --panel:#fff; --line:rgba(40,72,168,.22); --text:#0b1020; --muted:#5b6478; }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; min-height:100vh; }
   header { position:sticky; top:0; z-index:10; display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:1rem 2rem; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); flex-wrap:wrap; }
@@ -20,8 +20,8 @@
   h1 { font-size:1.7rem; margin-bottom:.45rem; }
   h1 em { font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
   .sub { color:var(--muted); font-size:.9rem; line-height:1.8; margin-bottom:1.6rem; }
-  .btn { display:inline-block; padding:.5rem 1.1rem; border-radius:10px; text-decoration:none; border:1px solid rgba(79,124,255,.55); color:var(--accent2); background:rgba(79,124,255,.12); font-size:.85rem; cursor:pointer; }
-  .btn:hover { background:rgba(79,124,255,.25); color:#fff; }
+  .btn { display:inline-block; padding:.5rem 1.1rem; border-radius:10px; text-decoration:none; border:1px solid rgba(40,72,168,.55); color:var(--accent2); background:rgba(40,72,168,.12); font-size:.85rem; cursor:pointer; }
+  .btn:hover { background:rgba(40,72,168,.25); color:#fff; }
   .btn.ghost { border-color:var(--line); color:var(--muted); background:none; }
   .btn.danger { border-color:rgba(255,107,107,.5); color:var(--err); background:rgba(255,107,107,.1); }
   .toolbar { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; margin-bottom:1.1rem; }
@@ -33,7 +33,7 @@
   .item { background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent2); border-radius:12px; padding:.9rem 1rem; margin-bottom:.8rem; }
   .item-head { display:flex; gap:.55rem; align-items:center; flex-wrap:wrap; font-size:.75rem; color:var(--muted); margin-bottom:.45rem; }
   .tag { padding:.1rem .5rem; border-radius:999px; font-size:.7rem; font-weight:700; }
-  .tag.src { background:rgba(79,124,255,.14); color:var(--accent2); font-weight:500; }
+  .tag.src { background:rgba(40,72,168,.14); color:var(--accent2); font-weight:500; }
   .item-title { font-weight:700; font-size:.98rem; margin-bottom:.3rem; }
   .item-body { font-size:.92rem; line-height:1.8; white-space:pre-wrap; word-break:break-word; color:var(--text); }
   .item-foot { margin-top:.6rem; display:flex; gap:.8rem; align-items:center; font-size:.8rem; color:var(--muted); }
