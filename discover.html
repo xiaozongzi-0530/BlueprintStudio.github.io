@@ -552,6 +552,7 @@
             reportReason: reason,
             who: me || ("guest:" + ensureGuestId()),
             target: target.author || "",
+            targetId: target.id || "",
           }).then(function (r) {
             if (r && r.ok) {
               var ai = (r.ai || {});

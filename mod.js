@@ -76,6 +76,7 @@
       reportReason: String(payload.reportReason || "").slice(0, 500),
       who: payload.who || "",
       target: String(payload.target || "").slice(0, 120),
+      targetId: String(payload.targetId || "").slice(0, 80),
     });
   }
 

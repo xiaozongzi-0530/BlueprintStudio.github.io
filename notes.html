@@ -392,6 +392,7 @@
               reportReason: reason,
               who: myKey,
               target: n.author || "",
+              targetId: n.id || "",
             }).then(function (r) {
               if (r && r.ok) {
                 var ai = (r.ai || {});

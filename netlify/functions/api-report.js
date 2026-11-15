@@ -23,6 +23,41 @@ export const config = { path: "/api/report" };
 
 const MAX_ITEMS = 500;   // 举报留最近 500 条，超出丢最旧的
 
+/* 公开内容库：举报成立/自动处置时由服务端删除对应条目 */
+const DB_URLS = {
+  forum: "https://textdb.dev/api/data/blueprintstudio-forum-2026",
+  note: "https://textdb.dev/api/data/blueprintstudio-notes-2026",
+  discover: "https://textdb.dev/api/data/blueprintstudio-discover-v1",
+};
+const LIST_KEY = { forum: "posts", note: "notes", discover: "items" };
+
+/* 从公开库删除一条内容。textdb 是整库覆盖写，有并发覆盖风险，
+   但 UGC 区写入频率低，且删违规内容优先级更高，可接受。 */
+async function deleteContent(kind, id) {
+  const url = DB_URLS[kind];
+  if (!url || !id) return { ok: false, why: "不支持的类型或缺少条目 ID" };
+  let db;
+  try {
+    const r = await fetch(url + "?t=" + Date.now());
+    if (!r.ok) return { ok: false, why: "读取内容库失败 HTTP " + r.status };
+    db = await r.json();
+  } catch (e) { return { ok: false, why: "读取内容库异常" }; }
+  const key = LIST_KEY[kind];
+  if (!db || !Array.isArray(db[key])) return { ok: false, why: "内容库结构异常" };
+  const before = db[key].length;
+  db[key] = db[key].filter(x => x && x.id !== id);
+  if (db[key].length === before) return { ok: false, why: "条目不存在或已被删除" };
+  try {
+    const pr = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(db),
+    });
+    if (!pr.ok) return { ok: false, why: "写回内容库失败 HTTP " + pr.status };
+    return { ok: true };
+  } catch (e) { return { ok: false, why: "写回内容库异常" }; }
+}
+
 const store = () => getStore("reports");
 
 async function readAll() {
@@ -70,22 +105,21 @@ export default async (req) => {
     it.handledBy = tok.email;
     it.handledAt = new Date().toISOString();
 
-    /* 举报成立 → 自动封禁被举报人（仅注册邮箱；游客是本地随机身份，服务端封不了，
-       请直接删除其内容；管理员账号永不自动封禁） */
-    let bannedTarget = false;
-    let banSkip = "";
+    /* 举报成立 → 封禁被举报人（若尚未封）+ 删除原内容 */
     const target = String(it.target || "");
-    if (it.outcome.indexOf("举报成立") !== -1 && target) {
+    let bannedTarget = !!it.bannedTarget;
+    let banSkip = it.banSkip || "";
+    if (it.outcome.indexOf("举报成立") !== -1 && target && !bannedTarget) {
       if (target === ADMIN_EMAIL) {
         banSkip = "目标为管理员，未封禁";
       } else if (target.indexOf("guest:") === 0) {
-        banSkip = "目标为游客身份，无法服务端封禁，请手动删除其内容";
+        banSkip = "目标为游客身份，无法服务端封禁";
       } else {
-        const db = await getUsersRaw();
-        const rec = db.users && db.users[target];
-        if (rec) {
-          rec.banned = true;
-          await putUsersRaw(db);
+        const udb = await getUsersRaw();
+        const u = udb.users && udb.users[target];
+        if (u) {
+          u.banned = true;
+          await putUsersRaw(udb);
           bannedTarget = true;
         } else {
           banSkip = "目标账号不存在于用户库";
@@ -94,8 +128,16 @@ export default async (req) => {
     }
     it.bannedTarget = bannedTarget;
     if (banSkip) it.banSkip = banSkip;
+
+    let deleted = !!it.deleted;
+    if (it.outcome.indexOf("举报成立") !== -1 && !deleted) {
+      const del = await deleteContent(it.kind, it.targetId);
+      deleted = del.ok;
+      if (!del.ok) it.deleteSkip = del.why;
+    }
+    it.deleted = deleted;
     await writeAll(items);
-    return json({ ok: true, bannedTarget: bannedTarget, banSkip: banSkip });
+    return json({ ok: true, bannedTarget: bannedTarget, deleted: deleted, banSkip: banSkip });
   }
 
   /* ---------- 用户提交举报 ---------- */
@@ -131,7 +173,8 @@ export default async (req) => {
     content: content,
     reportReason: clamp(body.reportReason, 500),
     who: clamp(body.who, 120),
-    target: clamp(body.target, 120),   // 被举报人的账号标识（邮箱或 guest:uid）
+    target: clamp(body.target, 120),     // 被举报人标识（邮箱或 guest:uid）
+    targetId: clamp(body.targetId, 80),  // 被举报内容在公开库里的条目 ID，用于自动删帖
     ip: ip,
     ai: ai,
     aiSkipped: aiSkipped,
@@ -139,36 +182,50 @@ export default async (req) => {
     t: new Date().toISOString(),
   };
 
-  /* AI 初判违规 → 立即自动封禁被举报人（仅注册邮箱；游客/管理员跳过）。
-     后台仍保留记录供管理员复核，误封可在首页「账号管理」解封。 */
-  if (!aiSkipped && ai.violates && rec.target && rec.target !== ADMIN_EMAIL
-      && rec.target.indexOf("guest:") !== 0) {
-    try {
-      const udb = await getUsersRaw();
-      const u = udb.users && udb.users[rec.target];
-      if (u) {
-        u.banned = true;
-        await putUsersRaw(udb);
-        rec.bannedTarget = true;
-        rec.autoBanned = true;
-      } else {
-        rec.banSkip = "目标账号不存在于用户库，未封禁";
+  /* AI 初判违规 → 立即自动封禁被举报人 + 删除原帖（仅注册邮箱可封；
+     游客/管理员只删内容）。后台仍保留记录供复核，误封可在账号管理解封。 */
+  if (!aiSkipped && ai.violates) {
+    /* 删原帖：先删内容再封人，删除失败不阻断封禁 */
+    const del = await deleteContent(rec.kind, rec.targetId);
+    rec.deleted = del.ok;
+    if (!del.ok) rec.deleteSkip = del.why;
+
+    if (rec.target && rec.target !== ADMIN_EMAIL && rec.target.indexOf("guest:") !== 0) {
+      try {
+        const udb = await getUsersRaw();
+        const u = udb.users && udb.users[rec.target];
+        if (u) {
+          u.banned = true;
+          await putUsersRaw(udb);
+          rec.bannedTarget = true;
+          rec.autoBanned = true;
+        } else {
+          rec.banSkip = "目标账号不存在于用户库，未封禁";
+        }
+      } catch (e) {
+        rec.banSkip = "自动封禁失败：" + clamp(e.message, 80);
       }
-    } catch (e) {
-      rec.banSkip = "自动封禁失败：" + clamp(e.message, 80);
+    } else if (rec.target) {
+      rec.banSkip = rec.target === ADMIN_EMAIL ? "目标为管理员，未封禁" : "目标为游客身份，无法服务端封禁";
     }
   }
 
   items.push(rec);
   await writeAll(items);
-  const bannedMsg = rec.autoBanned ? "，被举报人已自动封禁（误封可在账号管理解封）" : "";
+  const parts = [];
+  if (aiSkipped) parts.push("举报已提交，管理员将人工复核");
+  else if (ai.violates) parts.push("举报已提交：AI 判定违规");
+  else parts.push("举报已提交：AI 初判未发现违规，仍由管理员人工复核");
+  if (rec.autoBanned) parts.push("被举报人已自动封禁（误封可在账号管理解封）");
+  if (rec.deleted) parts.push("原内容已删除");
+  if (rec.banSkip) parts.push("⚠ " + rec.banSkip);
+  if (rec.deleteSkip) parts.push("⚠ 内容删除失败：" + rec.deleteSkip);
   return json({
     ok: true,
     ai: { violates: ai.violates, category: ai.category, reason: ai.reason },
     aiSkipped: aiSkipped,
     autoBanned: !!rec.autoBanned,
-    msg: aiSkipped
-      ? "举报已提交，管理员将人工复核"
-      : (ai.violates ? "举报已提交：AI 判定违规" + bannedMsg : "举报已提交：AI 初判该内容未发现违规，仍会由管理员人工复核"),
+    deleted: !!rec.deleted,
+    msg: parts.join("；"),
   });
 };

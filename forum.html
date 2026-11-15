@@ -301,6 +301,7 @@
               reportReason: reason,
               who: me,
               target: p.author || "",
+              targetId: p.id || "",
             }).then(function (r) {
               if (r && r.ok) {
                 var ai = (r.ai || {});
