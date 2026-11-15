@@ -195,6 +195,7 @@
   <script src="crypto.js"></script>
   <script src="ratelimit.js"></script>
   <script src="p2p-file.js"></script>
+  <script src="mod.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-notes-2026";
@@ -329,6 +330,7 @@
               + '<button class="vote ' + (myVote === "up" ? "on-up" : "") + '" data-vote="up" data-id="' + n.id + '">👍 ' + (n.likes || []).length + "</button>"
               + '<button class="vote ' + (myVote === "down" ? "on-down" : "") + '" data-vote="down" data-id="' + n.id + '">👎 ' + (n.dislikes || []).length + "</button>"
               + '<a class="vote-plain" data-cmt="' + n.id + '" style="color:var(--muted); font-size:.85rem; cursor:pointer; margin-left:.6rem;">💬 评论（' + (n.comments || []).length + '）</a>'
+              + '<a class="vote-plain" data-report="' + n.id + '" style="color:var(--muted); font-size:.85rem; cursor:pointer; margin-left:.6rem;">举报</a>'
               + (canDel ? '<a class="del" data-del="' + n.id + '">删除</a>' : "")
               + "</div>"
               + '<div class="cmt-area" id="cmt-' + n.id + '">'
@@ -376,6 +378,33 @@
         }
         var vote = e.target.getAttribute("data-vote");
         var del = e.target.getAttribute("data-del");
+        var rep = e.target.getAttribute("data-report");
+        if (rep) {
+          if (!myKey) { alert("请先登录或进入游客模式再举报"); return; }
+          var reason = prompt("举报理由（将先由 AI 初判，再交管理员人工复核）：");
+          if (reason === null) return;
+          getDB().then(function (db) {
+            var n = (db.notes || []).find(function (x) { return x.id === rep; });
+            if (!n) return;
+            return BPMod.report({
+              kind: "note",
+              content: (n.title ? n.title + "\n" : "") + n.content,
+              reportReason: reason,
+              who: myKey,
+            }).then(function (r) {
+              if (r && r.ok) {
+                var ai = (r.ai || {});
+                alert((r.msg || "举报已提交")
+                  + (r.aiSkipped ? "" : "\n\n🤖 AI 初判：" + (ai.violates ? "疑似违规" : "未发现明显违规")
+                  + "\n理由：" + (ai.reason || "—"))
+                  + "\n\n管理员将人工复核。如对处理结果有异议，可通过首页「联系我们」提交申诉。");
+              } else {
+                alert((r && r.msg) || "举报提交失败，请稍后再试");
+              }
+            });
+          }).catch(function () {});
+          return;
+        }
         if (vote) {
           var id = e.target.getAttribute("data-id");
           getDB().then(function (db) {

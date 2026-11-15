@@ -14,6 +14,13 @@
  * BPMod.listAppeals(token)         管理员：申诉列表
  * BPMod.resolveAppeal(token, id, outcome)  管理员：处理申诉
  *
+ * BPMod.report(payload)           用户举报内容（AI 初判 + 管理员人工复核）
+ *      payload: {kind, content, reportReason, who}
+ *      -> Promise<{ok, ai:{violates,category,reason}, aiSkipped?, msg}>
+ *
+ * BPMod.listReports(token)         管理员：举报列表（含 AI 初判结果）
+ * BPMod.resolveReport(token, id, outcome)  管理员：人工判定举报
+ *
  * 审核模型：智谱 GLM（glm-4-flash，免费），由 Netlify 函数 /api/moderate 代理，
  * API Key 只存在服务端环境变量，前端拿不到。
  */
@@ -60,6 +67,17 @@
     });
   }
 
+  /* ---------- 举报（AI 初判 + 人工复核） ---------- */
+  function report(payload) {
+    payload = payload || {};
+    return call("/api/report", {
+      kind: payload.kind || "",
+      content: String(payload.content || "").slice(0, 6000),
+      reportReason: String(payload.reportReason || "").slice(0, 500),
+      who: payload.who || "",
+    });
+  }
+
   /* ---------- 统一拦截弹窗：违规提示 + 是否申诉 ---------- */
   function blockDialog(text, kind, who, verdict) {
     var name = KIND_NAME[kind] || "内容";
@@ -86,13 +104,22 @@
   function resolveAppeal(token, id, outcome) {
     return call("/api/appeal", { action: "resolve", id: id, outcome: outcome }, token);
   }
+  function listReports(token) {
+    return call("/api/report", null, token, "GET");
+  }
+  function resolveReport(token, id, outcome) {
+    return call("/api/report", { action: "resolve", id: id, outcome: outcome }, token);
+  }
 
   global.BPMod = {
     check: check,
     appeal: appeal,
+    report: report,
     blockDialog: blockDialog,
     listAppeals: listAppeals,
     resolveAppeal: resolveAppeal,
+    listReports: listReports,
+    resolveReport: resolveReport,
     kindName: function (k) { return KIND_NAME[k] || k || "内容"; },
   };
 })(window);

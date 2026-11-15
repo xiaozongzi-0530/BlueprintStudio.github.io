@@ -217,6 +217,23 @@
       <p class="hint" id="apTokenHint" style="margin-top:.8rem;"></p>
     </div>
 
+    <!-- 内容举报（AI 初判 → 管理员人工判定） -->
+    <div id="reportWrap" class="hidden" style="margin-top:2.2rem;">
+      <h2 style="font-size:1.15rem; margin-bottom:.4rem;">🚩 内容举报（AI 初判 → 人工判定）</h2>
+      <p class="sub" style="margin-bottom:1rem;">
+        用户举报的内容会先经 GLM-4-Flash AI 初判，这里展示初判结果与举报理由，由管理员做最终人工判定。<br>
+        判「举报成立」后请回对应版块删除违规内容；判「驳回举报」则不做处理。
+      </p>
+      <div class="toolbar">
+        <span style="color:var(--muted); font-size:.85rem;">待处理 <b id="rpPending" style="color:var(--warn);">0</b> 条</span>
+        <span class="spacer" style="flex:1;"></span>
+        <button class="btn ghost" id="rpReload">刷新举报</button>
+      </div>
+      <div class="log-list" id="rpList"></div>
+      <div class="empty hidden" id="rpEmpty"><span class="ico">✅</span>没有举报记录。</div>
+      <p class="hint" id="rpTokenHint" style="margin-top:.8rem;"></p>
+    </div>
+
     <div class="panel lock hidden" id="errBox">
       <div class="ico">⚠️</div>
       <h2>日志读取失败</h2>
@@ -498,12 +515,107 @@
 
   $("apReload").addEventListener("click", loadAppeals);
 
+  /* ---------- 内容举报（AI 初判 + 人工判定） ---------- */
+  var reports = [];
+
+  function loadReports() {
+    var tok = "";
+    try { tok = localStorage.getItem("bs_token_v1") || ""; } catch (e) {}
+    if (!tok) {
+      $("rpTokenHint").innerHTML = "⚠️ 本地没有 API token，无法读取举报。请回<a href='index.html'>首页</a>重新登录管理员账号后再来。";
+      return Promise.resolve();
+    }
+    $("rpReload").disabled = true;
+    return BPMod.listReports(tok)
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.msg || "读取失败");
+        reports = Array.isArray(r.items) ? r.items : [];
+        renderReports();
+      })
+      .catch(function (e) {
+        $("rpTokenHint").textContent = "举报读取失败：" + ((e && e.message) || "网络异常") + "（token 可能已过期，回首页重新登录可刷新）";
+      })
+      .then(function () { $("rpReload").disabled = false; });
+  }
+
+  function renderReports() {
+    var list = $("rpList");
+    list.innerHTML = "";
+    var pending = 0;
+    reports.forEach(function (a) {
+      if (a.status === "pending") pending++;
+      var box = el("div", "log " + (a.status === "pending" ? "warn" : "info"));
+      var head = el("div", "log-head");
+      head.appendChild(el("span", "tag " + (a.status === "pending" ? "warn" : "info"), a.status === "pending" ? "待判定" : "已判定"));
+      head.appendChild(el("span", "tag src", BPMod.kindName(a.kind)));
+      head.appendChild(el("span", null, fmtTime(a.t)));
+      head.appendChild(el("span", null, "举报人：" + (a.who || "匿名")));
+      if (a.status !== "pending") head.appendChild(el("span", null, "人工判定：" + (a.outcome || "—") + "（" + fmtTime(a.handledAt) + "）"));
+      box.appendChild(head);
+
+      /* AI 初判结果 */
+      var ai = a.ai || {};
+      var aiBox = el("div", "log-msg");
+      var aiTag = a.aiSkipped ? "（跳过 AI 初判）" : (ai.violates ? "疑似违规" : "未发现明显违规");
+      aiBox.innerHTML = "<b style='color:" + (ai.violates && !a.aiSkipped ? "var(--err);" : "var(--info);") + "'>🤖 AI 初判：" + aiTag + "</b>";
+      aiBox.appendChild(document.createTextNode("　" + (ai.reason || "")));
+      box.appendChild(aiBox);
+
+      var why = el("div", "log-meta");
+      why.textContent = "举报理由：" + (a.reportReason || "（无）");
+      box.appendChild(why);
+
+      var d = document.createElement("details");
+      var sm = document.createElement("summary");
+      sm.textContent = "查看被举报原文";
+      d.appendChild(sm);
+      d.appendChild(el("pre", null, a.content || ""));
+      d.style.marginTop = ".45rem";
+      var pre = d.querySelector("pre");
+      pre.style.cssText = "white-space:pre-wrap;word-break:break-word;color:var(--muted);font-size:.82rem;margin-top:.45rem;line-height:1.7;";
+      box.appendChild(d);
+
+      if (a.status === "pending") {
+        var row = el("div", "log-meta");
+        row.style.marginTop = ".6rem";
+        var bOk = el("button", "btn danger", "人工判定：举报成立");
+        bOk.style.cssText = "margin:0 .5rem 0 0; padding:.35rem .9rem; font-size:.8rem;";
+        bOk.onclick = function () { resolveReport(a.id, "举报成立（建议删除内容）"); };
+        var bNo = el("button", "btn ghost", "人工判定：驳回举报");
+        bNo.style.cssText = "margin:0; padding:.35rem .9rem; font-size:.8rem;";
+        bNo.onclick = function () { resolveReport(a.id, "驳回举报"); };
+        row.appendChild(bOk);
+        row.appendChild(bNo);
+        box.appendChild(row);
+      }
+      list.appendChild(box);
+    });
+    $("rpPending").textContent = pending;
+    $("rpEmpty").classList.toggle("hidden", reports.length > 0);
+  }
+
+  function resolveReport(id, outcome) {
+    var tok = "";
+    try { tok = localStorage.getItem("bs_token_v1") || ""; } catch (e) {}
+    if (!tok) { alert("token 缺失，请回首页重新登录"); return; }
+    BPMod.resolveReport(tok, id, outcome).then(function (r) {
+      if (!r.ok) throw new Error(r.msg || "处理失败");
+      return loadReports();
+    }).catch(function (e) {
+      alert("处理失败：" + ((e && e.message) || "网络异常"));
+    });
+  }
+
+  $("rpReload").addEventListener("click", loadReports);
+
   /* ---------- 启动 ---------- */
   checkAdmin().then(function (r) {
     if (!r.ok) { showLock(r.reason); return; }
     $("appealWrap").classList.remove("hidden");
+    $("reportWrap").classList.remove("hidden");
     loadLogs();
     loadAppeals();
+    loadReports();
   });
 })();
 </script>

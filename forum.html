@@ -145,6 +145,7 @@
   <script src="crypto.js"></script>
   <script src="ratelimit.js"></script>
   <script src="p2p-file.js"></script>
+  <script src="mod.js"></script>
   <script>
     (function () {
       var DB = "https://textdb.dev/api/data/blueprintstudio-forum-2026";
@@ -285,16 +286,33 @@
         var del = e.target.getAttribute("data-del");
         if (rep) {
           if (!me) { alert("请先登录再举报"); return; }
-          var reason = prompt("举报理由（将提交给管理员）：");
+          var reason = prompt("举报理由（将先由 AI 初判，再交管理员人工复核）：");
           if (reason === null) return;
           getDB().then(function (db) {
             var p = (db.posts || []).find(function (x) { return x.id === rep; });
             if (!p) return;
             p.reports = p.reports || [];
-            if (p.reports.indexOf(me) !== -1) { alert("你已举报过该帖"); return; }
+            if (p.reports.indexOf(me) !== -1) { alert("你已举报过该帖"); return Promise.reject("dup"); }
             p.reports.push(me + ": " + (reason || "无"));
-            return saveDB(db).then(function () { alert("举报已提交，管理员会尽快处理"); render(); });
-          });
+            /* AI 初判 + 管理员人工复核：结果存在服务端私有库，不进公开帖子库 */
+            return BPMod.report({
+              kind: "forum",
+              content: p.content,
+              reportReason: reason,
+              who: me,
+            }).then(function (r) {
+              if (r && r.ok) {
+                var ai = (r.ai || {});
+                alert((r.msg || "举报已提交")
+                  + (r.aiSkipped ? "" : "\n\n🤖 AI 初判：" + (ai.violates ? "疑似违规" : "未发现明显违规")
+                  + "\n理由：" + (ai.reason || "—"))
+                  + "\n\n管理员将人工复核。如对处理结果有异议，可通过首页「联系我们」或邮件 blueprintstudio@yeah.net 提交申诉。");
+              } else {
+                alert((r && r.msg) || "举报已记录，AI 初判暂不可用");
+              }
+              return saveDB(db).then(render);
+            });
+          }).catch(function (e) { if (e !== "dup") console.warn(e); });
         }
         if (del) {
           if (!confirm("确定删除该帖？")) return;

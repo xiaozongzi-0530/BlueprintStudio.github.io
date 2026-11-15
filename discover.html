@@ -470,7 +470,8 @@
             + (tags ? '<div class="itags">' + tags + "</div>" : "")
             + (links ? '<div class="links">' + links + "</div>" : "")
             + '<div class="item-foot"><span>by ' + esc(it.nick || "匿名")
-            + (it.uid ? " · " + esc(it.uid) : "") + "</span>" + del + "</div>"
+            + (it.uid ? " · " + esc(it.uid) : "") + "</span>"
+            + '<span class="del" style="margin-left:.8rem;" data-report="' + id + '">举报</span>' + del + "</div>"
             + "</div>";
         }).join("");
 
@@ -538,6 +539,31 @@
           return;
         }
         var del = e.target.getAttribute("data-del");
+        var rep = e.target.getAttribute("data-report");
+        if (rep) {
+          if (!me && !guestId) { alert("请先登录或发布过作品后再举报"); return; }
+          var target = all.filter(function (x) { return x.id === rep; })[0];
+          if (!target) return;
+          var reason = prompt("举报理由（将先由 AI 初判，再交管理员人工复核）：");
+          if (reason === null) return;
+          BPMod.report({
+            kind: "discover",
+            content: (target.name ? target.name + "\n" : "") + (target.desc || ""),
+            reportReason: reason,
+            who: me || ("guest:" + ensureGuestId()),
+          }).then(function (r) {
+            if (r && r.ok) {
+              var ai = (r.ai || {});
+              alert((r.msg || "举报已提交")
+                + (r.aiSkipped ? "" : "\n\n🤖 AI 初判：" + (ai.violates ? "疑似违规" : "未发现明显违规")
+                + "\n理由：" + (ai.reason || "—"))
+                + "\n\n管理员将人工复核。如对处理结果有异议，可通过首页「联系我们」提交申诉。");
+            } else {
+              alert((r && r.msg) || "举报提交失败，请稍后再试");
+            }
+          }).catch(function () { alert("举报提交失败，请稍后再试"); });
+          return;
+        }
         if (del) {
           var target = all.filter(function (x) { return x.id === del; })[0];
           if (!target) return;
