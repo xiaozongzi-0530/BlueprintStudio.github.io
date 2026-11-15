@@ -708,10 +708,18 @@
       var TS_SITEKEY = "0x4AAAAAAF4SrhJkjWnIRl3K";
       var tsWidgetId = null;
       var tsReady = false;
+      var tsSkip = false;
       var tsGuestWidgetId = null;
       var tsGuestReady = false;
+      var tsGuestSkip = false;
 
       window.onTurnstileLoad = function () {
+        /* Cloudflare 故障兜底：部件渲染 10 秒后仍未通过验证，就放行不再卡人
+           （CF 全球故障时 Turnstile 一直 pending，否则登录会死循环） */
+        setTimeout(function () {
+          if (!tsReady) { tsSkip = true; }
+          if (!tsGuestReady) { tsGuestSkip = true; }
+        }, 10000);
         try {
           tsWidgetId = window.turnstile.render("#tsBox", {
             sitekey: TS_SITEKEY,
@@ -981,8 +989,9 @@
         if (mode === "register" && !nick) { setStatus("请填写昵称", "err"); return; }
         if (!valid(email, pass)) { setStatus("邮箱格式不正确，或密码少于6位", "err"); return; }
 
-        /* 人机验证：部件已就绪但还没通过时，提示稍候并触发一次 */
-        if (tsWidgetId !== null && !tsReady) {
+        /* 人机验证：部件已就绪但还没通过时，提示稍候并触发一次；
+           Cloudflare 故障时 10 秒后自动放行（tsSkip），不把用户卡死 */
+        if (tsWidgetId !== null && !tsReady && !tsSkip) {
           setStatus("正在进行人机验证，请稍候再点一次…");
           tsRefresh();
           return;
@@ -1550,8 +1559,8 @@
         if (/^[\s\u0000-\u001f]+$/.test(nick)) { st.textContent = "昵称不能只有空字符"; st.className = "err"; return; }
         nick = nick.slice(0, 12);
 
-        /* 游客也必须通过独立的人机验证，不复用账号弹窗的验证状态 */
-        if (tsGuestWidgetId !== null && !tsGuestReady) {
+        /* 游客也必须通过独立的人机验证，不复用账号弹窗的验证状态（CF 故障 10 秒后放行） */
+        if (tsGuestWidgetId !== null && !tsGuestReady && !tsGuestSkip) {
           st.textContent = "请先完成人机验证，再进入游客模式";
           st.className = "err";
           tsGuestRefresh();
