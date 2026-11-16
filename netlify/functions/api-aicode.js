@@ -140,12 +140,12 @@ export default async (req) => {
       signal: ctrl.signal,
     });
     if (!r.ok) {
-      let code = r.status;
+      let detail = "HTTP " + r.status;
       try {
         const errBody = await r.json();
-        if (errBody && errBody.error && errBody.error.code === 1305) code = 1305;
+        if (errBody && errBody.error) detail += " code=" + errBody.error.code + " " + clamp(errBody.error.message, 80);
       } catch (e) {}
-      throw new Error("GLM HTTP " + code);
+      throw new Error("GLM " + detail);
     }
     const data = await r.json();
     const msg = data && data.choices && data.choices[0] && data.choices[0].message || {};
