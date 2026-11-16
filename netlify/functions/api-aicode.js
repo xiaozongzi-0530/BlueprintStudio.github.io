@@ -114,9 +114,8 @@ export default async (req) => {
     }
     const data = await r.json();
     const msg = data && data.choices && data.choices[0] && data.choices[0].message || {};
-    /* z1 等推理模型把思考过程放在 reasoning_content，拼进正文方便查看 */
-    return [msg.reasoning_content ? "【思考过程】\n" + msg.reasoning_content : "",
-            msg.content || ""].filter(Boolean).join("\n\n---\n\n");
+    /* 不展示思考过程：只取正文 */
+    return msg.content || "";
   }
 
   try {
