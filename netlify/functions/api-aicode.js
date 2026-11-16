@@ -114,8 +114,8 @@ export default async (req) => {
     }
     const data = await r.json();
     const msg = data && data.choices && data.choices[0] && data.choices[0].message || {};
-    /* 不展示思考过程：只取正文 */
-    return msg.content || "";
+    /* 不展示思考过程：剥掉 <think>...</think>（z1 系列把思考嵌在正文里），只留正文 */
+    return (msg.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   }
 
   try {
