@@ -24,6 +24,7 @@ const MODELS = {
   "glm-4.7-flash": { name: "GLM-4.7-Flash", temp: 0.3 },
   "glm-z1-flash": { name: "GLM-Z1-Flash", temp: 0.6 },
   "glm-4-flash-250414": { name: "GLM-4-Flash", temp: 0.3 },
+  "glm-4.1v-thinking-flash": { name: "GLM-4.1V-Thinking-Flash", temp: 0.6 },
 };
 const DEFAULT_MODEL = "glm-4.7-flash";
 
