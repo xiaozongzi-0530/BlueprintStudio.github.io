@@ -116,10 +116,13 @@
         </div>
         <textarea id="prompt" maxlength="3000"
           placeholder="描述需求、粘贴代码或继续追问，例如「把上面的函数改成支持 UTF-8」。Ctrl+Enter 发送"></textarea>
+        <div id="attachBar" style="display:none; margin-top:.6rem; font-size:.82rem; color:var(--accent2);"></div>
+        <input type="file" id="attachInput" style="display:none;" accept="image/*,.txt,.js,.py,.java,.cpp,.go,.html,.css,.json,.md,.sql,.sh,.ts">
         <div class="row">
           <label style="color:var(--muted); font-size:.85rem;">模型</label>
           <select id="model">
             <option value="glm-4.7-flash">GLM-4.7-Flash · 聊天/编程/推理（默认）</option>
+            <option value="glm-4.6v-flash">GLM-4.6V-Flash · 图片理解（可传截图）</option>
             <option value="glm-4.1v-thinking-flash">GLM-4.1V-Thinking-Flash · 图文理解/推理</option>
             <option value="glm-z1-flash">GLM-Z1-Flash · 逻辑推理/数学</option>
             <option value="glm-4-flash-250414">GLM-4-Flash · 普通聊天（旧型号）</option>
@@ -139,6 +142,7 @@
           </select>
           <button class="btn ghost" id="clearMsgs" title="清空当前任务的对话记录">🧹 清空对话</button>
           <span style="flex:1;"></span>
+          <button class="btn ghost" id="attachBtn" title="附加截图或代码文件（图片≤1.5MB 自动交给视觉模型，文本≤40KB）">📎 附件</button>
           <button class="btn" id="goBtn">🚀 发送</button>
         </div>
         <div class="status" id="status"></div>
@@ -171,10 +175,35 @@
   var busy = false;
   var MODEL_NAME = {
     "glm-4.7-flash": "GLM-4.7-Flash",
+    "glm-4.6v-flash": "GLM-4.6V-Flash",
     "glm-4.1v-thinking-flash": "GLM-4.1V-Thinking-Flash",
     "glm-z1-flash": "GLM-Z1-Flash",
     "glm-4-flash-250414": "GLM-4-Flash",
   };
+
+  /* ---------- 附件 ---------- */
+  var attach = null;   /* {name, mime, data} 图片=base64 文本=纯文本 */
+  $("attachBtn").onclick = function () { $("attachInput").click(); };
+  $("attachInput").addEventListener("change", function () {
+    var f = this.files[0];
+    this.value = "";
+    if (!f) return;
+    if (f.size > 1.5 * 1024 * 1024 && !/^text\//.test(f.type)) { alert("图片请小于 1.5MB"); return; }
+    if (f.size > 60 * 1024) { alert("文本文件请小于 60KB"); return; }
+    var isImg = /^image\//.test(f.type);
+    var rd = new FileReader();
+    rd.onload = function () {
+      attach = isImg
+        ? { name: f.name, mime: f.type, data: String(rd.result).split(",")[1] }
+        : { name: f.name, mime: "text/plain", data: String(rd.result) };
+      var bar = $("attachBar");
+      bar.style.display = "";
+      bar.innerHTML = "📎 已附加：" + attach.name.replace(/</g, "&lt;")
+        + ' <a href="javascript:void(0)" id="attachDel" style="color:var(--err); margin-left:.5rem;">移除</a>';
+      document.getElementById("attachDel").onclick = function () { attach = null; bar.style.display = "none"; bar.innerHTML = ""; };
+    };
+    if (isImg) rd.readAsDataURL(f); else rd.readAsText(f);
+  });
 
   /* ---------- 本地存储 ---------- */
   function load() {
@@ -330,6 +359,7 @@
     /* 组装多轮上下文（本次输入暂不入库，成功后再存） */
     var history = t.msgs.slice(-8).map(function (m) { return { role: m.role, content: m.content }; });
     var payload = { prompt: prompt, lang: $("lang").value, mode: mode, model: $("model").value, history: history };
+    if (attach) payload.attach = [attach];
 
     fetch(BASE + "/api/aicode", {
       method: "POST",
@@ -338,10 +368,12 @@
     }).then(function (r) { return r.json(); }).then(function (res) {
       if (!res.ok) throw new Error(res.msg || "生成失败");
       status.textContent = "完成" + (res.fallback ? "（所选模型过载，已自动切换备用模型）" : "") + "，用时 " + ((Date.now() - started) / 1000).toFixed(1) + " 秒";
-      t.msgs.push({ role: "user", content: prompt });
+      t.msgs.push({ role: "user", content: prompt + (attach ? "\n\n📎 附件：" + attach.name : "") });
       t.msgs.push({ role: "assistant", content: res.text, model: MODEL_NAME[$("model").value] || "GLM" });
       save();
       $("prompt").value = "";
+      attach = null;
+      $("attachBar").style.display = "none"; $("attachBar").innerHTML = "";
       renderTasks(); renderChat();
     }).catch(function (e) {
       status.className = "status err";

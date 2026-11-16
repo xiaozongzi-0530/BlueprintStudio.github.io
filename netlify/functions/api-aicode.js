@@ -25,8 +25,10 @@ const MODELS = {
   "glm-z1-flash": { name: "GLM-Z1-Flash", temp: 0.6 },
   "glm-4-flash-250414": { name: "GLM-4-Flash", temp: 0.3 },
   "glm-4.1v-thinking-flash": { name: "GLM-4.1V-Thinking-Flash", temp: 0.6 },
+  "glm-4.6v-flash": { name: "GLM-4.6V-Flash", temp: 0.6 },
 };
 const DEFAULT_MODEL = "glm-4.7-flash";
+const VISION_MODELS = ["glm-4.6v-flash", "glm-4.1v-thinking-flash"];
 
 const MAX_PROMPT = 3000;
 const MAX_OUTPUT = 4000;   // max_tokens
@@ -84,7 +86,39 @@ export default async (req) => {
     : [];
   if (history.length > 12) history.length = 12;
 
-  const messages = [{ role: "system", content: SYSTEM }].concat(history, [{ role: "user", content: userMsg }]);
+  const messages = [{ role: "system", content: SYSTEM }].concat(history, [buildUserMsg(userMsg, body.attach)]);
+
+  /* ---------- 附件处理 ----------
+     attach: [{name, mime, data}]  data：图片=纯 base64（≤1.5MB）；文本=UTF-8 文本（≤40KB）
+     带图片时自动改用视觉模型；文本附件直接拼进需求 */
+  function buildUserMsg(text, attach) {
+    const files = Array.isArray(attach) ? attach.slice(0, 3) : [];
+    const imgs = [], txts = [];
+    for (const f of files) {
+      if (!f || typeof f.data !== "string") continue;
+      if (/^image\//.test(String(f.mime)) && f.data.length <= 2 * 1024 * 1024) {
+        imgs.push(f);
+      } else if (f.data.length <= 40 * 1024) {
+        txts.push(f);
+      }
+    }
+    let textOut = text;
+    for (const t of txts) {
+      textOut += "\n\n【附件文件：" + clamp(t.name, 60) + "】\n```\n" + t.data + "\n```";
+    }
+    if (imgs.length) {
+      const content = imgs.map(im => ({ type: "image_url", image_url: { url: "data:" + clamp(im.mime, 40) + ";base64," + im.data } }));
+      content.push({ type: "text", text: textOut });
+      return content;
+    }
+    return textOut;
+  }
+
+  /* 带图片附件但选的不是视觉模型 → 自动切 glm-4.6v-flash */
+  const hasImage = Array.isArray(body.attach) && body.attach.some(f => f && /^image\//.test(String(f.mime)) && typeof f.data === "string");
+  let effModelKey = modelKey;
+  if (hasImage && VISION_MODELS.indexOf(effModelKey) === -1) effModelKey = "glm-4.6v-flash";
+  const effMc = MODELS[effModelKey];
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 55000);   // 代码生成比审核慢，放宽到 55 秒
@@ -120,12 +154,12 @@ export default async (req) => {
   }
 
   try {
-    let text, usedModel = modelKey, fellBack = false;
+    let text, usedModel = effModelKey, fellBack = false;
     try {
-      text = await callOnce(modelKey, mc.temp);
+      text = await callOnce(effModelKey, effMc.temp);
     } catch (e) {
       /* 主选模型过载 → 自动降级到备用模型 */
-      if ((e.message.indexOf("429") !== -1 || e.message.indexOf("1305") !== -1) && modelKey !== "glm-4-flash-250414") {
+      if ((e.message.indexOf("429") !== -1 || e.message.indexOf("1305") !== -1) && effModelKey !== "glm-4-flash-250414") {
         text = await callOnce("glm-4-flash-250414", 0.3);
         usedModel = "glm-4-flash-250414";
         fellBack = true;
