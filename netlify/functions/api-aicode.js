@@ -87,7 +87,9 @@ export default async (req) => {
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 55000);   // 代码生成比审核慢，放宽到 55 秒
-  try {
+
+  /* 单次调用；模型过载（429/1305）时抛出可识别错误 */
+  async function callOnce(modelKey, temp) {
     const r = await fetch(GLM_URL, {
       method: "POST",
       headers: {
@@ -97,21 +99,45 @@ export default async (req) => {
       body: JSON.stringify({
         model: modelKey,
         messages: messages,
-        temperature: mc.temp,
+        temperature: temp,
         max_tokens: modelKey === "glm-z1-flash" ? 6000 : MAX_OUTPUT,
       }),
       signal: ctrl.signal,
     });
-    if (!r.ok) throw new Error("GLM HTTP " + r.status);
+    if (!r.ok) {
+      let code = r.status;
+      try {
+        const errBody = await r.json();
+        if (errBody && errBody.error && errBody.error.code === 1305) code = 1305;
+      } catch (e) {}
+      throw new Error("GLM HTTP " + code);
+    }
     const data = await r.json();
     const msg = data && data.choices && data.choices[0] && data.choices[0].message || {};
     /* z1 等推理模型把思考过程放在 reasoning_content，拼进正文方便查看 */
-    const text = [msg.reasoning_content ? "【思考过程】\n" + msg.reasoning_content : "",
-                  msg.content || ""].filter(Boolean).join("\n\n---\n\n");
+    return [msg.reasoning_content ? "【思考过程】\n" + msg.reasoning_content : "",
+            msg.content || ""].filter(Boolean).join("\n\n---\n\n");
+  }
+
+  try {
+    let text, usedModel = modelKey, fellBack = false;
+    try {
+      text = await callOnce(modelKey, mc.temp);
+    } catch (e) {
+      /* 主选模型过载 → 自动降级到备用模型 */
+      if ((e.message.indexOf("429") !== -1 || e.message.indexOf("1305") !== -1) && modelKey !== "glm-4-flash-250414") {
+        text = await callOnce("glm-4-flash-250414", 0.3);
+        usedModel = "glm-4-flash-250414";
+        fellBack = true;
+      } else {
+        throw e;
+      }
+    }
     if (!text.trim()) throw new Error("GLM 返回为空");
-    return json({ ok: true, text: text.slice(0, 8000) });
+    return json({ ok: true, text: text.slice(0, 8000), model: MODELS[usedModel].name, fallback: fellBack });
   } catch (e) {
-    return json({ ok: false, msg: "AI 生成失败：" + clamp(e.message, 100) }, 502);
+    const over = e.message.indexOf("1305") !== -1 || e.message.indexOf("429") !== -1;
+    return json({ ok: false, msg: over ? "所选模型当前访问量过大，请稍后再试或换个模型" : "AI 生成失败：" + clamp(e.message, 100) }, 502);
   } finally {
     clearTimeout(timer);
   }

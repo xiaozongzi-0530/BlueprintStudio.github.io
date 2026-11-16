@@ -335,7 +335,7 @@
       body: JSON.stringify(payload),
     }).then(function (r) { return r.json(); }).then(function (res) {
       if (!res.ok) throw new Error(res.msg || "生成失败");
-      status.textContent = "完成，用时 " + ((Date.now() - started) / 1000).toFixed(1) + " 秒";
+      status.textContent = "完成" + (res.fallback ? "（所选模型过载，已自动切换备用模型）" : "") + "，用时 " + ((Date.now() - started) / 1000).toFixed(1) + " 秒";
       t.msgs.push({ role: "user", content: prompt });
       t.msgs.push({ role: "assistant", content: res.text, model: MODEL_NAME[$("model").value] || "GLM" });
       save();
