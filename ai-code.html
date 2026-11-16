@@ -105,7 +105,7 @@
     <!-- 工作区 -->
     <div id="work">
       <h1 style="font-size:1.6rem; margin-bottom:.4rem;">AI <em style="font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;">写代码</em></h1>
-      <p style="color:var(--muted); font-size:.9rem; margin-bottom:1.2rem;">多任务 · 任务内多轮对话，支持追问和继续修改。powered by GLM-4-Flash。</p>
+      <p style="color:var(--muted); font-size:.9rem; margin-bottom:1.2rem;">多任务 · 任务内多轮对话，支持追问和继续修改。三款免费模型可选。</p>
 
       <div class="card">
         <div class="mode-tabs" id="modeTabs">
@@ -119,8 +119,9 @@
         <div class="row">
           <label style="color:var(--muted); font-size:.85rem;">模型</label>
           <select id="model">
-            <option value="glm">GLM-4-Flash（可用）</option>
-            <option value="deepseek">DeepseekV4</option>
+            <option value="glm-4.7-flash">GLM-4.7-Flash · 聊天/编程/推理（默认）</option>
+            <option value="glm-z1-flash">GLM-Z1-Flash · 逻辑推理/数学</option>
+            <option value="glm-4-flash-250414">GLM-4-Flash · 普通聊天（旧型号）</option>
           </select>
           <label style="color:var(--muted); font-size:.85rem;">语言</label>
           <select id="lang">
@@ -167,6 +168,11 @@
   var curId = null;
   var mode = "chat";
   var busy = false;
+  var MODEL_NAME = {
+    "glm-4.7-flash": "GLM-4.7-Flash",
+    "glm-z1-flash": "GLM-Z1-Flash",
+    "glm-4-flash-250414": "GLM-4-Flash",
+  };
 
   /* ---------- 本地存储 ---------- */
   function load() {
@@ -252,7 +258,7 @@
       div.className = "chat-msg " + (m.role === "user" ? "me" : "ai");
       var who = document.createElement("div");
       who.className = "who";
-      who.innerHTML = "<b>" + (m.role === "user" ? "🧑 我" : "🤖 GLM-4-Flash") + "</b>";
+      who.innerHTML = "<b>" + (m.role === "user" ? "🧑 我" : "🤖 " + (m.model || "GLM")) + "</b>";
       div.appendChild(who);
       if (m.role === "user") {
         var p = document.createElement("div");
@@ -310,12 +316,6 @@
   function send() {
     if (busy) return;
     var status = $("status");
-    /* DeepseekV4 尚未接入 */
-    if ($("model").value === "deepseek") {
-      status.className = "status err";
-      status.textContent = "🚧 DeepseekV4 正在开发，请稍后";
-      return;
-    }
     var prompt = $("prompt").value.trim();
     if (!prompt) { status.textContent = "请先输入内容"; status.className = "status err"; return; }
     var t = cur();
@@ -327,7 +327,7 @@
 
     /* 组装多轮上下文（本次输入暂不入库，成功后再存） */
     var history = t.msgs.slice(-8).map(function (m) { return { role: m.role, content: m.content }; });
-    var payload = { prompt: prompt, lang: $("lang").value, mode: mode, history: history };
+    var payload = { prompt: prompt, lang: $("lang").value, mode: mode, model: $("model").value, history: history };
 
     fetch(BASE + "/api/aicode", {
       method: "POST",
@@ -337,7 +337,7 @@
       if (!res.ok) throw new Error(res.msg || "生成失败");
       status.textContent = "完成，用时 " + ((Date.now() - started) / 1000).toFixed(1) + " 秒";
       t.msgs.push({ role: "user", content: prompt });
-      t.msgs.push({ role: "assistant", content: res.text });
+      t.msgs.push({ role: "assistant", content: res.text, model: MODEL_NAME[$("model").value] || "GLM" });
       save();
       $("prompt").value = "";
       renderTasks(); renderChat();

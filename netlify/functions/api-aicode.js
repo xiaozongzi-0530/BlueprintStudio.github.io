@@ -12,9 +12,20 @@
    环境变量：GLM_API_KEY（已配置）
 */
 import { json, preflight, clientIP, rateLimit } from "./_lib.js";
-import { GLM_URL, MODEL } from "./_glm.js";
+import { GLM_URL } from "./_glm.js";
 
 export const config = { path: "/api/aicode" };
+
+/* 可用模型白名单（均为智谱免费/长期免费档）
+   glm-4.7-flash        文字聊天、编程、推理（默认）
+   glm-z1-flash         逻辑推理、数学
+   glm-4-flash-250414   普通文字聊天（免费档旧型号） */
+const MODELS = {
+  "glm-4.7-flash": { name: "GLM-4.7-Flash", temp: 0.3 },
+  "glm-z1-flash": { name: "GLM-Z1-Flash", temp: 0.6 },
+  "glm-4-flash-250414": { name: "GLM-4-Flash", temp: 0.3 },
+};
+const DEFAULT_MODEL = "glm-4.7-flash";
 
 const MAX_PROMPT = 3000;
 const MAX_OUTPUT = 4000;   // max_tokens
@@ -47,6 +58,9 @@ export default async (req) => {
   if (!prompt) return json({ ok: false, msg: "需求描述不能为空" }, 400);
   const lang = clamp(body.lang, 20);
   const mode = clamp(body.mode, 10) || "generate";
+  /* 模型路由：不在白名单一律回退默认模型 */
+  const modelKey = MODELS[clamp(body.model, 40)] ? clamp(body.model, 40) : DEFAULT_MODEL;
+  const mc = MODELS[modelKey];
 
   const apiKey = process.env.GLM_API_KEY;
   if (!apiKey) return json({ ok: false, msg: "AI 服务未配置，请联系管理员" }, 503);
@@ -81,17 +95,19 @@ export default async (req) => {
         "Authorization": "Bearer " + apiKey,
       },
       body: JSON.stringify({
-        model: MODEL,
+        model: modelKey,
         messages: messages,
-        temperature: 0.3,
-        max_tokens: MAX_OUTPUT,
+        temperature: mc.temp,
+        max_tokens: modelKey === "glm-z1-flash" ? 6000 : MAX_OUTPUT,
       }),
       signal: ctrl.signal,
     });
     if (!r.ok) throw new Error("GLM HTTP " + r.status);
     const data = await r.json();
-    const text = data && data.choices && data.choices[0] &&
-      data.choices[0].message && data.choices[0].message.content || "";
+    const msg = data && data.choices && data.choices[0] && data.choices[0].message || {};
+    /* z1 等推理模型把思考过程放在 reasoning_content，拼进正文方便查看 */
+    const text = [msg.reasoning_content ? "【思考过程】\n" + msg.reasoning_content : "",
+                  msg.content || ""].filter(Boolean).join("\n\n---\n\n");
     if (!text.trim()) throw new Error("GLM 返回为空");
     return json({ ok: true, text: text.slice(0, 8000) });
   } catch (e) {
