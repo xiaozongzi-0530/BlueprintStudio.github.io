@@ -367,7 +367,7 @@
       body: JSON.stringify(payload),
     }).then(function (r) { return r.json(); }).then(function (res) {
       if (!res.ok) throw new Error(res.msg || "生成失败");
-      status.textContent = "完成" + (res.fallback ? "（所选模型过载，已自动切换备用模型）" : "") + "，用时 " + ((Date.now() - started) / 1000).toFixed(1) + " 秒";
+      status.textContent = "完成" + (res.geoFallback ? "（当前节点不支持所选模型，已自动切换通用模式）" : (res.fallback ? "（所选模型过载，已自动切换备用模型）" : "")) + "，用时 " + ((Date.now() - started) / 1000).toFixed(1) + " 秒";
       t.msgs.push({ role: "user", content: prompt + (attach ? "\n\n📎 附件：" + attach.name : "") });
       t.msgs.push({ role: "assistant", content: res.text, model: MODEL_NAME[$("model").value] || "GLM" });
       save();

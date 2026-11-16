@@ -26,9 +26,23 @@ const MODELS = {
   "glm-4-flash-250414": { name: "GLM-4-Flash", temp: 0.3 },
   "glm-4.1v-thinking-flash": { name: "GLM-4.1V-Thinking-Flash", temp: 0.6 },
   "glm-4.6v-flash": { name: "GLM-4.6V-Flash", temp: 0.6 },
+  "glm-4-flash": { name: "GLM-4-Flash（通用）", temp: 0.3 },  /* 海外节点唯一稳定可用的兜底模型 */
 };
 const DEFAULT_MODEL = "glm-4.7-flash";
+const SAFE_MODEL = "glm-4-flash";   /* 地域/兼容兜底：智谱老型号，国内海外都可用 */
 const VISION_MODELS = ["glm-4.6v-flash", "glm-4.1v-thinking-flash"];
+
+/* 降级到纯文本模型时，剥掉 messages 里的 image_url，只保留文字 */
+function textOnlyMessages(msgs) {
+  return msgs.map(function (m) {
+    if (Array.isArray(m.content)) {
+      var txt = m.content.filter(function (x) { return x && x.type === "text"; })
+        .map(function (x) { return x.text; }).join("\n");
+      return { role: m.role, content: txt || "（当前为兼容模式，无法读取图片，请文字描述图片内容）" };
+    }
+    return m;
+  });
+}
 
 const MAX_PROMPT = 3000;
 const MAX_OUTPUT = 4000;   // max_tokens
@@ -124,7 +138,7 @@ export default async (req) => {
   const timer = setTimeout(() => ctrl.abort(), 55000);   // 代码生成比审核慢，放宽到 55 秒
 
   /* 单次调用；模型过载（429/1305）时抛出可识别错误 */
-  async function callOnce(modelKey, temp) {
+  async function callOnce(modelKey, temp, textOnly) {
     const r = await fetch(GLM_URL, {
       method: "POST",
       headers: {
@@ -133,7 +147,7 @@ export default async (req) => {
       },
       body: JSON.stringify({
         model: modelKey,
-        messages: messages,
+        messages: textOnly ? textOnlyMessages(messages) : messages,
         temperature: temp,
         max_tokens: modelKey === "glm-z1-flash" ? 6000 : MAX_OUTPUT,
       }),
@@ -154,27 +168,45 @@ export default async (req) => {
   }
 
   try {
-    let text, usedModel = effModelKey, fellBack = false;
-    /* 降级目标：图片请求只能在视觉模型间切换，纯文本降级到 4-flash */
-    const fbModel = hasImage
+    let text, usedModel = effModelKey, fellBack = false, geoFallback = false;
+
+    /* 候选降级链：
+       1) 主模型（用户所选 / 图片自动切视觉模型）
+       2) 同类备用（过载时：视觉↔视觉，纯文本→4-flash-250414）
+       3) SAFE_MODEL=glm-4-flash（400/地域限制兜底，剥图片走纯文本） */
+    const sameKindFb = hasImage
       ? (effModelKey === "glm-4.6v-flash" ? "glm-4.1v-thinking-flash" : "glm-4.6v-flash")
       : "glm-4-flash-250414";
-    /* 图片请求的第一跳若是 400（部分网关对 base64 解析差异），也尝试备用视觉模型 */
+
+    let lastErr = null;
+    /* 第一跳：主模型 */
     try {
       text = await callOnce(effModelKey, effMc.temp);
     } catch (e) {
-      const canFb = (e.message.indexOf("429") !== -1 || e.message.indexOf("1305") !== -1
-        || (hasImage && e.message.indexOf("400") !== -1)) && effModelKey !== fbModel;
-      if (canFb) {
-        text = await callOnce(fbModel, MODELS[fbModel].temp);
-        usedModel = fbModel;
-        fellBack = true;
+      lastErr = e;
+      const over = e.message.indexOf("429") !== -1 || e.message.indexOf("1305") !== -1;
+      const bad400 = e.message.indexOf("400") !== -1;
+      /* 400 多为海外节点对新模型的地域限制 → 直接跳到 SAFE_MODEL */
+      if (bad400) {
+        text = await callOnce(SAFE_MODEL, MODELS[SAFE_MODEL].temp, true);
+        usedModel = SAFE_MODEL; fellBack = true; geoFallback = true;
+      } else if (over && sameKindFb !== effModelKey) {
+        /* 过载 → 先试同类备用 */
+        try {
+          text = await callOnce(sameKindFb, MODELS[sameKindFb].temp);
+          usedModel = sameKindFb; fellBack = true;
+        } catch (e2) {
+          /* 同类备用也失败 → SAFE_MODEL 兜底 */
+          text = await callOnce(SAFE_MODEL, MODELS[SAFE_MODEL].temp, true);
+          usedModel = SAFE_MODEL; fellBack = true; geoFallback = true;
+        }
       } else {
         throw e;
       }
     }
     if (!text.trim()) throw new Error("GLM 返回为空");
-    return json({ ok: true, text: text.slice(0, 8000), model: MODELS[usedModel].name, fallback: fellBack });
+    return json({ ok: true, text: text.slice(0, 8000), model: MODELS[usedModel].name,
+      fallback: fellBack, geoFallback: geoFallback });
   } catch (e) {
     const over = e.message.indexOf("1305") !== -1 || e.message.indexOf("429") !== -1;
     return json({ ok: false, msg: over ? "所选模型当前访问量过大，请稍后再试或换个模型" : "AI 生成失败：" + clamp(e.message, 100) }, 502);
