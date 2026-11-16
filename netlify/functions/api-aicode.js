@@ -114,10 +114,10 @@ export default async (req) => {
     return textOut;
   }
 
-  /* 带图片附件但选的不是视觉模型 → 自动切 glm-4.6v-flash */
+  /* 带图片附件但选的不是视觉模型 → 自动切 glm-4.1v-thinking-flash（4.6v 当前过载，作备选） */
   const hasImage = Array.isArray(body.attach) && body.attach.some(f => f && /^image\//.test(String(f.mime)) && typeof f.data === "string");
   let effModelKey = modelKey;
-  if (hasImage && VISION_MODELS.indexOf(effModelKey) === -1) effModelKey = "glm-4.6v-flash";
+  if (hasImage && VISION_MODELS.indexOf(effModelKey) === -1) effModelKey = "glm-4.1v-thinking-flash";
   const effMc = MODELS[effModelKey];
 
   const ctrl = new AbortController();
@@ -159,11 +159,13 @@ export default async (req) => {
     const fbModel = hasImage
       ? (effModelKey === "glm-4.6v-flash" ? "glm-4.1v-thinking-flash" : "glm-4.6v-flash")
       : "glm-4-flash-250414";
+    /* 图片请求的第一跳若是 400（部分网关对 base64 解析差异），也尝试备用视觉模型 */
     try {
       text = await callOnce(effModelKey, effMc.temp);
     } catch (e) {
-      /* 主选模型过载 → 自动降级 */
-      if ((e.message.indexOf("429") !== -1 || e.message.indexOf("1305") !== -1) && effModelKey !== fbModel) {
+      const canFb = (e.message.indexOf("429") !== -1 || e.message.indexOf("1305") !== -1
+        || (hasImage && e.message.indexOf("400") !== -1)) && effModelKey !== fbModel;
+      if (canFb) {
         text = await callOnce(fbModel, MODELS[fbModel].temp);
         usedModel = fbModel;
         fellBack = true;
