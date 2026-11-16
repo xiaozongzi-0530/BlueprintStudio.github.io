@@ -155,13 +155,17 @@ export default async (req) => {
 
   try {
     let text, usedModel = effModelKey, fellBack = false;
+    /* 降级目标：图片请求只能在视觉模型间切换，纯文本降级到 4-flash */
+    const fbModel = hasImage
+      ? (effModelKey === "glm-4.6v-flash" ? "glm-4.1v-thinking-flash" : "glm-4.6v-flash")
+      : "glm-4-flash-250414";
     try {
       text = await callOnce(effModelKey, effMc.temp);
     } catch (e) {
-      /* 主选模型过载 → 自动降级到备用模型 */
-      if ((e.message.indexOf("429") !== -1 || e.message.indexOf("1305") !== -1) && effModelKey !== "glm-4-flash-250414") {
-        text = await callOnce("glm-4-flash-250414", 0.3);
-        usedModel = "glm-4-flash-250414";
+      /* 主选模型过载 → 自动降级 */
+      if ((e.message.indexOf("429") !== -1 || e.message.indexOf("1305") !== -1) && effModelKey !== fbModel) {
+        text = await callOnce(fbModel, MODELS[fbModel].temp);
+        usedModel = fbModel;
         fellBack = true;
       } else {
         throw e;
