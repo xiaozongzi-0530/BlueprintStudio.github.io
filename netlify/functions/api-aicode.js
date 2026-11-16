@@ -123,9 +123,11 @@ export default async (req) => {
     if (imgs.length) {
       const content = imgs.map(im => ({ type: "image_url", image_url: { url: "data:" + clamp(im.mime, 40) + ";base64," + im.data } }));
       content.push({ type: "text", text: textOut });
-      return content;
+      return { role: "user", content: content };
     }
-    return textOut;
+    /* 必须返回完整的 {role, content} 消息对象，否则 messages 结构损坏，
+       智谱会报 400 Cannot construct instance of com.wd.paas.api.domain.v4.chat */
+    return { role: "user", content: textOut };
   }
 
   /* 带图片附件但选的不是视觉模型 → 自动切 glm-4.1v-thinking-flash（4.6v 当前过载，作备选） */
