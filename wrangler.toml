@@ -1,0 +1,25 @@
+name = "blueprintstudio"
+main = "cf/worker.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 静态资源：public 目录（只含公开的 HTML/JS/图片）
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# KV：替代 Netlify Blobs（生产 / 预览）
+[[kv_namespaces]]
+binding = "BP_DATA"
+id = "9a5de82097304501b95c947dfed639a6"
+preview_id = "4fea67f688834777b35f16f85b99bf1a"
+
+# 定时清理：每天 UTC 03:00 清理超过 3 天的 AI 资产
+[triggers]
+crons = ["0 3 * * *"]
+
+# Secrets（用 wrangler secret put 设置，不写在这里）：
+#   GLM_API_KEY      —— AI 工作台（写代码/生图/生视频/文件）
+#   GLM_MODERATE_KEY —— 审核（举报/发帖过审）
+#   CLEAN_SECRET     —— 定时清理校验

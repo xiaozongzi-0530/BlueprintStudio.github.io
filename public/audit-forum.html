@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script>location.replace("maintenance.html");</script>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>审核论坛 · BlueprintStudio</title>
+<script src="logger.js"></script>
+<style>
+  :root { --bg:#0a1128; --panel:rgba(40,72,168,.12); --line:rgba(40,72,168,.25); --accent:#2e52b4; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; --err:#ff6b6b; --warn:#f5b301; }
+  html[data-theme="light"] { --bg:#f4f7ff; --panel:#fff; --line:rgba(40,72,168,.22); --text:#0b1020; --muted:#5b6478; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; min-height:100vh; }
+  header { position:sticky; top:0; z-index:10; display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:1rem 2rem; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav { display:flex; gap:1.2rem; flex-wrap:wrap; }
+  nav a { color:var(--muted); text-decoration:none; font-size:.92rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+  main { position:relative; z-index:1; max-width:960px; margin:0 auto; padding:2.5rem 1.5rem 4rem; }
+  h1 { font-size:1.7rem; margin-bottom:.45rem; }
+  h1 em { font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { color:var(--muted); font-size:.9rem; line-height:1.8; margin-bottom:1.6rem; }
+  .btn { display:inline-block; padding:.5rem 1.1rem; border-radius:10px; text-decoration:none; border:1px solid rgba(40,72,168,.55); color:var(--accent2); background:rgba(40,72,168,.12); font-size:.85rem; cursor:pointer; }
+  .btn:hover { background:rgba(40,72,168,.25); color:#fff; }
+  .btn.ghost { border-color:var(--line); color:var(--muted); background:none; }
+  .btn.danger { border-color:rgba(255,107,107,.5); color:var(--err); background:rgba(255,107,107,.1); }
+  .toolbar { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; margin-bottom:1.1rem; }
+  .toolbar input { background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--text); border-radius:10px; padding:.5rem .8rem; font-size:.85rem; outline:none; font-family:inherit; }
+  html[data-theme="light"] .toolbar input { background:#fff; }
+  .toolbar input { flex:1 1 220px; min-width:0; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:.7rem 1rem; font-size:.85rem; color:var(--muted); }
+  .stat b { color:var(--text); font-size:1.1rem; }
+  .item { background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent2); border-radius:12px; padding:.9rem 1rem; margin-bottom:.8rem; }
+  .item-head { display:flex; gap:.55rem; align-items:center; flex-wrap:wrap; font-size:.75rem; color:var(--muted); margin-bottom:.45rem; }
+  .tag { padding:.1rem .5rem; border-radius:999px; font-size:.7rem; font-weight:700; }
+  .tag.src { background:rgba(40,72,168,.14); color:var(--accent2); font-weight:500; }
+  .item-body { font-size:.92rem; line-height:1.8; white-space:pre-wrap; word-break:break-word; }
+  .item-foot { margin-top:.6rem; display:flex; gap:.8rem; align-items:center; }
+  .empty { text-align:center; color:var(--muted); padding:2.6rem 1rem; font-size:.9rem; }
+  .lock { text-align:center; padding:2.6rem 1.4rem; background:var(--panel); border:1px solid var(--line); border-radius:14px; }
+  .lock .ico { font-size:2.2rem; margin-bottom:.7rem; }
+  .lock h2 { font-size:1.1rem; margin-bottom:.6rem; }
+  .lock p { color:var(--muted); font-size:.88rem; line-height:1.9; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+
+
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="logs.html">错误日志</a>
+      <a class="active" href="audit-forum.html">审核论坛</a>
+      <a href="audit-notes.html">审核笔记</a>
+    </nav>
+  </header>
+  <main>
+    <h1>论坛<em>审核</em></h1>
+    <p class="sub">全部帖子一览，可在此删除违规内容。删除不可恢复，请谨慎操作。</p>
+
+    <div class="lock hidden" id="lockBox">
+      <div class="ico">🔒</div>
+      <h2 id="lockTitle">需要管理员身份</h2>
+      <p id="lockDesc">请先在首页用管理员账号登录，再回到这里。</p>
+      <a class="btn" style="margin-top:1rem;" href="index.html">回首页登录</a>
+    </div>
+
+    <div id="wrap" class="hidden">
+      <div class="toolbar">
+        <div class="stat">共 <b id="stTotal">0</b> 帖</div>
+        <span style="flex:1;"></span>
+        <input id="q" type="search" placeholder="搜索内容 / 昵称 / 作者…">
+        <button class="btn ghost" id="reload">刷新</button>
+      </div>
+      <div id="list"></div>
+      <div class="empty hidden" id="emptyBox">还没有任何帖子。</div>
+    </div>
+  </main>
+
+<script>
+(function () {
+  "use strict";
+  
+      /* ===== 服务端数据层（私有 Blobs，替代 textdb 公开库） ===== */
+      var API_BASE = "https://blueprintstudio-mail.netlify.app";
+      var DB_KEY = "blueprintstudio-forum-2026";
+      function authTok() {
+        try { var s = JSON.parse(localStorage.getItem("bs_auth") || "null"); if (s && s.token) return s.token; } catch (e) {}
+        try { return localStorage.getItem("bs_token_v1") || ""; } catch (e) { return ""; }
+      }
+      function dbWrite(obj) {
+        var h = { "Content-Type": "application/json" };
+        var t = authTok();
+        if (t) h.Authorization = "Bearer " + t;
+        return fetch(API_BASE + "/api/data", { method: "POST", headers: h, body: JSON.stringify({ key: DB_KEY, data: JSON.stringify(obj) }) })
+          .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+      }
+      function userListFetch() {
+        return fetch(API_BASE + "/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "list" }) })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { return { users: (j && j.db && j.db.users) || {} }; });
+      }
+var DB = API_BASE + "/api/data?key=blueprintstudio-forum-2026";
+  var KEY = "bs_auth";
+  var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
+  var $ = function (id) { return document.getElementById(id); };
+  var posts = [];
+
+
+  function checkAdmin() {
+    var a = null;
+    try { a = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
+    if (!a || !a.email || !a.token) return Promise.resolve(false);
+    return fetch(API_BASE + "/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (a.token || "") },
+      body: JSON.stringify({ action: "whoami" })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      return !!(j && j.ok && j.admin && !j.banned);
+    }).catch(function () { return false; });
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function fmtTime(t) {
+    try { return new Date(t).toLocaleString("zh-CN", { hour12: false }); } catch (e) { return t; }
+  }
+  function esc(t) { return String(t == null ? "" : t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+  function load() {
+    return fetch(DB + "?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (db) {
+      posts = (db && db.posts) || [];
+      posts = posts.filter(Boolean);
+      render();
+    });
+  }
+
+  function render() {
+    var q = $("q").value.trim().toLowerCase();
+    var list = $("list");
+    list.innerHTML = "";
+    var shown = posts.filter(function (p) {
+      if (!q) return true;
+      return ((p.content || "") + " " + (p.nick || "") + " " + (p.author || "")).toLowerCase().indexOf(q) !== -1;
+    });
+    shown.forEach(function (p) {
+      var box = el("div", "item");
+      var head = el("div", "item-head");
+      head.appendChild(el("span", "tag src", p.author === ADMIN_EMAIL ? "官方管理员" : (p.guest || (p.author && String(p.author).indexOf("guest:") === 0) ? "游客" : "注册用户")));
+      head.appendChild(el("span", null, "昵称：" + (p.nick || "—")));
+      if (p.author) head.appendChild(el("span", null, "作者标识：" + p.author));
+      head.appendChild(el("span", null, fmtTime(p.time)));
+      if ((p.reports || []).length) {
+        var rep = el("span", "tag", "被举报 " + p.reports.length + " 次");
+        rep.style.background = "rgba(255,107,107,.16)"; rep.style.color = "var(--err)";
+        head.appendChild(rep);
+      }
+      box.appendChild(head);
+      box.appendChild(el("div", "item-body", p.content || "（空内容）"));
+      if ((p.files || []).length) box.appendChild(el("div", "item-foot", "📎 附件 " + p.files.length + " 个"));
+      var foot = el("div", "item-foot");
+      var del = el("button", "btn danger", "删除该帖");
+      del.onclick = function () {
+        if (!confirm("确定删除该帖？删除后无法恢复。\n内容：" + String(p.content || "").slice(0, 60))) return;
+        fetch(DB + "?t=" + Date.now()).then(function (r) { return r.json(); }).then(function (db) {
+          db.posts = (db.posts || []).filter(function (x) { return x && x.id !== p.id; });
+          return dbWrite(db);
+        }).then(load).catch(function () { alert("删除失败，请稍后再试"); });
+      };
+      foot.appendChild(del);
+      box.appendChild(foot);
+      list.appendChild(box);
+    });
+    $("emptyBox").classList.toggle("hidden", shown.length > 0);
+    $("stTotal").textContent = posts.length;
+  }
+
+  $("q").addEventListener("input", render);
+  $("reload").addEventListener("click", function () { $("reload").disabled = true; load().then(function () { $("reload").disabled = false; }); });
+
+  checkAdmin().then(function (ok) {
+    if (!ok) { $("lockBox").classList.remove("hidden"); return; }
+    $("wrap").classList.remove("hidden");
+    load();
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script>location.replace("maintenance.html");</script>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>聊天 · BlueprintStudio</title>
+<script src="logger.js"></script>
+<style>
+  :root { --bg:#0a1128; --accent:#2e52b4; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; }
+  .grid-bg {
+  pointer-events: none;
+    position:fixed; inset:0; z-index:0;
+    background-image:
+      linear-gradient(rgba(40,72,168,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(40,72,168,.07) 1px, transparent 1px);
+    background-size:40px 40px;
+  }
+  header {
+    position:sticky; top:0; z-index:10;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:1rem 2rem;
+    background:rgba(11,16,32,.85); backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(40,72,168,.15);
+  }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav a { color:var(--muted); text-decoration:none; margin-left:1.5rem; font-size:.95rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+  main { position:relative; z-index:1; max-width:700px; margin:0 auto; padding:2.5rem 1.5rem; }
+  h1 { font-size:1.7rem; margin-bottom:.4rem; }
+  h1 em {
+    font-style:normal;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .sub { color:var(--muted); font-size:.92rem; margin-bottom:1.8rem; }
+  .card {
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(40,72,168,.25);
+    border-radius:16px; padding:1.5rem; margin-bottom:1.2rem;
+  }
+  input[type="text"] {
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(40,72,168,.3);
+    border-radius:10px; color:var(--text);
+    padding:.65rem .9rem; font-size:.95rem; outline:none; font-family:inherit;
+  }
+  input:focus { border-color:var(--accent2); }
+  .btn {
+    display:inline-block; border:none; cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#fff; padding:.6rem 1.5rem; border-radius:10px;
+    font-size:.92rem; font-weight:600;
+  }
+  .btn.ghost { background:transparent; border:1px solid rgba(40,72,168,.5); color:var(--accent2); }
+  .row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; }
+  .tip { color:var(--muted); font-size:.85rem; line-height:1.8; }
+  .tip a { color:var(--accent2); }
+  .myuid { color:var(--accent2); font-family:ui-monospace,Consolas,monospace; }
+  /* 会话列表 */
+  .conv {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:.7rem .4rem; border-bottom:1px solid rgba(255,255,255,.08);
+    cursor:pointer; border-radius:8px; transition:background .2s;
+  }
+  .conv:hover { background:rgba(40,72,168,.08); }
+  .conv .u { font-weight:700; }
+  .conv .last { color:var(--muted); font-size:.85rem; max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* 聊天窗口 */
+  #chatWin { max-height:380px; overflow:auto; display:flex; flex-direction:column; gap:.6rem; padding:.5rem 0; }
+  .msg { max-width:75%; padding:.55rem .9rem; border-radius:14px; font-size:.92rem; line-height:1.6; word-break:break-word; }
+  .msg .meta { font-size:.7rem; opacity:.7; margin-bottom:.15rem; }
+  .msg.me { align-self:flex-end; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border-bottom-right-radius:4px; }
+  .msg.other { align-self:flex-start; background:rgba(255,255,255,.08); border-bottom-left-radius:4px; }
+  .back { color:var(--muted); cursor:pointer; font-size:.85rem; }
+  .back:hover { color:var(--accent2); }
+  /* 输入区 */
+  #msgInput {
+    flex:1; min-width:140px; resize:none;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(40,72,168,.3);
+    border-radius:10px; color:var(--text);
+    padding:.65rem .9rem; font-size:.95rem; outline:none; font-family:inherit;
+    line-height:1.5; max-height:120px; overflow-y:auto;
+  }
+  #msgInput:focus { border-color:var(--accent2); }
+  #msgInput:disabled { opacity:.5; }
+  .input-tools { display:flex; gap:.4rem; flex-shrink:0; }
+  .tool-btn {
+    background:rgba(40,72,168,.1); border:1px solid rgba(40,72,168,.35);
+    color:var(--accent2); border-radius:10px; cursor:pointer;
+    font-size:.82rem; font-family:inherit; padding:.55rem .75rem;
+    transition:background .2s, border-color .2s;
+  }
+  .tool-btn:hover { background:rgba(40,72,168,.22); border-color:var(--accent2); }
+  .tool-btn:disabled { opacity:.4; cursor:default; }
+  .tool-btn.on { background:rgba(255,107,107,.18); border-color:rgba(255,107,107,.55); color:#ff6b6b; }
+  .eph-badge { font-size:.68rem; opacity:.85; }
+  /* 打码遮盖 */
+  .masked {
+    background:#000; color:transparent !important;
+    border-radius:3px; padding:0 .18em; margin:0 .08em;
+    user-select:none; cursor:default;
+    text-shadow:none !important;
+    box-decoration-break:clone; -webkit-box-decoration-break:clone;
+  }
+  .msg.me .masked { background:#000; }
+  /* 文件卡片 */
+  .file-card {
+    display:flex; align-items:center; gap:.6rem;
+    background:rgba(0,0,0,.28);
+    border:1px solid rgba(255,255,255,.28);
+    border-radius:10px; padding:.55rem .8rem;
+    margin-top:.45rem; text-decoration:none; color:#fff;
+    font-size:.85rem; max-width:100%;
+    transition:background .2s, border-color .2s;
+  }
+  .msg.other .file-card { background:rgba(0,0,0,.3); border-color:rgba(255,255,255,.2); }
+  .file-card:hover { background:rgba(0,0,0,.45); border-color:#fff; }
+  .file-card .fname { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .file-card .fsize { color:rgba(255,255,255,.7); font-size:.75rem; flex-shrink:0; }
+  .file-card .fico {
+    flex-shrink:0; width:26px; height:26px; border-radius:6px;
+    background:rgba(255,255,255,.22);
+    display:flex; align-items:center; justify-content:center;
+    font-size:.7rem; font-weight:700; letter-spacing:-.02em;
+  }
+  .file-card .fico.img { background:rgba(34,211,238,.35); }
+  .msg img.att-img { max-width:100%; border-radius:8px; margin-top:.45rem; display:block; }
+  #attachPreview .ap {
+    display:flex; align-items:center; gap:.6rem;
+    background:rgba(40,72,168,.1); border:1px dashed rgba(40,72,168,.5);
+    border-radius:10px; padding:.5rem .8rem; font-size:.85rem;
+  }
+  #attachPreview .ap button {
+    margin-left:auto; background:none; border:none; cursor:pointer;
+    color:#ff6b6b; font-size:1rem; line-height:1;
+  }
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(40,72,168,.12); }
+</style>
+</head>
+<body>
+
+
+
+  <div class="grid-bg"></div>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="forum.html">论坛</a>
+      <a href="chat.html" class="active">聊天</a>
+      <a href="notes.html">笔记</a>
+      <a href="discover.html">发现</a>
+      <a href="ai-code.html">AI 工作台</a>
+      <a href="ann.html">公告</a>
+      <a href="join.html">联系我们</a>
+    </nav>
+  </header>
+  <main>
+    <h1>UID<em> 聊天</em></h1>
+    <p class="sub">知道对方的 UID 就能私聊。你的 UID：<span class="myuid" id="myUID">…</span></p>
+
+    <div class="tip" id="loginTip" style="margin-bottom:1.5rem;">
+      ⚠️ 聊天前请先 <a href="index.html">登录 / 注册</a>（首页右上角），你的 UID 在登录后可见。
+    </div>
+
+    <div class="card" id="startBox" style="display:none;">
+      <div class="row">
+        <input type="text" id="targetUID" placeholder="输入对方 UID（8位或10位数字）" maxlength="10" inputmode="numeric" style="flex:1; min-width:180px;">
+        <button class="btn" id="openBtn">开始聊天</button>
+      </div>
+      <p class="tip" style="margin-top:.6rem;">文明聊天，禁止发送违规内容。消息 3 秒自动刷新。</p>
+    </div>
+
+    <div class="card" id="listBox" style="display:none;">
+      <h3 style="margin-bottom:.8rem;">我的会话</h3>
+      <div id="convList"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:.8rem;">通过编号查询聊天记录</h3>
+      <div class="row">
+        <input type="text" id="queryID" placeholder="输入10位聊天编号" maxlength="10" style="flex:1; min-width:180px;">
+        <button class="btn ghost" id="queryBtn">查询</button>
+      </div>
+      <div id="queryResult" style="margin-top:1rem;"></div>
+    </div>
+
+    <div class="card" id="chatBox" style="display:none;">
+      <div class="row" style="justify-content:space-between; margin-bottom:.6rem;">
+        <b>与 <span id="chatWith" style="color:var(--accent2);"></span> 的对话</b>
+        <span style="flex:1;"></span>
+        <button class="btn" id="newConvBtn" style="display:none; padding:.35rem .9rem; font-size:.82rem;">开始新对话</button>
+        <a class="back" id="endBtn" style="color:#ff6b6b;">结束聊天</a>
+        <span class="back" id="backBtn">← 返回</span>
+      </div>
+      <div id="chatWin"></div>
+      <div id="attachPreview" style="display:none; margin-top:.7rem;"></div>
+      <div class="row" style="margin-top:.8rem; align-items:flex-end;">
+        <textarea id="msgInput" placeholder="输入消息…（选中文字后点「打码」可永久遮盖）" maxlength="1000" rows="1"></textarea>
+        <div class="input-tools">
+          <button class="tool-btn" id="maskBtn" title="选中文字后点击，将其永久替换为黑色打码">打码</button>
+          <button class="tool-btn" id="ephBtn" title="阅后即焚：消息不进入公开归档，送达后约 90 秒自动销毁">🔥 不公开</button>
+          <button class="tool-btn" id="fileBtn" title="发送文件（≤900KB 直接内嵌，更大走 P2P，上限 30MB）">文件</button>
+          <input type="file" id="fileInput" style="display:none;">
+        </div>
+        <button class="btn" id="sendBtn">发送</button>
+      </div>
+      <p class="tip" style="margin-top:.5rem; font-size:.78rem;">打码为永久遮盖：原文不会保存，发送后任何一方都无法恢复。「🔥 不公开」为阅后即焚：消息不进公开归档，送达后约 90 秒自动销毁。</p>
+    </div>
+  </main>
+  <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+
+  <script src="crypto.js"></script>
+  <script src="ratelimit.js"></script>
+  <script src="p2p-file.js"></script>
+  <script src="mod.js"></script>
+  <script>
+    (function () {
+      
+      /* ===== 服务端数据层（私有 Blobs，替代 textdb 公开库） ===== */
+      var API_BASE = "https://blueprintstudio-mail.netlify.app";
+      var DB_KEY = "blueprintstudio-chat-v2";
+      function authTok() {
+        try { var s = JSON.parse(localStorage.getItem("bs_auth") || "null"); if (s && s.token) return s.token; } catch (e) {}
+        try { return localStorage.getItem("bs_token_v1") || ""; } catch (e) { return ""; }
+      }
+      function dbWrite(obj) {
+        var h = { "Content-Type": "application/json" };
+        var t = authTok();
+        if (t) h.Authorization = "Bearer " + t;
+        return fetch(API_BASE + "/api/data", { method: "POST", headers: h, body: JSON.stringify({ key: DB_KEY, data: JSON.stringify(obj) }) })
+          .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+      }
+      function userListFetch() {
+        return fetch(API_BASE + "/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "list" }) })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { return { users: (j && j.db && j.db.users) || {} }; });
+      }
+var DB = API_BASE + "/api/data?key=blueprintstudio-chat-v2";
+      var me = null, myUID = "", myNick = "", chatting = null, timer = null;
+      /* 轮询治理：跨境单次请求实测 1~4 秒，间隔必须远大于 RTT，否则请求堆积 */
+      var POLL_MS = 12000;          // 统一轮询间隔（原来聊天 3s、列表 5s 两条独立轮询）
+      var pollBusy = false;         // 单飞锁：上一次没回来就不发下一次
+      var pollFails = 0;            // 连续失败计数，用于退避
+      var maskRanges = [], pendingFile = null, endedState = false;
+      var MASK_CHAR = "█";
+      var C = window.BPCrypto;
+
+      /* ===== 阅后即焚（不公开消息）=====
+         eph 消息：写入时带 eph 标记，送达后约 90 秒由发送方客户端销毁；
+         所有客户端渲染时自动过滤超过 100 秒的 eph 消息（双保险）；
+         归档查询（按编号查聊天记录）永远排除 eph 消息。 */
+      var EPH_TTL = 90 * 1000;        // 发送方销毁延时
+      var EPH_SHOW = 100 * 1000;      // 渲染保留窗口
+      var ephOn = false;
+      function isEphGone(m) {
+        return !!(m && m.eph && (Date.now() - new Date(m.time).getTime() > EPH_SHOW));
+      }
+      function ephBadge() {
+        return '<span class="eph-badge">🔥 不公开 · 阅后即焚</span>';
+      }
+
+      try { me = JSON.parse(localStorage.getItem("bs_auth") || "null"); } catch (e) {}
+      myUID = localStorage.getItem("bs_uid") || localStorage.getItem("gs_uid") || "";
+      myNick = localStorage.getItem("bs_nick") || "";
+
+      /* 游客模式：首页设置过游客身份（gs_mode=1 + 10 位 UID）时，无需账号即可聊天 */
+      var isGuest = localStorage.getItem("gs_mode") === "1" && /^\d{10}$/.test(myUID);
+      if (!myUID || (!isGuest && !me)) {
+        /* 既无账号也无游客身份 */
+        document.getElementById("myUID").textContent = "请先登录";
+        return;
+      }
+      document.getElementById("myUID").textContent = myUID;
+      document.getElementById("loginTip").style.display = "none";
+      document.getElementById("startBox").style.display = "block";
+      document.getElementById("listBox").style.display = "block";
+
+      /* 拉取并解密整个聊天库。
+         每条消息独立用「双方 UID 对」派生的密钥解密，因此：
+         - 同一对用户的消息共用一把密钥，收发双方都能读；
+         - 第三方 UID 无法解密该消息。 */
+      var _decCache = {};   // 密文 -> 明文 缓存，避免重复解密
+      function decryptMsg(m) {
+        var pid = C.pairContext(m.from, m.to);
+        var tasks = [];
+        var out = {};
+        Object.keys(m).forEach(function (k) { out[k] = m[k]; });
+
+        if (typeof m.text === "string") {
+          if (_decCache[m.text]) { out.text = _decCache[m.text]; }
+          else {
+            tasks.push(C.decrypt(m.text, pid + "|text").then(function (v) {
+              _decCache[m.text] = v; out.text = v;
+            }));
+          }
+        }
+        if (m.file && typeof m.file.data === "string") {
+          var fd = m.file.data;
+          if (_decCache[fd]) { out.file = Object.assign({}, m.file, { data: _decCache[fd] }); }
+          else {
+            tasks.push(C.decrypt(fd, pid + "|file").then(function (v) {
+              _decCache[fd] = v;
+              out.file = Object.assign({}, m.file, { data: v });
+            }));
+          }
+        }
+        return Promise.all(tasks).then(function () { return out; });
+      }
+      /* 读取带 4 秒短缓存 + 单飞去重：一次轮询内多个调用方共用一个网络请求 */
+      var _dbCache = null, _dbAt = 0, _dbP = null, DB_TTL = 4000;
+      function getDB(force) {
+        var now = Date.now();
+        if (!force && _dbCache && now - _dbAt < DB_TTL) return Promise.resolve(_dbCache);
+        if (_dbP) return _dbP;
+        _dbP = fetch(DB + "?t=" + now).then(function (r) { return r.json(); })
+          .catch(function () {
+            _dbP = null;
+            /* 关键：读失败必须标记 _fail。若把失败当成空库继续写，会用空数据覆盖整库 */
+            return { msgs: [], sessions: {}, _fail: true };
+          })
+          .then(function (db) {
+            var raw = (db && db.msgs) || [];
+            return Promise.all(raw.map(decryptMsg)).then(function (list) {
+              var out = { msgs: list, sessions: (db && db.sessions) || {}, _fail: !!db._fail };
+              if (!out._fail) { _dbCache = out; _dbAt = Date.now(); }
+              _dbP = null;
+              return out;
+            });
+          }, function (e) { _dbP = null; throw e; });
+        return _dbP;
+      }
+      /* 保存：把明文消息重新加密后写入 */
+      function encryptMsg(m) {
+        var pid = C.pairContext(m.from, m.to);
+        var copy = {};
+        Object.keys(m).forEach(function (k) { copy[k] = m[k]; });
+        var tasks = [];
+        if (typeof copy.text === "string" && copy.text.indexOf("v2:") !== 0) {
+          var plain = copy.text;
+          tasks.push(C.encrypt(plain, pid + "|text").then(function (v) { copy.text = v; }));
+        }
+        if (copy.file && copy.file.p2p && !copy.file.data) {
+          /* P2P 附件：数据不走数据库，元信息无需加密 */
+        } else if (copy.file && copy.file.data && String(copy.file.data).indexOf("v2:") !== 0) {
+          var fdata = copy.file.data;
+          var fmeta = {};
+          Object.keys(copy.file).forEach(function (k) { if (k !== "data") fmeta[k] = copy.file[k]; });
+          tasks.push(C.encrypt(fdata, pid + "|file").then(function (v) {
+            fmeta.data = v; copy.file = fmeta;
+          }));
+        }
+        return Promise.all(tasks).then(function () { return copy; });
+      }
+      function saveDB(db) {
+        var list = (db && db.msgs) || [];
+        /* 写库前顺手销毁已超时的不公开消息 */
+        list = list.filter(function (m) { return !isEphGone(m); });
+        return Promise.all(list.map(encryptMsg)).then(function (encList) {
+          var payload = { msgs: encList, sessions: (db && db.sessions) || {} };
+          return dbWrite(payload);
+        });
+      }
+      function pairKey(a, b) { return [a, b].sort().join("|"); }
+      function esc(t) {
+        return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+      function fmt(t) {
+        try { return new Date(t).toLocaleString("zh-CN", { hour12: false }); } catch (e) { return t; }
+      }
+
+      /* ===== 会话列表 ===== */
+      function renderListFrom(db) {
+          var msgs = (db.msgs || []).filter(function (m) { return !isEphGone(m); });
+          var convs = {};
+          msgs.forEach(function (m) {
+            var other = m.from === myUID ? m.to : (m.to === myUID ? m.from : null);
+            if (!other) return;
+            if (!convs[other] || convs[other].time < m.time) {
+              convs[other] = { last: (m.from === myUID ? "我: " : "") + m.text, time: m.time };
+            }
+          });
+          var keys = Object.keys(convs).sort(function (a, b) { return convs[b].time < convs[a].time ? -1 : 1; });
+          var box = document.getElementById("convList");
+          box.innerHTML = keys.length ? keys.map(function (uid) {
+            return '<div class="conv" data-uid="' + uid + '"><span class="u">UID: ' + uid + "</span><span class='last'>" + esc(convs[uid].last).slice(0, 40) + "</span></div>";
+          }).join("") : '<p class="tip">暂无会话，输入对方 UID 开始聊天</p>';
+      }
+      function renderList() { getDB().then(renderListFrom); }
+      document.getElementById("convList").addEventListener("click", function (e) {
+        var c = e.target.closest(".conv");
+        if (c) openChat(c.getAttribute("data-uid"));
+      });
+
+      /* ===== 聊天窗口 ===== */
+      function openChat(uid) {
+        /* 8 位 = 注册账号，10 位 = 游客 */
+        if (!/^\d{8}$/.test(uid) && !/^\d{10}$/.test(uid)) { alert("UID 应为 8 位（注册）或 10 位（游客）数字"); return; }
+        if (uid === myUID) { alert("不能和自己聊天"); return; }
+        chatting = uid;
+        document.getElementById("chatWith").textContent = "UID: " + uid;
+        document.getElementById("listBox").style.display = "none";
+        document.getElementById("chatBox").style.display = "block";
+        maskRanges = [];
+        clearPendingFile();
+        inputEl().value = "";
+        autoGrow();
+        lastChatSig = "";
+        var _w = document.getElementById("chatWin");
+        if (_w) { delete _w.dataset.init; _w.scrollTop = 0; }
+        renderChat();
+        if (timer) { clearInterval(timer); timer = null; }   /* 页面级统一轮询接管，不再单独开 3 秒定时器 */
+      }
+      /* 结束聊天：生成10位编号归档，全站可查 */
+      document.getElementById("endBtn").addEventListener("click", function () {
+        if (!chatting) return;
+        if (!confirm("结束后本轮对话将归档为全站可见的公开记录，确定结束？\n（结束后仍可重新发起新对话）")) return;
+        getDB(true).then(function (db) {
+          if (db._fail) { alert("网络不稳定，读取失败，请稍后重试。"); return; }
+          db.sessions = db.sessions || {};
+          var key = pairKey(myUID, chatting);
+          var prev = db.sessions[key];
+          if (prev && prev.ended) {
+            alert("本轮对话已结束，编号：" + prev.id + "\n如需继续交流，请点「开始新对话」。");
+            return;
+          }
+          var id;
+          do { id = String(Math.floor(1000000000 + Math.random() * 9000000000)); }
+          while (Object.keys(db.sessions).some(function (k) { return db.sessions[k].id === id; }));
+          // 记录本轮起止，旧消息仍按编号可查；ended=false 表示已归档但仍可开启下一轮
+          db.sessions[key] = {
+            id: id, uids: [myUID, chatting], ended: true,
+            time: new Date().toISOString(),
+            endedAt: new Date().toISOString(),
+            startedAt: (prev && prev.startedAt) || null
+          };
+          return saveDB(db).then(function () {
+            _dbAt = 0;
+            alert("对话已结束并归档！\n聊天编号：" + id + "\n任何人可在聊天页输入此编号查看记录。");
+            endedState = true;
+            renderChat();
+          });
+        });
+      });
+      function isEnded(db, uidA, uidB) {
+        var s = (db.sessions || {})[pairKey(uidA, uidB)];
+        return s ? s : null;
+      }
+      document.getElementById("queryBtn").addEventListener("click", function () {
+        var id = document.getElementById("queryID").value.trim();
+        var box = document.getElementById("queryResult");
+        if (!/^\d{10}$/.test(id)) { box.innerHTML = '<p class="tip" style="color:#ff6b6b;">编号必须是10位数字</p>'; return; }
+        getDB().then(function (db) {
+          var hit = null, pair = null;
+          Object.keys(db.sessions || {}).forEach(function (k) {
+            if (db.sessions[k].id === id) { hit = db.sessions[k]; pair = k; }
+          });
+          if (!hit) { box.innerHTML = '<p class="tip" style="color:#ff6b6b;">未找到该编号对应的聊天记录</p>'; return; }
+          var uidA = pair.split("|")[0], uidB = pair.split("|")[1];
+          var list = (db.msgs || []).filter(function (m) {
+            return pairKey(m.from, m.to) === pair && !m.eph;   /* 不公开消息不进归档查询 */
+          });
+          box.innerHTML = '<p class="tip">编号 <b style="color:var(--accent2);">' + id + '</b> 的聊天记录（'
+            + uidA + ' 与 ' + uidB + '，' + list.length + ' 条消息）：</p>'
+            + '<div id="qWin" style="max-height:300px; overflow:auto; display:flex; flex-direction:column; gap:.5rem; margin-top:.6rem;">'
+            + (list.map(function (m) {
+                var mine = m.from === myUID;
+                return '<div class="msg ' + (mine ? "me" : "other") + '"><div class="meta">UID:' + m.from + " · " + fmt(m.time) + "</div>"
+                  + textWithMask(m.text) + fileHtml(m.file) + "</div>";
+              }).join("") || '<p class="tip">该对话没有消息</p>')
+            + "</div>";
+        });
+      });
+      function backToList() {
+        chatting = null;
+        if (timer) clearInterval(timer);
+        document.getElementById("chatBox").style.display = "none";
+        document.getElementById("listBox").style.display = "block";
+        renderList();
+      }
+      document.getElementById("backBtn").addEventListener("click", backToList);
+      var lastChatSig = "";
+      function renderChatFrom(db) {
+          var sess = isEnded(db, myUID, chatting);
+          endedState = !!(sess && sess.ended);
+          var newBtn = document.getElementById("newConvBtn");
+          document.getElementById("endBtn").style.display = endedState ? "none" : "inline";
+          newBtn.style.display = endedState ? "inline-block" : "none";
+          document.getElementById("msgInput").disabled = endedState;
+          document.getElementById("sendBtn").disabled = endedState;
+          var notice = endedState
+            ? '<p class="tip" style="text-align:center; color:#f5b301;">本轮对话已结束归档 · 编号 ' + sess.id
+              + ' · 全站可查询<br>如需继续交流，点「开始新对话」开启新一轮</p>'
+            : "";
+          var key = pairKey(myUID, chatting);
+          var list = (db.msgs || []).filter(function (m) { return pairKey(m.from, m.to) === key && !isEphGone(m); });
+          var last = list[list.length - 1];
+          var sig = list.length + "|" + (last ? last.time + last.from : "") + "|" + endedState;
+          if (sig === lastChatSig) return;   /* 内容没变就不重绘，避免每轮轮询把滚动条拽回底部 */
+          lastChatSig = sig;
+          var win = document.getElementById("chatWin");
+          /* 用户主动往上翻历史时保留位置，只有原本就在底部才跟随新消息 */
+          var atBottom = win.scrollHeight - win.scrollTop - win.clientHeight < 80;
+          win.innerHTML = notice + (list.map(function (m) {
+            var mine = m.from === myUID;
+            return '<div class="msg ' + (mine ? "me" : "other") + '">'
+              + '<div class="meta">' + (mine ? "我" : "对方") + " · " + fmt(m.time) + (m.eph ? " · " + ephBadge() : "") + "</div>"
+              + textWithMask(m.text) + fileHtml(m.file) + "</div>";
+          }).join("") || '<p class="tip" style="text-align:center;">开始你们的对话吧</p>');
+          if (atBottom || win.dataset.init !== "1") {
+            win.scrollTop = win.scrollHeight;
+            win.dataset.init = "1";
+          }
+      }
+      function renderChat() { if (!chatting) return; getDB(true).then(renderChatFrom); }
+      /* 开始新对话：解除归档标记，开启新一轮（旧消息仍可按编号查询） */
+      document.getElementById("newConvBtn").addEventListener("click", function () {
+        if (!chatting) return;
+        if (!confirm("开启新一轮对话？\n本轮消息将从头开始，之前的记录仍可通过旧编号查询。")) return;
+        getDB(true).then(function (db) {
+          if (db._fail) { alert("网络不稳定，读取失败，请稍后重试。"); return; }
+          db.sessions = db.sessions || {};
+          var key = pairKey(myUID, chatting);
+          if (db.sessions[key]) {
+            db.sessions[key].ended = false;
+            db.sessions[key].restartedAt = new Date().toISOString();
+          }
+          return saveDB(db).then(function () {
+            _dbAt = 0;
+            endedState = false;
+            renderChat();
+            document.getElementById("msgInput").focus();
+          });
+        });
+      });
+      /* 把消息文本中的 █ 连续块渲染为黑色遮盖 */
+      function textWithMask(text) {
+        var s = String(text == null ? "" : text);
+        var out = "", i = 0;
+        while (i < s.length) {
+          if (s[i] === MASK_CHAR) {
+            var j = i;
+            while (j < s.length && s[j] === MASK_CHAR) j++;
+            var n = j - i;
+            // 统一渲染成固定长度的黑块，不暴露原文真实长度
+            var shown = Math.min(Math.max(n, 4), 12);
+            out += '<span class="masked" title="已打码">' + Array(shown + 1).join("█") + "</span>";
+            i = j;
+          } else {
+            var k = i;
+            while (k < s.length && s[k] !== MASK_CHAR) k++;
+            out += esc(s.slice(i, k));
+            i = k;
+          }
+        }
+        return out;
+      }
+
+      /* ===== 打码：永久遮盖选中文字，原文不落库 ===== */
+
+      function inputEl() { return document.getElementById("msgInput"); }
+
+      /* 把区间应用到字符串，区间内字符替换为 █ */
+      function applyMaskRanges(str, ranges) {
+        if (!ranges.length) return str;
+        var chars = str.split("");
+        ranges.forEach(function (r) {
+          for (var i = r[0]; i < r[1] && i < chars.length; i++) {
+            if (chars[i] !== "\n") chars[i] = MASK_CHAR;
+          }
+        });
+        return chars.join("");
+      }
+      /* 发送时：把遮盖区间真正写入文本，并清空区间（原文就此丢弃） */
+      function applyMaskOnSend(text) {
+        var out = applyMaskRanges(text, maskRanges);
+        maskRanges = [];
+        return out;
+      }
+      /* 在输入框中实时显示打码效果 */
+      function refreshInputDisplay() {
+        var el = inputEl();
+        if (!maskRanges.length) return;
+        var v = el.value;
+        var start = el.selectionStart, end = el.selectionEnd;
+        var shown = applyMaskRanges(v, maskRanges);
+        if (shown !== v) {
+          el.value = shown;
+          // 打码后原区间依然对应 █ 块，保持区间有效
+          try { el.setSelectionRange(Math.min(start, shown.length), Math.min(end, shown.length)); } catch (e) {}
+        }
+      }
+
+      document.getElementById("maskBtn").addEventListener("click", function () {
+        var el = inputEl();
+        var s = el.selectionStart, e = el.selectionEnd;
+        if (s === e) { alert("请先在输入框中选中要打码的文字"); return; }
+        var v = el.value;
+        // 记录区间，然后把选中段替换成 █ 块（原文立即从输入框消失）
+        var masked = "";
+        for (var i = s; i < e; i++) masked += (v[i] === "\n" ? "\n" : MASK_CHAR);
+        el.value = v.slice(0, s) + masked + v.slice(e);
+        // 区间记录为 [s, s+masked.length)
+        if (masked.length) maskRanges.push([s, s + masked.length]);
+        el.focus();
+        el.setSelectionRange(s + masked.length, s + masked.length);
+        autoGrow();
+      });
+
+      /* ===== 发送文件（Base64 存库） ===== */
+      var MAX_FILE = 900 * 1024;   // 内嵌上限：约 900KB 原始文件，Base64 后约 1.2MB
+      var MAX_P2P = 30 * 1024 * 1024; // P2P 上限 30MB
+
+      function fmtSize(n) {
+        if (n < 1024) return n + " B";
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+        return (n / 1024 / 1024).toFixed(2) + " MB";
+      }
+      function clearPendingFile() {
+        pendingFile = null;
+        document.getElementById("fileInput").value = "";
+        document.getElementById("attachPreview").style.display = "none";
+        document.getElementById("attachPreview").innerHTML = "";
+      }
+      document.getElementById("fileBtn").addEventListener("click", function () {
+        if (endedState) { alert("本轮对话已结束，无法发送文件"); return; }
+        document.getElementById("fileInput").click();
+      });
+      document.getElementById("fileInput").addEventListener("change", function (e) {
+        var f = e.target.files && e.target.files[0];
+        if (!f) return;
+        if (f.size > MAX_P2P) {
+          alert("文件过大（" + fmtSize(f.size) + "），单个文件不能超过 30MB。");
+          clearPendingFile();
+          return;
+        }
+        var box = document.getElementById("attachPreview");
+        box.style.display = "block";
+        box.innerHTML = '<div class="ap"><span style="padding:0 .5rem;color:var(--muted);font-size:.8rem;">正在准备…</span></div>';
+        P2PFile.prepare(f, { inlineMax: MAX_FILE }).then(function (meta) {
+          pendingFile = meta;
+          var isP2P = P2PFile.isP2P(meta);
+          box.style.display = "block";
+          box.innerHTML = '<div class="ap"><span class="fico" style="width:24px;height:24px;border-radius:6px;background:rgba(40,72,168,.3);display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:700;">' + (isP2P ? "P2P" : "FILE") + '</span>'
+            + '<span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + esc(f.name) + (isP2P ? ' <span style="color:var(--accent2);font-size:.72rem;">P2P 直传</span>' : '') + '</span>'
+            + '<span class="fsize" style="color:var(--muted); font-size:.75rem;">' + fmtSize(f.size) + '</span>'
+            + '<button id="apDel" title="移除">×</button></div>';
+          document.getElementById("apDel").addEventListener("click", clearPendingFile);
+        }).catch(function (err) {
+          alert(err.message || "读取文件失败");
+          clearPendingFile();
+        });
+      });
+
+      /* 渲染消息中的文件 */
+      function fileHtml(f) {
+        if (!f || (!f.data && !P2PFile.isP2P(f))) return "";
+        var isP2P = P2PFile.isP2P(f);
+        var isImg = /^image\//.test(f.type || "") && !isP2P;
+        if (isImg) {
+          return '<img class="att-img" src="' + f.data + '" alt="' + esc(f.name) + '">'
+            + '<a class="file-card" ' + P2PFile.attrs(f) + '>'
+            + '<span class="fico img">IMG</span><span class="fname">' + esc(f.name) + '</span>'
+            + '<span class="fsize">' + fmtSize(f.size || 0) + '</span></a>';
+        }
+        return '<a class="file-card" ' + P2PFile.attrs(f) + '>'
+          + '<span class="fico">' + (isP2P ? "P2P" : "FILE") + '</span><span class="fname">' + esc(f.name) + '</span>'
+          + '<span class="fsize">' + fmtSize(f.size || 0) + '</span></a>';
+      }
+
+      /* 输入框自动增高 */
+      function autoGrow() {
+        var el = inputEl();
+        el.style.height = "auto";
+        el.style.height = Math.min(el.scrollHeight, 120) + "px";
+      }
+      inputEl().addEventListener("input", autoGrow);
+
+      /* ===== 不公开（阅后即焚）开关 ===== */
+      var ephBtn = document.getElementById("ephBtn");
+      ephBtn.addEventListener("click", function () {
+        ephOn = !ephOn;
+        ephBtn.classList.toggle("on", ephOn);
+        ephBtn.title = ephOn ? "已开启：消息不进公开归档，约 90 秒后自动销毁（再次点击关闭）"
+                             : "阅后即焚：消息不进入公开归档，送达后约 90 秒自动销毁";
+      });
+      /* 发送方销毁自己发的不公开消息 */
+      function destroyEph(msg) {
+        getDB(true).then(function (db) {
+          if (db._fail) return;
+          var before = (db.msgs || []).length;
+          db.msgs = (db.msgs || []).filter(function (m) {
+            return !(m.eph && m.from === msg.from && m.time === msg.time);
+          });
+          if (db.msgs.length === before) return;   /* 已经被别的客户端销毁 */
+          return saveDB(db).then(function () { _dbAt = 0; renderChat(); });
+        }).catch(function () {});
+      }
+
+      function send() {
+        var input = document.getElementById("msgInput");
+        var text = input.value.trim();
+        var hasFile = !!pendingFile;
+        if ((!text && !hasFile) || !chatting) return;
+        if (endedState) { alert("本轮对话已结束归档，请先点「开始新对话」"); return; }
+        /* 防刷：游客每分钟 12 条、注册用户每分钟 30 条，且两条之间至少 1.2 秒 */
+        var rl = isGuest
+          ? RLT.hit("chat:guest", 60 * 1000, 12, 1200)
+          : RLT.hit("chat:user", 60 * 1000, 30, 400);
+        if (!rl.ok) { alert(rl.msg); return; }
+        input.disabled = true;
+
+        /* ===== AI 审核：明文先过审（聊天库里的密文模型看不懂，只能在发送前判） ===== */
+        if (text) {
+          BPMod.check(text, "chat").then(function (verdict) {
+            if (!verdict.clean) {
+              input.disabled = false;
+              return BPMod.blockDialog(text, "chat", myNick || myUID, verdict);
+            }
+            pushMsg();
+          }).catch(function () { pushMsg(); });
+          return;
+        }
+        pushMsg();
+
+        function pushMsg() {
+        var msg = {
+          from: myUID, to: chatting, nick: myNick,
+          text: applyMaskOnSend(text).slice(0, 1000),
+          time: new Date().toISOString()
+        };
+        if (ephOn) msg.eph = 1;   /* 不公开标记（明文标志位，不参与加密） */
+        if (hasFile) {
+          var fm = { name: pendingFile.name, size: pendingFile.size, type: pendingFile.type };
+          if (pendingFile.p2p) fm.p2p = pendingFile.p2p; else fm.data = pendingFile.data;
+          msg.file = fm;
+        }
+        getDB(true).then(function (db) {
+          if (db._fail) {
+            alert("网络不稳定，未能读取到最新消息。\n为避免覆盖别人刚发的消息，本次发送已取消，请稍后重试。");
+            input.disabled = false;
+            return;
+          }
+          db.msgs = db.msgs || [];
+          db.msgs.push(msg);
+          return saveDB(db).then(function () {
+            _dbAt = 0;              /* 写成功后作废读缓存，下次必定重新拉取 */
+            input.value = "";
+            input.disabled = false;
+            clearPendingFile();
+            autoGrow();
+            renderChat();
+            if (msg.eph) setTimeout(function () { destroyEph(msg); }, EPH_TTL);
+          });
+        }).catch(function (e) { alert("发送失败，文件可能过大：" + e); input.disabled = false; });
+        }
+      }
+      document.getElementById("sendBtn").addEventListener("click", send);
+      document.getElementById("msgInput").addEventListener("keydown", function (e) { if (e.key === "Enter") send(); });
+      document.getElementById("openBtn").addEventListener("click", function () {
+        openChat(document.getElementById("targetUID").value.trim());
+      });
+      document.getElementById("targetUID").addEventListener("keydown", function (e) { if (e.key === "Enter") document.getElementById("openBtn").click(); });
+
+      /* ===== 统一轮询：单飞 + 后台暂停 + 失败退避 ===== */
+      var pollNextAt = 0;
+      function pollTick() {
+        if (document.hidden) return;                 /* 后台标签页不发任何跨境请求 */
+        if (pollBusy) return;                        /* 上一次还没回来，绝不叠加 */
+        if (Date.now() < pollNextAt) return;         /* 失败后的退避窗口内跳过 */
+        pollBusy = true;
+        getDB().then(function (db) {
+          pollBusy = false;
+          if (db._fail) {
+            pollFails++;
+            pollNextAt = Date.now() + POLL_MS * Math.min(pollFails, 4);
+            return;
+          }
+          pollFails = 0;
+          if (chatting) renderChatFrom(db); else renderListFrom(db);
+        }, function () {
+          pollBusy = false;
+          pollFails++;
+          pollNextAt = Date.now() + POLL_MS * Math.min(pollFails, 4);
+        });
+      }
+      renderList();
+      setInterval(pollTick, POLL_MS);
+      document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) { pollNextAt = 0; pollTick(); }   /* 切回前台立即补一次 */
+      });
+    })();
+  </script>
+</body>
+</html>

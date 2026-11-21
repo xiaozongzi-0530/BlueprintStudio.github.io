@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script>location.replace("maintenance.html");</script>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 工作台 · BlueprintStudio</title>
+<script src="logger.js"></script>
+<script>
+  (function () { document.documentElement.setAttribute("data-theme", "dark"); })();
+</script>
+<style>
+  :root { --bg:#0a1128; --panel:rgba(40,72,168,.12); --panel2:rgba(40,72,168,.16); --line:rgba(40,72,168,.25); --accent:#2e52b4; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; --err:#ff6b6b; --ok:#34d399; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; min-height:100vh; }
+  .grid-bg { pointer-events:none; position:fixed; inset:0; z-index:0; background-image:linear-gradient(rgba(40,72,168,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(40,72,168,.07) 1px,transparent 1px); background-size:40px 40px; }
+  header { position:sticky; top:0; z-index:10; display:flex; justify-content:space-between; align-items:center; padding:1rem 2rem; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav { display:flex; gap:1.2rem; flex-wrap:wrap; }
+  nav a { color:var(--muted); text-decoration:none; font-size:.92rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+
+  .layout { position:relative; z-index:1; display:flex; max-width:1240px; margin:0 auto; padding:1.5rem 1rem 4rem; gap:1rem; align-items:flex-start; }
+  #side { flex:0 0 240px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:.9rem; position:sticky; top:84px; max-height:calc(100vh - 110px); overflow-y:auto; }
+  #side h3 { font-size:.85rem; color:var(--muted); font-weight:600; margin-bottom:.6rem; letter-spacing:.06em; }
+  .new-task { width:100%; margin-bottom:.7rem; }
+  .side-sep { height:1px; background:var(--line); margin:.9rem 0; }
+  .side-link { display:block; width:100%; text-align:left; border:none; background:none; color:var(--muted); font-size:.86rem; padding:.55rem .6rem; border-radius:9px; cursor:pointer; font-family:inherit; }
+  .side-link:hover, .side-link.on { background:var(--panel2); color:var(--accent2); }
+  .task-item { display:flex; align-items:center; gap:.4rem; padding:.5rem .6rem; border-radius:9px; cursor:pointer; margin-bottom:.25rem; border:1px solid transparent; }
+  .task-item:hover { background:var(--panel2); }
+  .task-item.on { background:rgba(40,72,168,.16); border-color:var(--line); }
+  .task-item .tname { flex:1; font-size:.87rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .task-item .tdel { border:none; background:none; color:var(--muted); cursor:pointer; font-size:.85rem; padding:0 .2rem; border-radius:6px; }
+  .task-item .tdel:hover { color:var(--err); }
+
+  #work { flex:1; min-width:0; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:1.2rem 1.3rem; margin-bottom:1.2rem; }
+  .mode-tabs { display:flex; gap:.5rem; margin-bottom:.9rem; flex-wrap:wrap; }
+  .mode-tabs button { background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--muted); border-radius:999px; padding:.4rem 1rem; font-size:.85rem; cursor:pointer; font-family:inherit; }
+  .mode-tabs button.on { background:rgba(40,72,168,.18); border-color:var(--accent2); color:var(--accent2); font-weight:600; }
+  textarea, select, input[type="text"] { background:var(--panel2); border:1px solid var(--line); border-radius:10px; color:var(--text); padding:.7rem .9rem; font-size:.92rem; outline:none; font-family:inherit; }
+  textarea { width:100%; min-height:96px; resize:vertical; }
+  textarea:focus, select:focus, input:focus { border-color:var(--accent2); }
+  select { appearance:none; -webkit-appearance:none; width:auto; min-width:150px; padding-right:2.1rem; cursor:pointer;
+    background-image:linear-gradient(45deg,transparent 49%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 51%);
+    background-position:calc(100% - 15px) 55%, calc(100% - 10px) 55%; background-size:5px 5px; background-repeat:no-repeat; }
+  select option { background:#0d1730; color:#e6ebf5; }
+  .row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; margin-top:.8rem; }
+  .btn { display:inline-block; border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; padding:.6rem 1.5rem; border-radius:10px; font-size:.92rem; font-weight:600; font-family:inherit; }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn.ghost { background:transparent; border:1px solid rgba(40,72,168,.5); color:var(--accent2); font-weight:500; }
+  .chat-msg { margin-bottom:1rem; }
+  .chat-msg .who { font-size:.78rem; color:var(--muted); margin-bottom:.3rem; }
+  .chat-msg.me .who b { color:var(--accent2); }
+  .chat-msg.ai .who b { color:var(--accent); }
+  pre { background:rgba(0,0,0,.3); border:1px solid var(--line); border-radius:10px; padding:.9rem 1rem; font-family:ui-monospace,Consolas,monospace; font-size:.84rem; line-height:1.7; overflow-x:auto; white-space:pre-wrap; word-break:break-word; color:var(--text); }
+  .prose { font-size:.92rem; line-height:1.9; white-space:pre-wrap; word-break:break-word; color:var(--text); }
+  .code-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:.7rem; gap:.6rem; flex-wrap:wrap; }
+  .code-head b { color:var(--accent2); font-size:.92rem; }
+  .status { color:var(--muted); font-size:.85rem; margin-top:.8rem; min-height:1.2em; }
+  .status.err { color:var(--err); }
+  .status.ok { color:var(--ok); }
+  .loading::after { content:""; animation:dots 1.2s steps(4,end) infinite; }
+  @keyframes dots { 0%{content:"";} 25%{content:"·";} 50%{content:"··";} 75%{content:"···";} }
+  .hint { color:var(--muted); font-size:.78rem; line-height:1.9; margin-top:1rem; }
+  .empty-tip { color:var(--muted); text-align:center; padding:2rem 0; font-size:.9rem; }
+  .login-tip { background:rgba(34,211,238,.08); border:1px solid rgba(34,211,238,.3); color:var(--accent2); border-radius:10px; padding:.7rem 1rem; font-size:.85rem; margin-bottom:.9rem; }
+  .login-tip a { color:#fff; text-decoration:underline; }
+
+  /* 资产预览 */
+  .asset-box { margin-top:.5rem; border:1px solid var(--line); border-radius:12px; padding:.8rem; background:rgba(0,0,0,.18); }
+  .asset-box img { max-width:100%; border-radius:8px; display:block; }
+  .asset-box video { max-width:100%; width:100%; border-radius:8px; display:block; background:#000; }
+  .asset-meta { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin-top:.7rem; font-size:.78rem; color:var(--muted); }
+  .asset-meta .dl { color:var(--accent2); text-decoration:none; border:1px solid var(--line); padding:.3rem .7rem; border-radius:8px; }
+  .asset-meta .dl:hover { border-color:var(--accent2); }
+  .ttl { color:var(--accent2); }
+  .ttl.warn { color:#fbbf24; }
+  .badge { font-size:.7rem; padding:.15rem .5rem; border-radius:6px; background:rgba(52,211,153,.14); color:var(--ok); }
+  .badge.pending { background:rgba(251,191,36,.14); color:#fbbf24; }
+  .badge.fail { background:rgba(255,107,107,.14); color:var(--err); }
+  .grid-assets { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:.9rem; }
+  .grid-assets .gcard { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:rgba(0,0,0,.18); }
+  .grid-assets .gcard .thumb { width:100%; aspect-ratio:1; object-fit:cover; display:block; background:rgba(40,72,168,.1); }
+  .grid-assets .gcard .foot { padding:.6rem .7rem; font-size:.78rem; color:var(--muted); }
+  .grid-assets .gcard .foot .p { color:var(--text); line-height:1.5; margin-bottom:.4rem; word-break:break-word; }
+
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(40,72,168,.12); }
+  @media (max-width:760px) {
+    .layout { flex-direction:column; }
+    #side { position:static; flex:none; width:100%; max-height:none; }
+  }
+</style>
+</head>
+<body>
+
+
+
+  <div class="grid-bg"></div>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="forum.html">论坛</a>
+      <a href="chat.html">聊天</a>
+      <a href="notes.html">笔记</a>
+      <a href="discover.html">发现</a>
+      <a href="ai-code.html" class="active">AI 工作台</a>
+      <a href="ann.html">公告</a>
+      <a href="join.html">联系我们</a>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <aside id="side">
+      <h3>📁 我的任务</h3>
+      <button class="btn new-task" id="newTask">＋ 新建任务</button>
+      <div id="taskList"></div>
+      <div class="side-sep"></div>
+      <button class="side-link" id="myWorksBtn">🖼 我的作品（3 天）</button>
+    </aside>
+
+    <div id="work">
+      <h1 style="font-size:1.6rem; margin-bottom:.4rem;">AI <em style="font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;">工作台</em></h1>
+      <p id="viewDesc" style="color:var(--muted); font-size:.9rem; margin-bottom:1.2rem;">写代码 / 生图 / 生视频 / 生成文件，一个工作台搞定。多任务多轮对话。</p>
+
+      <!-- 对话/生成视图 -->
+      <div id="chatView">
+        <div id="loginTip" class="login-tip" style="display:none;">
+          🔒 生图、生视频、生成文件需要登录。请先 <a href="index.html">登录 / 注册</a>。
+        </div>
+        <div class="card">
+          <div class="mode-tabs" id="modeTabs">
+            <button data-mode="chat" class="on">💬 连续对话</button>
+            <button data-mode="generate">✨ 写代码</button>
+            <button data-mode="explain">📖 解释代码</button>
+            <button data-mode="fix">🐛 排查 Bug</button>
+            <button data-mode="image">🖼 生图</button>
+            <button data-mode="video">🎬 生视频</button>
+            <button data-mode="file">📄 生成文件</button>
+          </div>
+          <textarea id="prompt" maxlength="3000"
+            placeholder="描述需求、粘贴代码或继续追问，例如「把上面的函数改成支持 UTF-8」。Ctrl+Enter 发送"></textarea>
+          <div id="attachBar" style="display:none; margin-top:.6rem; font-size:.82rem; color:var(--accent2);"></div>
+          <input type="file" id="attachInput" style="display:none;" accept="image/*,.txt,.js,.py,.java,.cpp,.go,.html,.css,.json,.md,.sql,.sh,.ts">
+          <div class="row" id="rowCode">
+            <label style="color:var(--muted); font-size:.85rem;">模型</label>
+            <select id="model">
+              <option value="glm-4.7-flash">GLM-4.7-Flash</option>
+              <option value="glm-4.6v-flash">GLM-4.6V-Flash</option>
+              <option value="glm-4.1v-thinking-flash">GLM-4.1V-Thinking-Flash</option>
+              <option value="glm-z1-flash">GLM-Z1-Flash</option>
+              <option value="glm-4-flash-250414">GLM-4-Flash</option>
+            </select>
+            <label style="color:var(--muted); font-size:.85rem;">语言</label>
+            <select id="lang">
+              <option value="">自动选择</option>
+              <option value="JavaScript">JavaScript</option>
+              <option value="TypeScript">TypeScript</option>
+              <option value="Python">Python</option>
+              <option value="Java">Java</option>
+              <option value="C++">C++</option>
+              <option value="Go">Go</option>
+              <option value="HTML/CSS">HTML/CSS</option>
+              <option value="SQL">SQL</option>
+              <option value="Shell">Shell</option>
+            </select>
+            <button class="btn ghost" id="clearMsgs" title="清空当前任务的对话记录">🧹 清空对话</button>
+            <span style="flex:1;"></span>
+            <button class="btn ghost" id="attachBtn" title="附加截图或代码文件（图片≤1.5MB 自动交给视觉模型，文本≤40KB）">📎 附件</button>
+          </div>
+          <div class="row" id="rowImage" style="display:none;">
+            <label style="color:var(--muted); font-size:.85rem;">尺寸</label>
+            <select id="imgSize">
+              <option value="1024x1024">1024 × 1024</option>
+              <option value="1440x720">1440 × 720（横）</option>
+              <option value="720x1440">720 × 1440（竖）</option>
+              <option value="1344x768">1344 × 768</option>
+              <option value="768x1344">768 × 1344</option>
+            </select>
+          </div>
+          <div class="row" id="rowFile" style="display:none;">
+            <label style="color:var(--muted); font-size:.85rem;">类型</label>
+            <select id="fileFormat">
+              <option value="any">文档（.md）</option>
+              <option value="code">代码（.txt）</option>
+            </select>
+          </div>
+          <div class="row" id="rowVideo" style="display:none;">
+            <span style="color:var(--muted); font-size:.82rem;">🎬 视频约需 1–3 分钟，提交后可离开页面，在「我的作品」里查看进度与下载。</span>
+          </div>
+          <div class="row" style="margin-top:.6rem;">
+            <button class="btn" id="goBtn">🚀 开始生成</button>
+          </div>
+          <div class="status" id="status"></div>
+        </div>
+
+        <div class="card" id="chatCard">
+          <div id="chat"></div>
+        </div>
+
+        <p class="hint">
+          ⏱ 限频：每人每分钟 10–12 次。对话保存在浏览器本地（localStorage），换设备不同步。<br>
+          🗂 生成的图片 / 视频 / 文件保存在服务器 <b>3 天</b>，到期自动删除，请在有效期内下载。
+        </p>
+      </div>
+
+      <!-- 我的作品视图 -->
+      <div id="worksView" style="display:none;">
+        <div class="card">
+          <div class="code-head"><b>🖼 我的作品</b><button class="btn ghost" id="refreshWorks" style="padding:.35rem .9rem; font-size:.8rem;">🔄 刷新</button></div>
+          <div id="worksStatus" class="status"></div>
+          <div id="worksGrid" class="grid-assets"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer>© <span id="year"></span> BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+
+<script src="mod.js"></script>
+<script>
+(function () {
+  "use strict";
+  var BASE = "https://blueprintstudio-mail.netlify.app";
+  var $ = function (id) { return document.getElementById(id); };
+  $("year").textContent = Math.max(2026, new Date().getFullYear());
+
+  /* ---------- 登录 token ---------- */
+  function token() { try { return localStorage.getItem("bs_token_v1") || ""; } catch (e) { return ""; } }
+  function authHeaders() { var t = token(); return t ? { "Authorization": "Bearer " + t } : {}; }
+  var isLogged = !!token();
+
+  var LS_KEY = "bs_aicode_tasks_v1";
+  var tasks = [], curId = null, mode = "chat", busy = false, curView = "chat";
+  var MODEL_NAME = {
+    "glm-4.7-flash": "GLM-4.7-Flash", "glm-4.6v-flash": "GLM-4.6V-Flash",
+    "glm-4.1v-thinking-flash": "GLM-4.1V-Thinking-Flash", "glm-z1-flash": "GLM-Z1-Flash",
+    "glm-4-flash-250414": "GLM-4-Flash",
+  };
+  var GEN_MODES = { image: 1, video: 1, file: 1 };
+
+  /* ---------- 附件（仅代码模式用） ---------- */
+  var attach = null;
+  $("attachBtn").onclick = function () { $("attachInput").click(); };
+  $("attachInput").addEventListener("change", function () {
+    var f = this.files[0]; this.value = "";
+    if (!f) return;
+    if (f.size > 1.5 * 1024 * 1024 && !/^text\//.test(f.type)) { alert("图片请小于 1.5MB"); return; }
+    if (f.size > 60 * 1024) { alert("文本文件请小于 60KB"); return; }
+    var isImg = /^image\//.test(f.type), rd = new FileReader();
+    rd.onload = function () {
+      attach = isImg ? { name: f.name, mime: f.type, data: String(rd.result).split(",")[1] }
+                     : { name: f.name, mime: "text/plain", data: String(rd.result) };
+      var bar = $("attachBar"); bar.style.display = "";
+      bar.innerHTML = "📎 已附加：" + attach.name.replace(/</g, "&lt;") + ' <a href="javascript:void(0)" id="attachDel" style="color:var(--err); margin-left:.5rem;">移除</a>';
+      $("attachDel").onclick = function () { attach = null; bar.style.display = "none"; bar.innerHTML = ""; };
+    };
+    if (isImg) rd.readAsDataURL(f); else rd.readAsText(f);
+  });
+
+  /* ---------- 本地存储 ---------- */
+  function load() {
+    try { tasks = JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch (e) { tasks = []; }
+    if (!tasks.length) tasks.push(newTaskObj("任务 1"));
+    curId = tasks[0].id;
+  }
+  function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(tasks)); } catch (e) {} }
+  function newTaskObj(name) { return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name || "新任务", msgs: [] }; }
+  function cur() { for (var i = 0; i < tasks.length; i++) if (tasks[i].id === curId) return tasks[i]; return tasks[0]; }
+
+  function renderTasks() {
+    var box = $("taskList"); box.innerHTML = "";
+    tasks.forEach(function (t) {
+      var div = document.createElement("div");
+      div.className = "task-item" + (t.id === curId ? " on" : "");
+      var name = document.createElement("span"); name.className = "tname";
+      name.textContent = (t.msgs.length ? "💬 " : "📄 ") + t.name;
+      name.title = t.name + "（双击重命名）";
+      name.ondblclick = function () {
+        var n = prompt("重命名任务：", t.name);
+        if (n !== null && n.trim()) { t.name = n.trim().slice(0, 30); save(); renderTasks(); }
+      };
+      var del = document.createElement("button");
+      del.className = "tdel"; del.textContent = "✕"; del.title = "删除任务";
+      del.onclick = function (e) {
+        e.stopPropagation();
+        if (!confirm("删除任务「" + t.name + "」及其全部对话？")) return;
+        tasks = tasks.filter(function (x) { return x.id !== t.id; });
+        if (!tasks.length) tasks.push(newTaskObj("任务 1"));
+        if (curId === t.id) curId = tasks[0].id;
+        save(); renderTasks(); renderChat();
+      };
+      div.appendChild(name); div.appendChild(del);
+      div.onclick = function () { if (busy) { alert("AI 正在处理，请稍候再切换任务"); return; } curId = t.id; save(); renderTasks(); renderChat(); };
+      box.appendChild(div);
+    });
+  }
+  $("newTask").onclick = function () {
+    if (busy) { alert("AI 正在处理，请稍候"); return; }
+    var t = newTaskObj("任务 " + (tasks.length + 1));
+    tasks.unshift(t); curId = t.id; save(); switchView("chat"); renderTasks(); renderChat();
+  };
+  $("clearMsgs").onclick = function () {
+    var t = cur(); if (!t.msgs.length) return;
+    if (!confirm("清空「" + t.name + "」的全部对话？")) return;
+    t.msgs = []; save(); renderChat();
+  };
+
+  /* ---------- 工具 ---------- */
+  function esc(t) { return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function renderMarkdown(text) {
+    var out = "", parts = String(text).split(/```/);
+    for (var i = 0; i < parts.length; i++) {
+      if (i % 2 === 1) { out += "<pre>" + esc(parts[i].replace(/^\w[\w+-]*\s*\n/, "")) + "</pre>"; }
+      else if (parts[i].trim()) { out += '<div class="prose">' + esc(parts[i].trim()) + "</div>"; }
+    }
+    return out;
+  }
+  function fmtSize(n) { if (!n) return ""; return n > 1048576 ? (n/1048576).toFixed(1)+" MB" : (n/1024).toFixed(0)+" KB"; }
+  function leftTime(expiresAt) {
+    var ms = expiresAt - Date.now();
+    if (ms <= 0) return "已过期";
+    var h = Math.floor(ms/3600000), m = Math.floor(ms%3600000/60000);
+    return "剩 " + (h>0 ? h+" 小时 " : "") + m + " 分钟";
+  }
+  function statusBadge(a) {
+    if (a.status === "ready" || a.status === "remote") return '<span class="badge">就绪</span>';
+    if (a.status === "failed") return '<span class="badge fail">失败</span>';
+    return '<span class="badge pending">生成中…</span>';
+  }
+
+  /* 资产预览 HTML */
+  function assetPreview(a, inline) {
+    var dlUrl = BASE + "/api/ai?action=download&id=" + encodeURIComponent(a.id);
+    var thumbUrl = BASE + "/api/ai?action=thumb&id=" + encodeURIComponent(a.id);
+    var h = '<div class="asset-box">';
+    h += statusBadge(a);
+    if (a.status === "ready" || a.status === "remote") {
+      if (a.type === "image") h += '<img src="' + thumbUrl + '" alt="生成图片" style="margin-top:.6rem;">';
+      else if (a.type === "video") h += '<video src="' + thumbUrl + '" controls style="margin-top:.6rem;"></video>';
+      h += '<div class="asset-meta">';
+      h += '<a class="dl" href="' + dlUrl + '" target="_blank" rel="noopener">⬇ 下载</a>';
+      h += '<span class="ttl">' + leftTime(a.expiresAt) + '</span>';
+      if (a.size) h += '<span>· ' + fmtSize(a.size) + '</span>';
+      h += '</div>';
+    } else if (a.status === "pending") {
+      h += '<div class="asset-meta"><span class="loading">生成中，请稍候…</span></div>';
+    } else {
+      h += '<div class="asset-meta"><span style="color:var(--err)">' + esc(a.err || "生成失败") + '</span></div>';
+    }
+    h += '</div>';
+    return h;
+  }
+
+  /* ---------- 对话流渲染 ---------- */
+  function renderChat() {
+    var t = cur(), box = $("chat"); box.innerHTML = "";
+    if (!t.msgs.length) {
+      box.innerHTML = '<div class="empty-tip">还没有内容。描述你的需求开始吧 —— AI 会记住本任务的上下文，可连续追问。</div>';
+      return;
+    }
+    t.msgs.forEach(function (m) {
+      var div = document.createElement("div");
+      div.className = "chat-msg " + (m.role === "user" ? "me" : "ai");
+      var who = document.createElement("div"); who.className = "who";
+      who.innerHTML = "<b>" + (m.role === "user" ? "🧑 我" : "🤖 " + esc(m.model || "GLM")) + "</b>";
+      div.appendChild(who);
+      if (m.role === "user") {
+        var p = document.createElement("div"); p.className = "prose"; p.textContent = m.content;
+        div.appendChild(p);
+      } else if (m.asset) {
+        var wrap = document.createElement("div"); wrap.innerHTML = assetPreview(m.asset);
+        while (wrap.firstChild) div.appendChild(wrap.firstChild);
+      } else {
+        var wrap2 = document.createElement("div"); wrap2.innerHTML = renderMarkdown(m.content);
+        while (wrap2.firstChild) div.appendChild(wrap2.firstChild);
+        var head = document.createElement("div"); head.className = "code-head";
+        var cp = document.createElement("button"); cp.className = "btn ghost"; cp.textContent = "📋 复制代码";
+        cp.style.padding = ".3rem .8rem"; cp.style.fontSize = ".78rem";
+        cp.onclick = function () { copyLastPre(div); };
+        var b = document.createElement("b"); b.textContent = "输出";
+        head.appendChild(b); head.appendChild(cp);
+        div.insertBefore(head, who.nextSibling);
+      }
+      box.appendChild(div);
+    });
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+  function copyLastPre(scope) {
+    var pres = scope.querySelectorAll("pre");
+    if (!pres.length) { alert("这条回复里没有代码块"); return; }
+    var text = pres[pres.length - 1].textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+      .then(function () { flash(scope, "✅ 已复制"); })
+      .catch(function () {
+        var ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); flash(scope, "✅ 已复制"); } catch (e) { alert("复制失败"); }
+        ta.remove();
+      });
+  }
+  function flash(scope, msg) {
+    var btn = scope.querySelector(".btn.ghost"); if (!btn) return;
+    var old = btn.textContent; btn.textContent = msg;
+    setTimeout(function () { btn.textContent = old; }, 1500);
+  }
+
+  /* ---------- 视图切换 ---------- */
+  function switchView(v) {
+    curView = v;
+    $("chatView").style.display = v === "chat" ? "" : "none";
+    $("worksView").style.display = v === "works" ? "" : "none";
+    $("myWorksBtn").classList.toggle("on", v === "works");
+    $("viewDesc").textContent = v === "works"
+      ? "你生成的图片 / 视频 / 文件，保留 3 天，到期自动删除。"
+      : "写代码 / 生图 / 生视频 / 生成文件，一个工作台搞定。多任务多轮对话。";
+    if (v === "works") loadWorks();
+  }
+  $("myWorksBtn").onclick = function () { switchView("works"); };
+  $("refreshWorks").onclick = function () { loadWorks(); };
+
+  /* ---------- 模式切换 ---------- */
+  $("modeTabs").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-mode]"); if (!b) return;
+    mode = b.getAttribute("data-mode");
+    Array.prototype.forEach.call($("modeTabs").children, function (x) { x.classList.toggle("on", x === b); });
+    $("rowCode").style.display = GEN_MODES[mode] ? "none" : "";
+    $("rowImage").style.display = mode === "image" ? "" : "none";
+    $("rowVideo").style.display = mode === "video" ? "" : "none";
+    $("rowFile").style.display = mode === "file" ? "" : "none";
+    $("attachBtn").style.display = GEN_MODES[mode] ? "none" : "";
+    var ph = {
+      chat: "描述需求、粘贴代码或继续追问，Ctrl+Enter 发送",
+      generate: "描述你想实现的功能，例如「写一个支持断点续传的下载器」",
+      explain: "粘贴要解释的代码", fix: "粘贴有 bug 的代码和报错信息",
+      image: "描述画面，例如「赛博朋克风格的城市夜景，霓虹灯，下雨」，越具体越好",
+      video: "描述镜头画面，例如「一只纸船在雨中的水面漂流，特写，电影感」",
+      file: "描述要生成的文件内容，例如「一份 Python 入门学习笔记，含目录和示例代码」",
+    };
+    $("prompt").placeholder = ph[mode] || ph.chat;
+    $("goBtn").textContent = GEN_MODES[mode] ? "🚀 生成" : "🚀 发送";
+    $("loginTip").style.display = (GEN_MODES[mode] && !isLogged) ? "" : "none";
+  });
+
+  /* ---------- 发送 ---------- */
+  function send() {
+    if (busy) return;
+    var status = $("status");
+    var prompt = $("prompt").value.trim();
+    if (!prompt) { status.textContent = "请先输入内容"; status.className = "status err"; return; }
+    if (GEN_MODES[mode] && !isLogged) {
+      status.textContent = "请先登录后再使用生成功能"; status.className = "status err";
+      $("loginTip").style.display = ""; return;
+    }
+    if (GEN_MODES[mode]) return sendGen(prompt);
+    return sendCode(prompt);
+  }
+
+  /* ---- 代码/对话（原逻辑） ---- */
+  function sendCode(prompt) {
+    var status = $("status"), t = cur();
+    busy = true; $("goBtn").disabled = true; status.className = "status";
+    status.innerHTML = '<span class="loading">🤖 AI 正在思考</span>';
+    var history = t.msgs.slice(-8).map(function (m) { return { role: m.role, content: m.content }; });
+    var payload = { prompt: prompt, lang: $("lang").value, mode: mode, model: $("model").value, history: history };
+    if (attach) payload.attach = [attach];
+    fetch(BASE + "/api/aicode", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.msg || "生成失败");
+      status.className = "status ok";
+      status.textContent = "完成" + (res.geoFallback ? "（已自动切换通用模式）" : (res.fallback ? "（已切换备用模型）" : ""));
+      t.msgs.push({ role: "user", content: prompt + (attach ? "\n\n📎 附件：" + attach.name : "") });
+      t.msgs.push({ role: "assistant", content: res.text, model: MODEL_NAME[$("model").value] || "GLM" });
+      save(); $("prompt").value = "";
+      attach = null; $("attachBar").style.display = "none"; $("attachBar").innerHTML = "";
+      renderTasks(); renderChat();
+    }).catch(function (e) {
+      status.className = "status err"; status.textContent = e.message || "网络异常，请稍后再试";
+    }).then(function () { busy = false; $("goBtn").disabled = false; });
+  }
+
+  /* ---- 生成（图/视频/文件） ---- */
+  function sendGen(prompt) {
+    var status = $("status"), t = cur();
+    var kind = mode;  // image | video | file
+    busy = true; $("goBtn").disabled = true; status.className = "status";
+    status.innerHTML = '<span class="loading">' + (kind === "video" ? "🎬 正在提交视频任务" : "🖼 正在生成") + '</span>';
+    var payload = { action: "generate", kind: kind, prompt: prompt };
+    if (kind === "image") payload.size = $("imgSize").value;
+    if (kind === "file") payload.format = $("fileFormat").value;
+    var h = authHeaders(); h["Content-Type"] = "application/json";
+    fetch(BASE + "/api/ai", { method: "POST", headers: h, body: JSON.stringify(payload) })
+      .then(function (r) { return r.json(); }).then(function (res) {
+        if (!res.ok || !res.asset) throw new Error(res.msg || "提交失败");
+        var a = res.asset;
+        var label = kind === "image" ? "🖼 图片：" : kind === "video" ? "🎬 视频：" : "📄 文件：";
+        t.msgs.push({ role: "user", content: label + prompt });
+        var aiIdx = t.msgs.length;
+        t.msgs.push({ role: "assistant", content: "", model: "AI 生成", asset: a });
+        save(); $("prompt").value = ""; renderTasks(); renderChat();
+        status.className = "status";
+        status.textContent = kind === "video" ? "任务已提交，生成中（约 1–3 分钟）…" : "生成完成";
+        if (a.status === "pending") pollAsset(a.id, aiIdx, 0, status);
+      }).catch(function (e) {
+        status.className = "status err"; status.textContent = e.message || "网络异常";
+      }).then(function () { busy = false; $("goBtn").disabled = false; });
+  }
+
+  /* 轮询资产状态（视频），更新对话里的那条消息 */
+  function pollAsset(id, msgIdx, times, status) {
+    if (times > 60) { status.className = "status err"; status.textContent = "生成超时，请在「我的作品」里查看"; return; }
+    if (curView !== "chat") return;  // 用户切走了就不打了
+    setTimeout(function () {
+      fetch(BASE + "/api/ai?action=status&id=" + encodeURIComponent(id), { headers: authHeaders() })
+        .then(function (r) { return r.json(); }).then(function (res) {
+          if (!res.ok || !res.asset) throw new Error("查询失败");
+          var a = res.asset, t = cur();
+          if (t.msgs[msgIdx]) { t.msgs[msgIdx].asset = a; save(); renderChat(); }
+          if (a.status === "ready" || a.status === "failed") {
+            status.className = a.status === "ready" ? "status ok" : "status err";
+            status.textContent = a.status === "ready" ? "生成完成，可下载（3 天有效）" : ("生成失败：" + (a.err || ""));
+          } else {
+            status.innerHTML = '<span class="loading">🎬 生成中，请稍候</span>';
+            pollAsset(id, msgIdx, times + 1, status);
+          }
+        }).catch(function () { pollAsset(id, msgIdx, times + 1, status); });
+    }, 4000);
+  }
+
+  /* ---------- 我的作品 ---------- */
+  function loadWorks() {
+    if (!isLogged) {
+      $("worksStatus").textContent = "请先登录查看你的作品";
+      $("worksGrid").innerHTML = ""; return;
+    }
+    var st = $("worksStatus"); st.className = "status"; st.innerHTML = '<span class="loading">加载中</span>';
+    fetch(BASE + "/api/ai?action=list", { headers: authHeaders() })
+      .then(function (r) { return r.json(); }).then(function (res) {
+        if (!res.ok) throw new Error(res.msg || "加载失败");
+        var items = res.items || []; st.textContent = items.length ? ("共 " + items.length + " 个作品") : "还没有作品";
+        var grid = $("worksGrid"); grid.innerHTML = "";
+        items.forEach(function (a) {
+          var card = document.createElement("div"); card.className = "gcard";
+          var typeIcon = a.type === "image" ? "🖼" : a.type === "video" ? "🎬" : "📄";
+          var thumbHtml = "";
+          if ((a.type === "image" || a.type === "video") && (a.status === "ready" || a.status === "remote")) {
+            if (a.type === "image") thumbHtml = '<img class="thumb" src="' + BASE + '/api/ai?action=thumb&id=' + encodeURIComponent(a.id) + '" alt="缩略图">';
+            else thumbHtml = '<video class="thumb" src="' + BASE + '/api/ai?action=thumb&id=' + encodeURIComponent(a.id) + '" muted></video>';
+          } else {
+            thumbHtml = '<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:2.4rem;">' + typeIcon + '</div>';
+          }
+          var dl = (a.status === "ready" || a.status === "remote")
+            ? '<a class="dl" style="color:var(--accent2);text-decoration:none;border:1px solid var(--line);padding:.25rem .6rem;border-radius:7px;display:inline-block;margin-top:.4rem;" href="' + BASE + '/api/ai?action=download&id=' + encodeURIComponent(a.id) + '" target="_blank" rel="noopener">⬇ 下载</a>' : statusBadge(a);
+          card.innerHTML = thumbHtml + '<div class="foot"><div class="p">' + typeIcon + ' ' + esc(a.prompt) + '</div>'
+            + '<div>' + dl + '</div><div class="ttl ' + ((a.expiresAt - Date.now()) < 12*3600000 ? 'warn' : '') + '">' + leftTime(a.expiresAt) + '</div></div>';
+          grid.appendChild(card);
+        });
+      }).catch(function (e) { st.className = "status err"; st.textContent = e.message || "加载失败"; });
+  }
+
+  $("goBtn").onclick = send;
+  $("prompt").addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); send(); }
+  });
+
+  load(); renderTasks(); renderChat();
+  if (!isLogged) $("loginTip").style.display = "";
+})();
+</script>
+</body>
+</html>
