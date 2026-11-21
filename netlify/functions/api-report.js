@@ -176,7 +176,7 @@ export default async (req) => {
 
   /* GLM 对被举报内容做 AI 初判；未配 Key 或 GLM 挂了时不阻断举报，
      记录 aiSkipped，管理员人工复核时能看到 */
-  const apiKey = process.env.GLM_API_KEY;
+  const apiKey = process.env.GLM_MODERATE_KEY || process.env.GLM_API_KEY;
   let ai = { violates: false, category: "", reason: "" };
   let aiSkipped = false;
   if (apiKey) {

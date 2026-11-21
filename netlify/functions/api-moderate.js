@@ -32,7 +32,7 @@ export default async (req) => {
   const text = String(body.text || "").slice(0, MAX_TEXT);
   if (!text.trim()) return json({ ok: true, clean: true, reason: "内容为空，无需审核" });
 
-  const apiKey = process.env.GLM_API_KEY;
+  const apiKey = process.env.GLM_MODERATE_KEY || process.env.GLM_API_KEY;
   if (!apiKey) {
     /* 审核服务未配置：放行但打标记，方便前端提示管理员 */
     return json({ ok: true, clean: true, skipped: true, reason: "审核服务未配置" });
