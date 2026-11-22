@@ -9,7 +9,7 @@
   (function () { document.documentElement.setAttribute("data-theme", "dark"); })();
 </script>
 <style>
-  :root { --bg:#0a1128; --panel:rgba(40,72,168,.12); --panel2:rgba(40,72,168,.16); --line:rgba(40,72,168,.25); --accent:#2e52b4; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; --err:#ff6b6b; --ok:#34d399; }
+  :root { color-scheme:dark; --bg:#0a1128; --panel:rgba(40,72,168,.12); --panel2:rgba(40,72,168,.16); --line:rgba(40,72,168,.25); --accent:#2e52b4; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; --err:#ff6b6b; --ok:#34d399; }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; min-height:100vh; }
   .grid-bg { pointer-events:none; position:fixed; inset:0; z-index:0; background-image:linear-gradient(rgba(40,72,168,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(40,72,168,.07) 1px,transparent 1px); background-size:40px 40px; }
@@ -45,7 +45,11 @@
   select { appearance:none; -webkit-appearance:none; width:auto; min-width:150px; padding-right:2.1rem; cursor:pointer;
     background-image:linear-gradient(45deg,transparent 49%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 51%);
     background-position:calc(100% - 15px) 55%, calc(100% - 10px) 55%; background-size:5px 5px; background-repeat:no-repeat; }
-  select option { background:#0d1730; color:#e6ebf5; }
+  select option, select optgroup { background:#0d1730; color:#e6ebf5; }
+  select optgroup { background:#0d1730; color:#22d3ee; font-style:normal; font-weight:600; }
+  select optgroup option { background:#0d1730; color:#e6ebf5; }
+  select option:hover, select option:checked, select option:active { background:#1e3a6e; color:#fff; }
+  ::selection { background:rgba(34,211,238,.35); color:#fff; }
   .row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:center; margin-top:.8rem; }
   .btn { display:inline-block; border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; padding:.6rem 1.5rem; border-radius:10px; font-size:.92rem; font-weight:600; font-family:inherit; }
   .btn:disabled { opacity:.5; cursor:not-allowed; }
