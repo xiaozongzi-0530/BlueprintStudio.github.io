@@ -3,7 +3,7 @@
    POST JSON {prompt, lang, mode, history}
      prompt  需求描述（必填）
      lang    目标语言（可空）
-     mode    generate（写代码，默认）| explain（解释代码）| fix（找 bug）
+     mode    generate（写代码，默认）| explain（解释代码）| fix（找 bug）| chat（通用对话/非编程）
      history 多轮对话上下文 [{role:"user"|"assistant", content:"..."}]（可空，最多取最近 8 条）
    返回 {ok, text}    text 为模型输出（含 markdown 代码块）
    - 服务端代理 GLM，API Key 不下发前端
@@ -59,6 +59,24 @@ const SYSTEM = `你是 "BlueprintStudio" 程序员社区的 AI 编程助手，�
 3. 输出结构：先一两句话说明思路，再给代码，最后给关键点提示
 4. 解释代码时逐段讲清楚；排查 bug 时指出问题行并给出修复后的完整代码
 5. 不写与编程无关的内容；拒绝生成违法违规代码（木马、攻击工具、爬虫绕过反爬等）`;
+
+/* 通用对话模式（mode=chat）：面向非编程场景——问答、写作、翻译、总结、闲聊 */
+const SYSTEM_CHAT = `你是 "BlueprintStudio" 的通用 AI 助手「小蓝」，一位友善、专业、可靠的智能伙伴。
+
+能力范围：
+- 知识问答：清晰准确地解答各类问题，不确定时坦诚说明
+- 内容创作：写作、改写、润色、起名、写文案、写邮件
+- 翻译总结：多语言互译，长文要点提炼
+- 头脑风暴：创意思考、方案策划、学习辅导
+- 日常闲聊：轻松自然地交流，适度幽默，不做作
+
+表达要求：
+1. 默认用中文回复；用户用其他语言提问时，用对方的语言回复
+2. 语气自然亲切，像一位耐心的朋友，不说教、不机械、不空洞
+3. 善用标题、列表、加粗组织内容，层次分明、易读
+4. 回答紧扣用户问题，不跑题；复杂问题分点讲清，简单问题简明作答
+5. 代码或公式请用 markdown 代码块包裹
+6. 拒绝违法违规、色情暴力、侵犯他人隐私等不当内容`;
 
 export default async (req) => {
   if (req.method === "OPTIONS") return preflight();
@@ -119,7 +137,10 @@ export default async (req) => {
   if (!paid && !keyPool.length) return json({ ok: false, msg: "AI 服务未配置，请联系管理员" }, 503);
 
   let userMsg;
-  if (mode === "explain") {
+  if (mode === "chat") {
+    /* 通用对话：用户原话直接透传，交由 SYSTEM_CHAT 定义人格与表达风格 */
+    userMsg = prompt;
+  } else if (mode === "explain") {
     userMsg = "请解释下面这段代码的作用，逐段讲清楚" + (lang ? "（语言：" + lang + "）" : "") + "：\n\n" + prompt;
   } else if (mode === "fix") {
     userMsg = "下面这段代码有 bug 或运行报错，请找出问题并给出修复后的完整代码" + (lang ? "（语言：" + lang + "）" : "") + "：\n\n" + prompt;
@@ -136,7 +157,8 @@ export default async (req) => {
     : [];
   if (history.length > 12) history.length = 12;
 
-  const messages = [{ role: "system", content: SYSTEM }].concat(history, [buildUserMsg(userMsg, body.attach)]);
+  const messages = [{ role: "system", content: mode === "chat" ? SYSTEM_CHAT : SYSTEM }]
+    .concat(history, [buildUserMsg(userMsg, body.attach)]);
 
   /* ---------- 附件处理 ----------
      attach: [{name, mime, data}]  data：图片=纯 base64（≤1.5MB）；文本=UTF-8 文本（≤40KB）
