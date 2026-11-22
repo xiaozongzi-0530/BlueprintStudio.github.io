@@ -218,8 +218,9 @@ export default async (req) => {
     throw lastErr || new Error("所有 key 均不可用");
   }
 
-  /* 付费模型调用（OpenAI 兼容接口）：返回正文 + 实际消耗 token */
-  async function callPaid() {
+  /* 付费模型调用（OpenAI 兼容接口）：返回正文 + 实际消耗 token
+     maxTokens：按账号余额动态算出的生成上限，模型到达即停，避免超额 */
+  async function callPaid(maxTokens) {
     const url = paidCfg.baseUrl + "/chat/completions";
     const r = await fetch(url, {
       method: "POST",
@@ -228,7 +229,7 @@ export default async (req) => {
         model: paidCfg.realModel,
         messages: messages,
         temperature: 0.4,
-        max_tokens: MAX_OUTPUT,
+        max_tokens: maxTokens || MAX_OUTPUT,
       }),
       signal: ctrl.signal,
     });
@@ -288,17 +289,48 @@ export default async (req) => {
 
     let lastErr = null;
 
-    /* 付费模型：单独调用 + 扣额度，不走 GLM 降级链 */
+    /* 付费模型：单独调用 + 扣额度，不走 GLM 降级链
+       强制停止：按余额算出本次可生成的 token 上限，模型到达即停，绝不超额 */
     if (paid) {
       const tok = await verifyToken(req);
       const email = tok.email;
       const db0 = await getUsersRaw();
       const leftBefore = quotaLeft((db0.users || {})[email]);
-      const res = await callPaid();
+
+      /* 估算本次输入的 prompt token（中文≈1字/token，英文≈4字符/token） */
+      function estTokens(str) {
+        str = String(str || "");
+        const cjk = (str.match(/[\u3400-\u9fff\u3000-\u303f\uff00-\uffef]/g) || []).length;
+        const rest = str.length - cjk;
+        return Math.ceil(cjk + rest / 4);
+      }
+      let promptTokens = 0;
+      for (const m of messages) {
+        if (typeof m.content === "string") promptTokens += estTokens(m.content);
+        else if (Array.isArray(m.content)) {
+          for (const part of m.content) if (part && part.type === "text") promptTokens += estTokens(part.text);
+        }
+      }
+      promptTokens += 64; // 系统开销安全余量
+
+      /* 余额能承担的 token 总量 = 剩余额度 / 倍率；再减去本次输入，得到可生成上限 */
+      const budgetTotal = Math.floor(leftBefore / paid.mult);
+      const MIN_GEN = 128; // 至少留出这么多生成量，否则回答无意义
+      const maxGen = Math.min(MAX_OUTPUT, Math.floor(budgetTotal - promptTokens));
+      if (maxGen < MIN_GEN) {
+        const needTokens = promptTokens + MIN_GEN;
+        const needQuota = Math.ceil(needTokens * paid.mult);
+        return json({ ok: false, quotaEmpty: true,
+          msg: "额度不足，本次调用预计需要约 " + needQuota.toLocaleString() + " token（当前剩余 " + leftBefore.toLocaleString() + "），请先充值后再使用" }, 403);
+      }
+
+      const res = await callPaid(maxGen);
       if (!res.text) throw new Error(paid.name + " 返回为空");
       const d = await deductQuota(email, paid.name, paid.mult, res.tokens, leftBefore);
+      const capped = res.tokens >= maxGen + promptTokens - 8; // 生成被预算上限截断
       return json({ ok: true, text: res.text.slice(0, 8000), model: paid.name, paid: true,
-        usedTokens: res.tokens, mult: paid.mult, cost: d.cost, quotaLeft: d.left });
+        usedTokens: res.tokens, mult: paid.mult, cost: d.cost, quotaLeft: d.left,
+        genLimit: maxGen, capped: capped });
     }
 
     /* 第一跳：主模型（免费 GLM）—— callOnce 内部已遍历整个 key 池 */
