@@ -4,7 +4,7 @@
 
 ## 架构
 
-- 静态页面仍在 GitHub Pages（`public/` 仅作备用镜像）
+- 静态页面继续用 GitHub Pages，不迁
 - 后端 API 部署在 Deno Deploy，单入口 `worker.js`
 - 数据存 Deno KV（已适配成原 Netlify Blobs 的 `getStore` 接口，业务代码零改动）
 - 定时清理用 `Deno.cron()`，每天 UTC 03:00 删除超过 3 天的 AI 资产
