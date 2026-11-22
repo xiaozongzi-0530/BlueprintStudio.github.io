@@ -68,31 +68,6 @@
   .login-tip { background:rgba(34,211,238,.08); border:1px solid rgba(34,211,238,.3); color:var(--accent2); border-radius:10px; padding:.7rem 1rem; font-size:.85rem; margin-bottom:.9rem; }
   .login-tip a { color:#fff; text-decoration:underline; }
 
-  /* 会员定价 / 收款 */
-  .price-banner { background:linear-gradient(135deg,rgba(46,82,180,.18),rgba(34,211,238,.08)); border:1px solid rgba(34,211,238,.3); border-radius:14px; padding:1.1rem 1.3rem; margin-bottom:1.2rem; }
-  .price-banner h2 { font-size:1.05rem; color:var(--accent2); margin-bottom:.5rem; }
-  .price-banner .lead { font-size:.86rem; color:var(--text); line-height:1.8; }
-  .price-banner .lead b { color:var(--accent2); }
-  .tiers { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:.7rem; margin:.9rem 0; }
-  .tier { background:rgba(10,17,40,.55); border:1px solid var(--line); border-radius:11px; padding:.8rem .9rem; }
-  .tier.vip { border-color:rgba(34,211,238,.4); }
-  .tier .tn { font-size:.86rem; font-weight:600; margin-bottom:.35rem; }
-  .tier .tm { font-size:.76rem; color:var(--muted); line-height:1.7; }
-  .tier .tp { font-size:.8rem; color:var(--accent2); margin-top:.45rem; font-weight:600; }
-  .tier.free .tp { color:var(--ok); }
-  .pay-row { display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-start; margin-top:.5rem; }
-  .pay-qr { text-align:center; }
-  .pay-qr .frame { width:132px; height:132px; border:1px solid var(--line); border-radius:10px; background:#fff; padding:6px; display:flex; align-items:center; justify-content:center; }
-  .pay-qr .frame img { width:100%; height:100%; object-fit:contain; }
-  .pay-qr .frame .ph { color:#94a3b8; font-size:.78rem; line-height:1.5; }
-  .pay-qr .lb { font-size:.76rem; color:var(--muted); margin-top:.4rem; }
-  .pay-activate { flex:1; min-width:220px; }
-  .pay-activate label { display:block; font-size:.82rem; color:var(--muted); margin-bottom:.45rem; line-height:1.7; }
-  .pay-activate .arow { display:flex; gap:.5rem; flex-wrap:wrap; }
-  .pay-activate input { flex:1; min-width:150px; }
-  .pay-activate .ast { font-size:.78rem; margin-top:.5rem; min-height:1.1em; }
-  .member-on { display:inline-block; font-size:.74rem; padding:.2rem .6rem; border-radius:999px; background:rgba(52,211,153,.14); color:var(--ok); margin-left:.5rem; }
-
   /* 资产预览 */
   .asset-box { margin-top:.5rem; border:1px solid var(--line); border-radius:12px; padding:.8rem; background:rgba(0,0,0,.18); }
   .asset-box img { max-width:100%; border-radius:8px; display:block; }
@@ -150,52 +125,6 @@
       <h1 style="font-size:1.6rem; margin-bottom:.4rem;">AI <em style="font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;">工作台</em></h1>
       <p id="viewDesc" style="color:var(--muted); font-size:.9rem; margin-bottom:1.2rem;">写代码 / 生图 / 生视频 / 生成文件，一个工作台搞定。多任务多轮对话。</p>
 
-      <!-- 会员定价 / 收款 -->
-      <div class="price-banner" id="priceBanner">
-        <h2>💎 会员专享 AI<span id="memberBadge" class="member-on" style="display:none;">✓ 已开通会员</span></h2>
-        <div class="lead">基础资费 <b>2 元 = 1M token</b>，按模型倍率折算消耗。GLM 系列永久<b>免费</b>，会员模型需开通后使用。</div>
-        <div class="tiers">
-          <div class="tier free">
-            <div class="tn">🆓 GLM 系列（免费）</div>
-            <div class="tm">4.7-Flash / 4.6V / 4.1V-Thinking / Z1 / 4-Flash</div>
-            <div class="tp">免费 · 无需开通</div>
-          </div>
-          <div class="tier vip">
-            <div class="tn">🐋 GPT-6.2 Astra</div>
-            <div class="tm">综合能力强，复杂代码与推理首选</div>
-            <div class="tp">倍率 1.5× · 约 3 元 / 1M token</div>
-          </div>
-          <div class="tier vip">
-            <div class="tn">🐟 DeepSeek V4.1（蓝色大肥鱼）</div>
-            <div class="tm">高性价比，代码 / 中文表现优秀</div>
-            <div class="tp">倍率 1.2× · 约 2.4 元 / 1M token</div>
-          </div>
-        </div>
-        <div class="pay-row">
-          <div class="pay-qr">
-            <div class="frame">
-              <picture>
-                <source srcset="assets/reward-qr.webp" type="image/webp">
-                <img src="assets/reward-qr.png" alt="微信收款码" loading="lazy">
-              </picture>
-            </div>
-            <div class="lb">微信扫码付款</div>
-          </div>
-          <div class="pay-qr">
-            <div class="frame"><div class="ph">支付宝收款码<br>待上传</div></div>
-            <div class="lb">支付宝（即将支持）</div>
-          </div>
-          <div class="pay-activate">
-            <label>付款后联系管理员获取<b style="color:var(--accent2);">激活码</b>，填入下方即可解锁会员模型（激活状态保存在本机浏览器）。</label>
-            <div class="arow">
-              <input type="text" id="vipCode" placeholder="输入会员激活码" maxlength="60">
-              <button class="btn" id="vipBtn">激活</button>
-            </div>
-            <div class="ast" id="vipStatus"></div>
-          </div>
-        </div>
-      </div>
-
       <!-- 对话/生成视图 -->
       <div id="chatView">
         <div id="loginTip" class="login-tip" style="display:none;">
@@ -218,16 +147,12 @@
           <div class="row" id="rowCode">
             <label style="color:var(--muted); font-size:.85rem;">模型</label>
             <select id="model">
-              <optgroup label="GLM 系列">
+              <optgroup label="GLM 系列（免费）">
                 <option value="glm-4.7-flash">GLM-4.7-Flash</option>
                 <option value="glm-4.6v-flash">GLM-4.6V-Flash</option>
                 <option value="glm-4.1v-thinking-flash">GLM-4.1V-Thinking-Flash</option>
                 <option value="glm-z1-flash">GLM-Z1-Flash</option>
                 <option value="glm-4-flash-250414">GLM-4-Flash</option>
-              </optgroup>
-              <optgroup label="会员专享（2 元 = 1M token）">
-                <option value="gpt-6.2-astra">🐋 GPT-6.2 Astra（1.5×）</option>
-                <option value="deepseek-v4.1-flash">🐟 DeepSeek V4.1（1.2× · 蓝色大肥鱼）</option>
               </optgroup>
             </select>
             <label style="color:var(--muted); font-size:.85rem;">语言</label>
@@ -303,7 +228,7 @@
   var $ = function (id) { return document.getElementById(id); };
   $("year").textContent = Math.max(2026, new Date().getFullYear());
 
-  /* ===== AI 工作台：免费模型已开放，会员模型需激活码 ===== */
+  /* ===== AI 工作台：免费 GLM 模型开放 ===== */
 
   /* ---------- 登录 token ---------- */
   function token() { try { return localStorage.getItem("bs_token_v1") || ""; } catch (e) { return ""; } }
@@ -316,50 +241,8 @@
     "glm-4.7-flash": "GLM-4.7-Flash", "glm-4.6v-flash": "GLM-4.6V-Flash",
     "glm-4.1v-thinking-flash": "GLM-4.1V-Thinking-Flash", "glm-z1-flash": "GLM-Z1-Flash",
     "glm-4-flash-250414": "GLM-4-Flash",
-    "gpt-6.2-astra": "GPT-6.2 Astra（1.5×）", "deepseek-v4.1-flash": "DeepSeek V4.1（1.2× · 蓝色大肥鱼）",
   };
   var GEN_MODES = { image: 1, video: 1, file: 1 };
-
-  /* ---------- 会员（服务端权威） ----------
-     会员状态只认后端 /api/vip；前端不存任何可信标记。
-     真正的模型拦截在后端 api-aicode，这里仅用于展示徽章/友好提示。 */
-  var vipState = false;   // 由后端 status 刷新
-  function refreshVipBadge() {
-    var b = $("memberBadge"); if (!b) return;
-    b.style.display = vipState ? "" : "none";
-  }
-  function loadVipStatus() {
-    if (!token()) { vipState = false; refreshVipBadge(); return; }
-    fetch(BASE + "/api/vip", {
-      method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
-      body: JSON.stringify({ action: "status" }),
-    }).then(function (r) { return r.json(); }).then(function (res) {
-      if (res.ok) { vipState = !!res.vip; refreshVipBadge(); }
-    }).catch(function () {});
-  }
-  loadVipStatus();
-  $("vipBtn").onclick = function () {
-    var st = $("vipStatus");
-    if (!token()) {
-      st.textContent = "请先登录后再开通会员"; st.className = "ast status err";
-      window.location.href = "index.html"; return;
-    }
-    var code = ($("vipCode").value || "").trim();
-    if (!code) { st.textContent = "请输入激活码"; st.className = "ast status err"; return; }
-    st.textContent = "正在验证…"; st.className = "ast status";
-    fetch(BASE + "/api/vip", {
-      method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
-      body: JSON.stringify({ action: "redeem", code: code }),
-    }).then(function (r) { return r.json(); }).then(function (res) {
-      if (!res.ok) throw new Error(res.msg || "开通失败");
-      vipState = true; refreshVipBadge();
-      st.textContent = "✅ " + (res.msg || "会员开通成功") + "，现在可以使用 GPT / DeepSeek 模型";
-      st.className = "ast status ok";
-      $("vipCode").value = "";
-    }).catch(function (e) {
-      st.textContent = e.message || "网络异常，请稍后再试"; st.className = "ast status err";
-    });
-  };
 
   /* ---------- 附件（仅代码模式用） ---------- */
   var attach = null;
@@ -586,14 +469,9 @@
     var payload = { prompt: prompt, lang: $("lang").value, mode: mode, model: $("model").value, history: history };
     if (attach) payload.attach = [attach];
     fetch(BASE + "/api/aicode", {
-      method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()), body: JSON.stringify(payload),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
     }).then(function (r) { return r.json(); }).then(function (res) {
-      if (!res.ok) {
-        if (res.vipRequired) {
-          $("priceBanner").scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-        throw new Error(res.msg || "生成失败");
-      }
+      if (!res.ok) throw new Error(res.msg || "生成失败");
       status.className = "status ok";
       status.textContent = "完成" + (res.geoFallback ? "（已自动切换通用模式）" : (res.fallback ? "（已切换备用模型）" : ""));
       t.msgs.push({ role: "user", content: prompt + (attach ? "\n\n📎 附件：" + attach.name : "") });

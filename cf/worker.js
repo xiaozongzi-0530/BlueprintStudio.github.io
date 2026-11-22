@@ -11,7 +11,6 @@ import apiModerate from "./api-moderate.js";
 import apiReport from "./api-report.js";
 import apiAppeal from "./api-appeal.js";
 import apiAicode from "./api-aicode.js";
-import apiVip from "./api-vip.js";
 import apiAi from "./api-ai.js";
 import apiAiclean from "./api-aiclean.js";
 import apiFile from "./api-file.js";
@@ -25,7 +24,6 @@ const ROUTES = {
   "/api/report": apiReport,
   "/api/appeal": apiAppeal,
   "/api/aicode": apiAicode,
-  "/api/vip": apiVip,
   "/api/ai": apiAi,
   "/api/aiclean": apiAiclean,
   "/api/file": apiFile,

@@ -11,7 +11,7 @@
 
    环境变量：GLM_API_KEY（已配置）
 */
-import { json, preflight, clientIP, rateLimit, verifyToken, getUsersRaw, VIP_MODELS, isVipUser } from "./_lib.js";
+import { json, preflight, clientIP, rateLimit } from "./_lib.js";
 import { GLM_URL } from "./_glm.js";
 
 export const config = { path: "/api/aicode" };
@@ -75,19 +75,8 @@ export default async (req) => {
   if (!prompt) return json({ ok: false, msg: "需求描述不能为空" }, 400);
   const lang = clamp(body.lang, 20);
   const mode = clamp(body.mode, 10) || "generate";
-  /* ---------- 会员模型：服务端权威校验 ----------
-     选会员模型必须登录且账号已开通 vip；否则拒绝，前端绕过无效。 */
-  const requestedModel = clamp(body.model, 40);
-  if (VIP_MODELS.has(requestedModel)) {
-    const tok = await verifyToken(req);
-    if (!tok) return json({ ok: false, vipRequired: true, msg: "🔒 GPT / DeepSeek 为会员专享模型，请先登录后开通会员（2 元 = 1M token）" }, 401);
-    const db = await getUsersRaw();
-    const rec = (db.users || {})[tok.email];
-    if (!isVipUser(rec)) return json({ ok: false, vipRequired: true, msg: "🔒 该模型需开通会员后才能使用，请在 AI 工作台付款获取激活码" }, 403);
-  }
-
   /* 模型路由：不在白名单一律回退默认模型 */
-  const modelKey = MODELS[requestedModel] ? requestedModel : DEFAULT_MODEL;
+  const modelKey = MODELS[clamp(body.model, 40)] ? clamp(body.model, 40) : DEFAULT_MODEL;
   const mc = MODELS[modelKey];
 
   const apiKey = process.env.GLM_API_KEY;
