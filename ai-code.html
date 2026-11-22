@@ -68,6 +68,31 @@
   .login-tip { background:rgba(34,211,238,.08); border:1px solid rgba(34,211,238,.3); color:var(--accent2); border-radius:10px; padding:.7rem 1rem; font-size:.85rem; margin-bottom:.9rem; }
   .login-tip a { color:#fff; text-decoration:underline; }
 
+  /* 会员定价 / 收款 */
+  .price-banner { background:linear-gradient(135deg,rgba(46,82,180,.18),rgba(34,211,238,.08)); border:1px solid rgba(34,211,238,.3); border-radius:14px; padding:1.1rem 1.3rem; margin-bottom:1.2rem; }
+  .price-banner h2 { font-size:1.05rem; color:var(--accent2); margin-bottom:.5rem; }
+  .price-banner .lead { font-size:.86rem; color:var(--text); line-height:1.8; }
+  .price-banner .lead b { color:var(--accent2); }
+  .tiers { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:.7rem; margin:.9rem 0; }
+  .tier { background:rgba(10,17,40,.55); border:1px solid var(--line); border-radius:11px; padding:.8rem .9rem; }
+  .tier.vip { border-color:rgba(34,211,238,.4); }
+  .tier .tn { font-size:.86rem; font-weight:600; margin-bottom:.35rem; }
+  .tier .tm { font-size:.76rem; color:var(--muted); line-height:1.7; }
+  .tier .tp { font-size:.8rem; color:var(--accent2); margin-top:.45rem; font-weight:600; }
+  .tier.free .tp { color:var(--ok); }
+  .pay-row { display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-start; margin-top:.5rem; }
+  .pay-qr { text-align:center; }
+  .pay-qr .frame { width:132px; height:132px; border:1px solid var(--line); border-radius:10px; background:#fff; padding:6px; display:flex; align-items:center; justify-content:center; }
+  .pay-qr .frame img { width:100%; height:100%; object-fit:contain; }
+  .pay-qr .frame .ph { color:#94a3b8; font-size:.78rem; line-height:1.5; }
+  .pay-qr .lb { font-size:.76rem; color:var(--muted); margin-top:.4rem; }
+  .pay-activate { flex:1; min-width:220px; }
+  .pay-activate label { display:block; font-size:.82rem; color:var(--muted); margin-bottom:.45rem; line-height:1.7; }
+  .pay-activate .arow { display:flex; gap:.5rem; flex-wrap:wrap; }
+  .pay-activate input { flex:1; min-width:150px; }
+  .pay-activate .ast { font-size:.78rem; margin-top:.5rem; min-height:1.1em; }
+  .member-on { display:inline-block; font-size:.74rem; padding:.2rem .6rem; border-radius:999px; background:rgba(52,211,153,.14); color:var(--ok); margin-left:.5rem; }
+
   /* 资产预览 */
   .asset-box { margin-top:.5rem; border:1px solid var(--line); border-radius:12px; padding:.8rem; background:rgba(0,0,0,.18); }
   .asset-box img { max-width:100%; border-radius:8px; display:block; }
@@ -106,7 +131,7 @@
       <a href="chat.html">聊天</a>
       <a href="notes.html">笔记</a>
       <a href="discover.html">发现</a>
-      <!-- AI入口已暂停: <a href="ai-code.html" class="active">AI 工作台</a> -->
+      <a href="ai-code.html" class="active">AI 工作台</a>
       <a href="ann.html">公告</a>
       <a href="join.html">联系我们</a>
     </nav>
@@ -124,6 +149,52 @@
     <div id="work">
       <h1 style="font-size:1.6rem; margin-bottom:.4rem;">AI <em style="font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;">工作台</em></h1>
       <p id="viewDesc" style="color:var(--muted); font-size:.9rem; margin-bottom:1.2rem;">写代码 / 生图 / 生视频 / 生成文件，一个工作台搞定。多任务多轮对话。</p>
+
+      <!-- 会员定价 / 收款 -->
+      <div class="price-banner" id="priceBanner">
+        <h2>💎 会员专享 AI<span id="memberBadge" class="member-on" style="display:none;">✓ 已开通会员</span></h2>
+        <div class="lead">基础资费 <b>2 元 = 1M token</b>，按模型倍率折算消耗。GLM 系列永久<b>免费</b>，会员模型需开通后使用。</div>
+        <div class="tiers">
+          <div class="tier free">
+            <div class="tn">🆓 GLM 系列（免费）</div>
+            <div class="tm">4.7-Flash / 4.6V / 4.1V-Thinking / Z1 / 4-Flash</div>
+            <div class="tp">免费 · 无需开通</div>
+          </div>
+          <div class="tier vip">
+            <div class="tn">🐋 GPT-6.2 Astra</div>
+            <div class="tm">综合能力强，复杂代码与推理首选</div>
+            <div class="tp">倍率 1.5× · 约 3 元 / 1M token</div>
+          </div>
+          <div class="tier vip">
+            <div class="tn">🐟 DeepSeek V4.1（蓝色大肥鱼）</div>
+            <div class="tm">高性价比，代码 / 中文表现优秀</div>
+            <div class="tp">倍率 1.2× · 约 2.4 元 / 1M token</div>
+          </div>
+        </div>
+        <div class="pay-row">
+          <div class="pay-qr">
+            <div class="frame">
+              <picture>
+                <source srcset="assets/reward-qr.webp" type="image/webp">
+                <img src="assets/reward-qr.png" alt="微信收款码" loading="lazy">
+              </picture>
+            </div>
+            <div class="lb">微信扫码付款</div>
+          </div>
+          <div class="pay-qr">
+            <div class="frame"><div class="ph">支付宝收款码<br>待上传</div></div>
+            <div class="lb">支付宝（即将支持）</div>
+          </div>
+          <div class="pay-activate">
+            <label>付款后联系管理员获取<b style="color:var(--accent2);">激活码</b>，填入下方即可解锁会员模型（激活状态保存在本机浏览器）。</label>
+            <div class="arow">
+              <input type="text" id="vipCode" placeholder="输入会员激活码" maxlength="60">
+              <button class="btn" id="vipBtn">激活</button>
+            </div>
+            <div class="ast" id="vipStatus"></div>
+          </div>
+        </div>
+      </div>
 
       <!-- 对话/生成视图 -->
       <div id="chatView">
@@ -154,9 +225,9 @@
                 <option value="glm-z1-flash">GLM-Z1-Flash</option>
                 <option value="glm-4-flash-250414">GLM-4-Flash</option>
               </optgroup>
-              <optgroup label="GPT · DeepSeek（会员）">
-                <option value="gpt-6-astra">🐋 GPT-6 Astra（2×）</option>
-                <option value="deepseek-v4.1-flash">🐟 DeepSeek V4.1（蓝色大肥鱼）</option>
+              <optgroup label="会员专享（2 元 = 1M token）">
+                <option value="gpt-6.2-astra">🐋 GPT-6.2 Astra（1.5×）</option>
+                <option value="deepseek-v4.1-flash">🐟 DeepSeek V4.1（1.2× · 蓝色大肥鱼）</option>
               </optgroup>
             </select>
             <label style="color:var(--muted); font-size:.85rem;">语言</label>
@@ -232,21 +303,7 @@
   var $ = function (id) { return document.getElementById(id); };
   $("year").textContent = Math.max(2026, new Date().getFullYear());
 
-  /* ===== AI 工作台临时开关：恢复时改为 false 即可 ===== */
-  var AI_DISABLED = true;
-  if (AI_DISABLED) {
-    var layout = document.querySelector(".layout");
-    if (layout) {
-      layout.innerHTML = '<div class="card" style="text-align:center;padding:3rem 1.5rem;line-height:1.9;">'
-        + '<div style="font-size:3rem;">🚧</div>'
-        + '<h2 style="margin:.6rem 0;">AI 功能暂时关闭</h2>'
-        + '<p style="color:var(--muted);">AI 工作台正在维护升级，暂时无法使用，敬请期待。</p>'
-        + '<a class="btn" href="index.html" style="display:inline-block;margin-top:1rem;text-decoration:none;">返回首页</a>'
-        + '</div>';
-    }
-    return;
-  }
-  /* ===== /AI 工作台临时开关 ===== */
+  /* ===== AI 工作台：免费模型已开放，会员模型需激活码 ===== */
 
   /* ---------- 登录 token ---------- */
   function token() { try { return localStorage.getItem("bs_token_v1") || ""; } catch (e) { return ""; } }
@@ -259,9 +316,33 @@
     "glm-4.7-flash": "GLM-4.7-Flash", "glm-4.6v-flash": "GLM-4.6V-Flash",
     "glm-4.1v-thinking-flash": "GLM-4.1V-Thinking-Flash", "glm-z1-flash": "GLM-Z1-Flash",
     "glm-4-flash-250414": "GLM-4-Flash",
-    "gpt-6-astra": "GPT-6 Astra", "deepseek-v4.1-flash": "DeepSeek V4.1（蓝色大肥鱼）",
+    "gpt-6.2-astra": "GPT-6.2 Astra（1.5×）", "deepseek-v4.1-flash": "DeepSeek V4.1（1.2× · 蓝色大肥鱼）",
   };
   var GEN_MODES = { image: 1, video: 1, file: 1 };
+
+  /* ---------- 会员模型门槛（前端软校验） ----------
+     管理员可修改 VIP_CODES 列表分发激活码；激活状态存本机 localStorage。
+     注意：这是前端校验，仅防误用；真正鉴权应放服务端（后端就绪后迁移）。 */
+  var VIP_MODELS = { "gpt-6.2-astra": 1, "deepseek-v4.1-flash": 1 };
+  var VIP_CODES = ["BS-VIP-2026"];   /* ← 管理员在此维护有效激活码，可加多个 */
+  var VIP_KEY = "bs_aicode_vip_v1";
+  function isVip() { try { return localStorage.getItem(VIP_KEY) === "1"; } catch (e) { return false; } }
+  function refreshVipBadge() {
+    var b = $("memberBadge"); if (!b) return;
+    b.style.display = isVip() ? "" : "none";
+  }
+  refreshVipBadge();
+  $("vipBtn").onclick = function () {
+    var code = ($("vipCode").value || "").trim().toUpperCase();
+    var st = $("vipStatus");
+    if (!code) { st.textContent = "请输入激活码"; st.className = "ast status err"; return; }
+    if (VIP_CODES.map(function (c) { return c.toUpperCase(); }).indexOf(code) === -1) {
+      st.textContent = "激活码无效，请联系管理员"; st.className = "ast status err"; return;
+    }
+    try { localStorage.setItem(VIP_KEY, "1"); } catch (e) {}
+    st.textContent = "✅ 会员已开通，现在可以使用 GPT / DeepSeek 模型"; st.className = "ast status ok";
+    $("vipCode").value = ""; refreshVipBadge();
+  };
 
   /* ---------- 附件（仅代码模式用） ---------- */
   var attach = null;
@@ -482,6 +563,13 @@
   /* ---- 代码/对话（原逻辑） ---- */
   function sendCode(prompt) {
     var status = $("status"), t = cur();
+    /* 会员模型门槛：未开通则引导开通，不发起请求 */
+    if (VIP_MODELS[$("model").value] && !isVip()) {
+      status.textContent = "🔒 GPT / DeepSeek 为会员专享模型，请在上方付款获取激活码开通（2 元 = 1M token）";
+      status.className = "status err";
+      $("priceBanner").scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     busy = true; $("goBtn").disabled = true; status.className = "status";
     status.innerHTML = '<span class="loading">🤖 AI 正在思考</span>';
     var history = t.msgs.slice(-8).map(function (m) { return { role: m.role, content: m.content }; });
