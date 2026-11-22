@@ -417,6 +417,7 @@
         <aside class="admin-tabs" id="adminTabs">
           <button class="admin-tab active" data-tab="users">账号管理</button>
           <button class="admin-tab" data-tab="create">分发账号</button>
+          <button class="admin-tab" data-tab="tokens">Token 兑换码</button>
           <button class="admin-tab" data-tab="ann">公告管理</button>
           <button class="admin-tab" data-tab="chat">聊天管理</button>
         </aside>
@@ -444,6 +445,20 @@
             <input class="auth-input" id="admUID" type="text" placeholder="UID（8位数字，留空自动生成）" maxlength="8">
             <p id="admStatus" class="admin-hint"></p>
             <button class="auth-btn" id="admCreate">创建账号</button>
+          </div>
+
+          <!-- Token 兑换码 -->
+          <div class="admin-pane" data-pane="tokens">
+            <p class="admin-hint">填写对方邮箱与 token 数量，系统生成兑换码并通过邮件发送。兑换码 <b style="color:#22d3ee">45 秒</b>内有效，过期可在下方重新生成。对方登录 AI 工作台输入兑换码即可到账。</p>
+            <input class="auth-input" id="tkEmail" type="email" placeholder="对方邮箱（接收兑换码）">
+            <input class="auth-input" id="tkQuota" type="number" placeholder="token 数量，如 1000000" min="1" step="1">
+            <p id="tkStatus" class="admin-hint"></p>
+            <button class="auth-btn" id="tkIssue">生成兑换码并发送邮件</button>
+            <div style="display:flex;align-items:center;gap:.6rem;margin:1.1rem 0 .5rem;">
+              <span style="font-size:.86rem;color:var(--muted);">最近兑换码</span>
+              <button class="side-link" id="tkRefresh" style="width:auto;padding:.25rem .6rem;font-size:.78rem;">刷新</button>
+            </div>
+            <div class="admin-scroll" style="max-height:32vh;"><div id="tkList" class="admin-list"></div></div>
           </div>
 
           <!-- 公告 -->
@@ -1429,8 +1444,67 @@
         });
         var focusMap = { users: "userSearch" };
         if (focusMap[tab]) setTimeout(function () { document.getElementById(focusMap[tab]).focus(); }, 30);
+        if (tab === "tokens") { renderCodes(); startCodeTicker(); }
+        else { stopCodeTicker(); }
       });
-      document.getElementById("admClose").addEventListener("click", function () { adminMask.classList.remove("show"); });
+      document.getElementById("admClose").addEventListener("click", function () { adminMask.classList.remove("show"); stopCodeTicker(); });
+
+      /* ===== Token 兑换码（走 /api/quota） ===== */
+      function quotaCall(body) {
+        var h = { "Content-Type": "application/json" };
+        var t = authToken();
+        if (t) h.Authorization = "Bearer " + t;
+        return fetch(API_BASE + "/api/quota", { method: "POST", headers: h, body: JSON.stringify(body) })
+          .then(function (r) { return r.json(); });
+      }
+      var codeTicker = null;
+      function stopCodeTicker() { if (codeTicker) { clearInterval(codeTicker); codeTicker = null; } }
+      function startCodeTicker() { if (!codeTicker) codeTicker = setInterval(renderCodes, 1000); }
+      function renderCodes() {
+        quotaCall({ action: "codes" }).then(function (res) {
+          var box = document.getElementById("tkList");
+          if (!box) return;
+          if (!res.ok) { box.innerHTML = '<p style="color:#ff6b6b;font-size:.82rem;">' + (res.msg || "读取失败") + "</p>"; return; }
+          var now = Date.now();
+          var rows = (res.codes || []).map(function (c) {
+            var left = Math.max(0, Math.ceil((Number(c.expireAt) - now) / 1000));
+            var state, color;
+            if (c.used) { state = "已兑换 · " + (c.usedBy || ""); color = "#34d399"; }
+            else if (left <= 0) { state = "已过期"; color = "#ff6b6b"; }
+            else { state = "⏱ " + left + "s"; color = "#22d3ee"; }
+            return '<div class="admin-row"><div class="r-main">'
+              + '<div><b style="letter-spacing:2px;color:var(--accent2);">' + c.code + "</b> · "
+              + Number(c.tokens).toLocaleString() + " token</div>"
+              + '<div class="r-email">' + c.email + '</div></div>'
+              + '<div class="r-ops"><span style="color:' + color + ';font-size:.8rem;">' + state + "</span></div></div>";
+          });
+          box.innerHTML = rows.length ? rows.join("") : '<p style="color:var(--muted);font-size:.82rem;">暂无兑换码记录</p>';
+        }).catch(function () {});
+      }
+      document.getElementById("tkRefresh").addEventListener("click", renderCodes);
+      document.getElementById("tkIssue").addEventListener("click", function () {
+        var email = document.getElementById("tkEmail").value.trim().toLowerCase();
+        var quota = Number(document.getElementById("tkQuota").value);
+        var st = document.getElementById("tkStatus");
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { st.textContent = "请填写正确的收件邮箱"; st.style.color = "#ff6b6b"; return; }
+        if (!isFinite(quota) || quota < 1) { st.textContent = "token 数量需为大于 0 的数字"; st.style.color = "#ff6b6b"; return; }
+        st.textContent = "正在生成并发邮件…"; st.style.color = "var(--accent2)";
+        var btn = this; btn.disabled = true;
+        quotaCall({ action: "issue", email: email, quota: Math.floor(quota) }).then(function (res) {
+          btn.disabled = false;
+          if (!res.ok) { st.textContent = res.msg || "生成失败"; st.style.color = "#ff6b6b"; return; }
+          if (res.mailSent) {
+            st.textContent = "✅ 已生成并发送至 " + email + "（45秒内有效）"; st.style.color = "#34d399";
+          } else {
+            st.innerHTML = "⚠️ 兑换码已生成，但邮件未发送（" + (res.mailError || "未配置发信") + "）。请手动转发：<b style='color:var(--accent2);letter-spacing:2px;'>" + res.code + "</b>";
+            st.style.color = "#fbbf24";
+          }
+          document.getElementById("tkQuota").value = "";
+          renderCodes();
+        }).catch(function (e) {
+          btn.disabled = false; st.textContent = "网络异常：" + (e.message || ""); st.style.color = "#ff6b6b";
+        });
+      });
 
       regSubmitBtn.addEventListener("click", function () { tryAuth("register"); });
       loginSubmitBtn.addEventListener("click", function () { tryAuth("login"); });
