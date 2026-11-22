@@ -87,7 +87,9 @@ export default async (event) => {
     return { statusCode: 204, headers: CORS, body: "" };
   }
   const req = toRequest(event);
-  const path = new URL(req.url).pathname;
+  let path = new URL(req.url).pathname;
+  // HTTP 访问服务路径为 /api，event.path 可能是 /auth（已剥前缀）或 /api/auth
+  if (ROUTES[path] === undefined && !path.startsWith("/api/")) path = "/api" + path;
   const handler = ROUTES[path];
   if (!handler) {
     return { statusCode: 404, headers: CORS, body: JSON.stringify({ ok: false, msg: "Not Found" }) };
