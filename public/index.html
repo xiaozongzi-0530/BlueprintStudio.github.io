@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN" data-theme="dark">
 <head>
-<script>location.replace("maintenance.html");</script>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BlueprintStudio · 蓝图交流平台</title>
@@ -419,8 +417,10 @@
         <aside class="admin-tabs" id="adminTabs">
           <button class="admin-tab active" data-tab="users">账号管理</button>
           <button class="admin-tab" data-tab="create">分发账号</button>
+          <button class="admin-tab" data-tab="tokens">Token 兑换码</button>
           <button class="admin-tab" data-tab="ann">公告管理</button>
           <button class="admin-tab" data-tab="chat">聊天管理</button>
+          <button class="admin-tab" data-tab="logs">额度流水</button>
         </aside>
 
         <div class="admin-main">
@@ -448,6 +448,20 @@
             <button class="auth-btn" id="admCreate">创建账号</button>
           </div>
 
+          <!-- Token 兑换码 -->
+          <div class="admin-pane" data-pane="tokens">
+            <p class="admin-hint">填写对方邮箱与 token 数量，系统生成兑换码并通过邮件发送。兑换码 <b style="color:#22d3ee">45 秒</b>内有效，过期可在下方重新生成。对方登录 AI 工作台输入兑换码即可到账。</p>
+            <input class="auth-input" id="tkEmail" type="email" placeholder="对方邮箱（接收兑换码）">
+            <input class="auth-input" id="tkQuota" type="number" placeholder="token 数量，如 1000000" min="1" step="1">
+            <p id="tkStatus" class="admin-hint"></p>
+            <button class="auth-btn" id="tkIssue">生成兑换码并发送邮件</button>
+            <div style="display:flex;align-items:center;gap:.6rem;margin:1.1rem 0 .5rem;">
+              <span style="font-size:.86rem;color:var(--muted);">最近兑换码</span>
+              <button class="side-link" id="tkRefresh" style="width:auto;padding:.25rem .6rem;font-size:.78rem;">刷新</button>
+            </div>
+            <div class="admin-scroll" style="max-height:32vh;"><div id="tkList" class="admin-list"></div></div>
+          </div>
+
           <!-- 公告 -->
           <div class="admin-pane" data-pane="ann">
             <div class="admin-toolbar">
@@ -460,6 +474,15 @@
           <!-- 聊天 -->
           <div class="admin-pane" data-pane="chat">
             <div class="admin-scroll"><div id="chatAdminList" class="admin-list"></div></div>
+          </div>
+
+          <!-- 额度流水 -->
+          <div class="admin-pane" data-pane="logs">
+            <div class="admin-toolbar">
+              <span class="admin-hint" style="margin:0;flex:1;">付费模型按 token×倍率扣减（GPT ×5、DeepSeek ×3），GLM 免费。最近 30 条。</span>
+              <button class="side-link" id="qlRefresh" style="width:auto;padding:.3rem .7rem;font-size:.78rem;">刷新</button>
+            </div>
+            <div class="admin-scroll" style="max-height:52vh;"><div id="qlList" class="admin-list"></div></div>
           </div>
         </div>
       </div>
@@ -642,11 +665,8 @@
       var KEY = "bs_auth";
       var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
       var ADMIN_UID = "00000000";
-      /* 邮箱验证码：由 Netlify 函数发信，授权码只存在服务端。
-         部署后把函数地址填到 MAIL_API，形如
-         https://你的站点.netlify.app/.netlify/functions/send-code
-         留空时注册跳过验证码，原有流程不受影响。 */
-      var MAIL_API = "https://blueprintstudio-mail.netlify.app/.netlify/functions/send-code";
+      /* 邮箱验证码：目前无后端发信服务，留空时注册跳过验证码，原有流程不受影响。 */
+      var MAIL_API = "";
       var MAIL_READY = !!MAIL_API;
       var CODE_STORE = "bs_mail_code_v1";
       var CODE_TTL = 10 * 60 * 1000;
@@ -771,7 +791,7 @@
       function setStatus(t, cls) { statusEl.textContent = t; statusEl.className = cls || ""; }
       function isAdmin() { return me === ADMIN_EMAIL; }
       /* ===== 数据层：账号走 /api/auth（私有 Blobs，密码哈希永不出服务端） ===== */
-      var API_BASE = "https://blueprintstudio-mail.netlify.app";
+      var API_BASE = "https://blueprintstudio-d5f6u80sab2de6b7-1538470672.ap-shanghai.app.tcloudbase.com";
       function authToken() {
         try {
           var s = JSON.parse(localStorage.getItem(KEY) || "null");
@@ -1434,8 +1454,100 @@
         });
         var focusMap = { users: "userSearch" };
         if (focusMap[tab]) setTimeout(function () { document.getElementById(focusMap[tab]).focus(); }, 30);
+        if (tab === "tokens") { renderCodes(); startCodeTicker(); }
+        else { stopCodeTicker(); }
+        if (tab === "logs") { renderQuotaLogs(); }
       });
-      document.getElementById("admClose").addEventListener("click", function () { adminMask.classList.remove("show"); });
+      document.getElementById("admClose").addEventListener("click", function () { adminMask.classList.remove("show"); stopCodeTicker(); });
+
+      /* ===== Token 兑换码（走 /api/quota） ===== */
+      function quotaCall(body) {
+        var h = { "Content-Type": "application/json" };
+        var t = authToken();
+        if (t) h.Authorization = "Bearer " + t;
+        return fetch(API_BASE + "/api/quota", { method: "POST", headers: h, body: JSON.stringify(body) })
+          .then(function (r) { return r.json(); });
+      }
+      var codeTicker = null;
+      function stopCodeTicker() { if (codeTicker) { clearInterval(codeTicker); codeTicker = null; } }
+      function startCodeTicker() { if (!codeTicker) codeTicker = setInterval(renderCodes, 1000); }
+      function renderCodes() {
+        quotaCall({ action: "codes" }).then(function (res) {
+          var box = document.getElementById("tkList");
+          if (!box) return;
+          if (!res.ok) { box.innerHTML = '<p style="color:#ff6b6b;font-size:.82rem;">' + (res.msg || "读取失败") + "</p>"; return; }
+          var now = Date.now();
+          var rows = (res.codes || []).map(function (c) {
+            var left = Math.max(0, Math.ceil((Number(c.expireAt) - now) / 1000));
+            var state, color;
+            if (c.used) { state = "已兑换 · " + (c.usedBy || ""); color = "#34d399"; }
+            else if (left <= 0) { state = "已过期"; color = "#ff6b6b"; }
+            else { state = "⏱ " + left + "s"; color = "#22d3ee"; }
+            return '<div class="admin-row"><div class="r-main">'
+              + '<div><b style="letter-spacing:2px;color:var(--accent2);">' + c.code + "</b> · "
+              + Number(c.tokens).toLocaleString() + " token</div>"
+              + '<div class="r-email">' + c.email + '</div></div>'
+              + '<div class="r-ops"><span style="color:' + color + ';font-size:.8rem;">' + state + "</span></div></div>";
+          });
+          box.innerHTML = rows.length ? rows.join("") : '<p style="color:var(--muted);font-size:.82rem;">暂无兑换码记录</p>';
+        }).catch(function () {});
+      }
+      document.getElementById("tkRefresh").addEventListener("click", renderCodes);
+      document.getElementById("tkIssue").addEventListener("click", function () {
+        var email = document.getElementById("tkEmail").value.trim().toLowerCase();
+        var quota = Number(document.getElementById("tkQuota").value);
+        var st = document.getElementById("tkStatus");
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { st.textContent = "请填写正确的收件邮箱"; st.style.color = "#ff6b6b"; return; }
+        if (!isFinite(quota) || quota < 1) { st.textContent = "token 数量需为大于 0 的数字"; st.style.color = "#ff6b6b"; return; }
+        st.textContent = "正在生成并发邮件…"; st.style.color = "var(--accent2)";
+        var btn = this; btn.disabled = true;
+        quotaCall({ action: "issue", email: email, quota: Math.floor(quota) }).then(function (res) {
+          btn.disabled = false;
+          if (!res.ok) { st.textContent = res.msg || "生成失败"; st.style.color = "#ff6b6b"; return; }
+          if (res.mailSent) {
+            st.textContent = "✅ 已生成并发送至 " + email + "（45秒内有效）"; st.style.color = "#34d399";
+          } else {
+            st.innerHTML = "⚠️ 兑换码已生成，但邮件未发送（" + (res.mailError || "未配置发信") + "）。请手动转发：<b style='color:var(--accent2);letter-spacing:2px;'>" + res.code + "</b>";
+            st.style.color = "#fbbf24";
+          }
+          document.getElementById("tkQuota").value = "";
+          renderCodes();
+        }).catch(function (e) {
+          btn.disabled = false; st.textContent = "网络异常：" + (e.message || ""); st.style.color = "#ff6b6b";
+        });
+      });
+
+      /* ===== 额度流水（走 /api/quota logs） ===== */
+      function renderQuotaLogs() {
+        var box = document.getElementById("qlList");
+        if (!box) return;
+        box.innerHTML = '<p style="color:var(--muted);font-size:.82rem;">加载中…</p>';
+        quotaCall({ action: "logs" }).then(function (res) {
+          if (!res.ok) { box.innerHTML = '<p style="color:#ff6b6b;font-size:.82rem;">' + (res.msg || "读取失败") + "</p>"; return; }
+          var rows = (res.logs || []).map(function (l) {
+            var t = new Date(Number(l.t));
+            var ts = isNaN(t.getTime()) ? "-" : (t.getMonth() + 1) + "/" + t.getDate() + " " +
+              String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
+            var mult = Number(l.mult) || 1;
+            var cost = Number(l.cost) || 0;
+            var model = String(l.model || "-");
+            var isRedeem = model === "兑换码";
+            var paid = mult > 1;
+            var costLabel, costColor;
+            if (isRedeem) { costLabel = "+" + cost.toLocaleString(); costColor = "#34d399"; }
+            else if (paid) { costLabel = "×" + mult + " 扣 " + cost.toLocaleString(); costColor = "#fbbf24"; }
+            else { costLabel = "免费"; costColor = "#34d399"; }
+            return '<div class="admin-row"><div class="r-main">'
+              + '<div><b style="color:var(--accent2);">' + model + "</b> · "
+              + '<span style="color:' + costColor + ';">' + costLabel + "</span></div>"
+              + '<div class="r-email">' + String(l.email || "") + " · " + Number(l.tokens || 0).toLocaleString() + " tokens · 余 " + Number(l.left || 0).toLocaleString() + '</div></div>'
+              + '<div class="r-ops"><span style="color:var(--muted);font-size:.75rem;">' + ts + "</span></div></div>";
+          });
+          box.innerHTML = rows.length ? rows.join("") : '<p style="color:var(--muted);font-size:.82rem;">暂无扣减流水</p>';
+        }).catch(function () { box.innerHTML = '<p style="color:#ff6b6b;font-size:.82rem;">网络异常</p>'; });
+      }
+      var qlRefreshBtn = document.getElementById("qlRefresh");
+      if (qlRefreshBtn) qlRefreshBtn.addEventListener("click", renderQuotaLogs);
 
       regSubmitBtn.addEventListener("click", function () { tryAuth("register"); });
       loginSubmitBtn.addEventListener("click", function () { tryAuth("login"); });

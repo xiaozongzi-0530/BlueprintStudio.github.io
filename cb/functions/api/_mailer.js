@@ -15,6 +15,9 @@ import crypto from "node:crypto";
 const SMTP_HOST = process.env.SMTP_HOST || "smtp.yeah.net";
 const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
 const FROM_NAME = process.env.SMTP_FROM || "BlueprintStudio";
+/* EHLO 标识：网易 Coremail 反垃圾系统会校验，用 mail.<域名> 才能通过 AUTH */
+const SMTP_EHLO = process.env.SMTP_EHLO ||
+  ("mail." + String(SMTP_HOST).split(".").slice(-2).join("."));
 const T_STEP = 6000;
 const T_TOTAL = 12000;
 
@@ -118,7 +121,7 @@ export function sendMail(to, subject, text, html) {
     sock.on("secureConnect", async () => {
       try {
         await expect(220, "等待欢迎语");
-        await write("EHLO blueprintstudio"); await expect(250, "握手");
+        await write("EHLO " + SMTP_EHLO); await expect(250, "握手");
         await write("AUTH LOGIN"); await expect(334, "认证");
         await write(b64(user)); await expect(334, "认证");
         await write(b64(pass)); await expect(235, "登录");

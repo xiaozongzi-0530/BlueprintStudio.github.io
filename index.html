@@ -420,6 +420,7 @@
           <button class="admin-tab" data-tab="tokens">Token 兑换码</button>
           <button class="admin-tab" data-tab="ann">公告管理</button>
           <button class="admin-tab" data-tab="chat">聊天管理</button>
+          <button class="admin-tab" data-tab="logs">额度流水</button>
         </aside>
 
         <div class="admin-main">
@@ -473,6 +474,15 @@
           <!-- 聊天 -->
           <div class="admin-pane" data-pane="chat">
             <div class="admin-scroll"><div id="chatAdminList" class="admin-list"></div></div>
+          </div>
+
+          <!-- 额度流水 -->
+          <div class="admin-pane" data-pane="logs">
+            <div class="admin-toolbar">
+              <span class="admin-hint" style="margin:0;flex:1;">付费模型按 token×倍率扣减（GPT ×5、DeepSeek ×3），GLM 免费。最近 30 条。</span>
+              <button class="side-link" id="qlRefresh" style="width:auto;padding:.3rem .7rem;font-size:.78rem;">刷新</button>
+            </div>
+            <div class="admin-scroll" style="max-height:52vh;"><div id="qlList" class="admin-list"></div></div>
           </div>
         </div>
       </div>
@@ -1446,6 +1456,7 @@
         if (focusMap[tab]) setTimeout(function () { document.getElementById(focusMap[tab]).focus(); }, 30);
         if (tab === "tokens") { renderCodes(); startCodeTicker(); }
         else { stopCodeTicker(); }
+        if (tab === "logs") { renderQuotaLogs(); }
       });
       document.getElementById("admClose").addEventListener("click", function () { adminMask.classList.remove("show"); stopCodeTicker(); });
 
@@ -1505,6 +1516,38 @@
           btn.disabled = false; st.textContent = "网络异常：" + (e.message || ""); st.style.color = "#ff6b6b";
         });
       });
+
+      /* ===== 额度流水（走 /api/quota logs） ===== */
+      function renderQuotaLogs() {
+        var box = document.getElementById("qlList");
+        if (!box) return;
+        box.innerHTML = '<p style="color:var(--muted);font-size:.82rem;">加载中…</p>';
+        quotaCall({ action: "logs" }).then(function (res) {
+          if (!res.ok) { box.innerHTML = '<p style="color:#ff6b6b;font-size:.82rem;">' + (res.msg || "读取失败") + "</p>"; return; }
+          var rows = (res.logs || []).map(function (l) {
+            var t = new Date(Number(l.t));
+            var ts = isNaN(t.getTime()) ? "-" : (t.getMonth() + 1) + "/" + t.getDate() + " " +
+              String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
+            var mult = Number(l.mult) || 1;
+            var cost = Number(l.cost) || 0;
+            var model = String(l.model || "-");
+            var isRedeem = model === "兑换码";
+            var paid = mult > 1;
+            var costLabel, costColor;
+            if (isRedeem) { costLabel = "+" + cost.toLocaleString(); costColor = "#34d399"; }
+            else if (paid) { costLabel = "×" + mult + " 扣 " + cost.toLocaleString(); costColor = "#fbbf24"; }
+            else { costLabel = "免费"; costColor = "#34d399"; }
+            return '<div class="admin-row"><div class="r-main">'
+              + '<div><b style="color:var(--accent2);">' + model + "</b> · "
+              + '<span style="color:' + costColor + ';">' + costLabel + "</span></div>"
+              + '<div class="r-email">' + String(l.email || "") + " · " + Number(l.tokens || 0).toLocaleString() + " tokens · 余 " + Number(l.left || 0).toLocaleString() + '</div></div>'
+              + '<div class="r-ops"><span style="color:var(--muted);font-size:.75rem;">' + ts + "</span></div></div>";
+          });
+          box.innerHTML = rows.length ? rows.join("") : '<p style="color:var(--muted);font-size:.82rem;">暂无扣减流水</p>';
+        }).catch(function () { box.innerHTML = '<p style="color:#ff6b6b;font-size:.82rem;">网络异常</p>'; });
+      }
+      var qlRefreshBtn = document.getElementById("qlRefresh");
+      if (qlRefreshBtn) qlRefreshBtn.addEventListener("click", renderQuotaLogs);
 
       regSubmitBtn.addEventListener("click", function () { tryAuth("register"); });
       loginSubmitBtn.addEventListener("click", function () { tryAuth("login"); });
