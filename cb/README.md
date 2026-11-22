@@ -2,6 +2,30 @@
 
 由 Netlify/CF 版平移而来，本地端到端测试 10 项全过（账号/登录/token/数据读写/CORS/AI 路由）。国内直连，微信扫码注册，不依赖 GitHub。
 
+## 环境信息
+- 环境 ID：`blueprintstudio-d5f6u80sab2de6b7`
+- 云函数名：`api`（Node.js 18+）
+- HTTP 访问路径：`/api/*` → `api` 函数
+
+## 全自动部署（推荐，拿到 API 密钥后一条龙）
+在仓库根目录执行，凭证用环境变量传（不落盘）：
+
+```bash
+# 登录（二选一）
+tcb login --cloudbase-api-key "环境APIKey" -e blueprintstudio-d5f6u80sab2de6b7   # 推荐：环境级 key
+# 或 tcb login --apiKeyId "SecretId" --apiKey "SecretKey"                         # 账号级密钥
+
+cd cb/functions && npm install && cd ../..   # 装 @cloudbase/node-sdk
+tcb -e blueprintstudio-d5f6u80sab2de6b7 fn deploy api --dir cb/functions --force --httpFn --path /api --runtime Nodejs20.19
+node cb/import-data.cjs                       # 导入数据（云函数环境内无需凭证）
+```
+
+凭证获取（推荐第一种，权限小更安全）：
+- **环境 API Key**：CloudBase 控制台 → 你的环境 → 环境设置 → API Key → 生成
+- 账号密钥：访问管理 → API 密钥管理 → 新建 SecretId/SecretKey
+
+> 部署环境变量（GLM key 等）不在仓库里配，等 AI 恢复时单独加。现在 AI 保持关闭。
+
 ## 结构
 
 ```
