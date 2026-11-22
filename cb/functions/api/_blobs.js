@@ -16,11 +16,23 @@ export function initDB() {
 /* 供入口在无环境变量时测试注入 */
 export function setDB(db) { _db = db; }
 
-function coll(storeName) {
-  if (!_db) initDB();
-  return _db.collection(storeName);
+/* 集合不存在时自动创建：仅在真实读写抛 ResourceNotFound 时才 createCollection，
+   绝不对已存在集合调用 create（那会清空数据）。创建后重试原操作一次。 */
+function isNotFound(e) {
+  const s = String((e && (e.message || e.errMsg || e.code)) || e || "");
+  return s.indexOf("COLLECTION_NOT_EXIST") !== -1 || s.indexOf("Db or Table not exist") !== -1
+    || s.indexOf("ResourceNotFound") !== -1 || s.indexOf("not exist") !== -1;
 }
-/* 云集合名只允许字母数字下划线横线；store 名都符合 */
+async function op(storeName, fn) {
+  if (!_db) initDB();
+  try {
+    return await fn(_db.collection(storeName));
+  } catch (e) {
+    if (!isNotFound(e)) throw e;
+    try { await _db.createCollection(storeName); } catch (x) {}
+    return await fn(_db.collection(storeName));
+  }
+}
 
 function wrap(value, opts) {
   if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
@@ -50,28 +62,28 @@ function unwrap(rec, type) {
 export function getStore(storeName) {
   return {
     async get(key, opts) {
-      const r = await coll(storeName).doc(String(key)).get();
+      const r = await op(storeName, c => c.doc(String(key)).get());
       const doc = r && r.data && r.data[0];
       return unwrap(doc, opts && opts.type);
     },
     async getWithMetadata(key) {
-      const r = await coll(storeName).doc(String(key)).get();
+      const r = await op(storeName, c => c.doc(String(key)).get());
       const doc = r && r.data && r.data[0];
       if (!doc) return { value: null, metadata: null };
       return { value: unwrap(doc), metadata: doc.meta || null };
     },
     async getMetadata(key) {
-      const r = await coll(storeName).doc(String(key)).get();
+      const r = await op(storeName, c => c.doc(String(key)).get());
       const doc = r && r.data && r.data[0];
       return { metadata: (doc && doc.meta) || null };
     },
     async set(key, value, opts) {
       const data = wrap(value, opts);
       // set 不存在则创建；云函数 set 会覆盖整条文档
-      await coll(storeName).doc(String(key)).set({ ...data });
+      await op(storeName, c => c.doc(String(key)).set({ ...data }));
     },
     async delete(key) {
-      await coll(storeName).doc(String(key)).remove();
+      await op(storeName, c => c.doc(String(key)).remove());
     },
     async list(options) {
       options = options || {};
@@ -81,7 +93,7 @@ export function getStore(storeName) {
         const batch = 100;
         let n = 0;
         while (true) {
-          const r = await coll(storeName).skip(skip).limit(batch).get();
+          const r = await op(storeName, c => c.skip(skip).limit(batch).get());
           const arr = (r && r.data) || [];
           if (!arr.length) break;
           for (const d of arr) {

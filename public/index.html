@@ -421,6 +421,9 @@
           <button class="admin-tab" data-tab="ann">公告管理</button>
           <button class="admin-tab" data-tab="chat">聊天管理</button>
           <button class="admin-tab" data-tab="logs">额度流水</button>
+          <button class="admin-tab" data-tab="quota">额度分发</button>
+          <button class="admin-tab" data-tab="appeal">违规申诉</button>
+          <button class="admin-tab" data-tab="report">内容举报</button>
         </aside>
 
         <div class="admin-main">
@@ -450,9 +453,10 @@
 
           <!-- Token 兑换码 -->
           <div class="admin-pane" data-pane="tokens">
-            <p class="admin-hint">填写对方邮箱与 token 数量，系统生成兑换码并通过邮件发送。兑换码 <b style="color:#22d3ee">45 秒</b>内有效，过期可在下方重新生成。对方登录 AI 工作台输入兑换码即可到账。</p>
+            <p class="admin-hint">填写对方邮箱、token 数量与有效期，系统生成兑换码并通过邮件发送。对方登录 AI 工作台输入兑换码即可到账，过期可在下方重新生成。</p>
             <input class="auth-input" id="tkEmail" type="email" placeholder="对方邮箱（接收兑换码）">
             <input class="auth-input" id="tkQuota" type="number" placeholder="token 数量，如 1000000" min="1" step="1">
+            <input class="auth-input" id="tkTtl" type="number" placeholder="有效期（秒，默认45，范围30~86400）" min="30" max="86400" step="1" value="45">
             <p id="tkStatus" class="admin-hint"></p>
             <button class="auth-btn" id="tkIssue">生成兑换码并发送邮件</button>
             <div style="display:flex;align-items:center;gap:.6rem;margin:1.1rem 0 .5rem;">
@@ -483,6 +487,36 @@
               <button class="side-link" id="qlRefresh" style="width:auto;padding:.3rem .7rem;font-size:.78rem;">刷新</button>
             </div>
             <div class="admin-scroll" style="max-height:52vh;"><div id="qlList" class="admin-list"></div></div>
+          </div>
+
+          <!-- 额度分发（从 logs.html 迁移） -->
+          <div class="admin-pane" data-pane="quota">
+            <p class="admin-hint">给指定账号分配付费模型 token 额度。GPT <b style="color:#22d3ee">×5</b>、DeepSeek <b style="color:#22d3ee">×3</b> 扣减；GLM 免费。</p>
+            <div class="admin-toolbar">
+              <span class="admin-hint" style="margin:0;flex:1;">共 <b id="qCount2" style="color:#22d3ee;">0</b> 个账号</span>
+              <button class="side-link" id="qReload2" style="width:auto;padding:.3rem .7rem;font-size:.78rem;">刷新额度</button>
+            </div>
+            <div class="admin-scroll" style="max-height:52vh;"><div id="qBody2" class="admin-list"></div></div>
+          </div>
+
+          <!-- 违规申诉（从 logs.html 迁移） -->
+          <div class="admin-pane" data-pane="appeal">
+            <p class="admin-hint">用户对 AI 判定结果提交的申诉，人工复核。待处理 <b id="apPending2" style="color:#f5b301;">0</b> 条。</p>
+            <div class="admin-toolbar">
+              <span class="admin-hint" style="margin:0;flex:1;">AI 判定 → 人工复核</span>
+              <button class="side-link" id="apReload2" style="width:auto;padding:.3rem .7rem;font-size:.78rem;">刷新申诉</button>
+            </div>
+            <div class="admin-scroll" style="max-height:52vh;"><div id="apList2" class="admin-list"></div></div>
+          </div>
+
+          <!-- 内容举报（从 logs.html 迁移） -->
+          <div class="admin-pane" data-pane="report">
+            <p class="admin-hint">用户举报内容先经 GLM AI 初判，由管理员做最终人工判定。待处理 <b id="rpPending2" style="color:#f5b301;">0</b> 条。</p>
+            <div class="admin-toolbar">
+              <span class="admin-hint" style="margin:0;flex:1;">AI 初判 → 人工判定</span>
+              <button class="side-link" id="rpReload2" style="width:auto;padding:.3rem .7rem;font-size:.78rem;">刷新举报</button>
+            </div>
+            <div class="admin-scroll" style="max-height:52vh;"><div id="rpList2" class="admin-list"></div></div>
           </div>
         </div>
       </div>
@@ -1457,6 +1491,9 @@
         if (tab === "tokens") { renderCodes(); startCodeTicker(); }
         else { stopCodeTicker(); }
         if (tab === "logs") { renderQuotaLogs(); }
+        if (tab === "quota") { loadQuotaGrant(); }
+        if (tab === "appeal") { loadAppeals(); }
+        if (tab === "report") { loadReports(); }
       });
       document.getElementById("admClose").addEventListener("click", function () { adminMask.classList.remove("show"); stopCodeTicker(); });
 
@@ -1496,16 +1533,19 @@
       document.getElementById("tkIssue").addEventListener("click", function () {
         var email = document.getElementById("tkEmail").value.trim().toLowerCase();
         var quota = Number(document.getElementById("tkQuota").value);
+        var ttl = Number(document.getElementById("tkTtl").value) || 45;
         var st = document.getElementById("tkStatus");
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { st.textContent = "请填写正确的收件邮箱"; st.style.color = "#ff6b6b"; return; }
         if (!isFinite(quota) || quota < 1) { st.textContent = "token 数量需为大于 0 的数字"; st.style.color = "#ff6b6b"; return; }
+        if (!isFinite(ttl) || ttl < 30 || ttl > 86400) { st.textContent = "有效期需在 30~86400 秒之间"; st.style.color = "#ff6b6b"; return; }
         st.textContent = "正在生成并发邮件…"; st.style.color = "var(--accent2)";
         var btn = this; btn.disabled = true;
-        quotaCall({ action: "issue", email: email, quota: Math.floor(quota) }).then(function (res) {
+        quotaCall({ action: "issue", email: email, quota: Math.floor(quota), ttl: Math.floor(ttl) }).then(function (res) {
           btn.disabled = false;
           if (!res.ok) { st.textContent = res.msg || "生成失败"; st.style.color = "#ff6b6b"; return; }
+          var ttlTxt = res.ttl < 60 ? res.ttl + "秒" : (res.ttl < 3600 ? (Math.round(res.ttl / 60 * 10) / 10) + "分钟" : (Math.round(res.ttl / 3600 * 10) / 10) + "小时");
           if (res.mailSent) {
-            st.textContent = "✅ 已生成并发送至 " + email + "（45秒内有效）"; st.style.color = "#34d399";
+            st.textContent = "✅ 已生成并发送至 " + email + "（" + ttlTxt + "内有效）"; st.style.color = "#34d399";
           } else {
             st.innerHTML = "⚠️ 兑换码已生成，但邮件未发送（" + (res.mailError || "未配置发信") + "）。请手动转发：<b style='color:var(--accent2);letter-spacing:2px;'>" + res.code + "</b>";
             st.style.color = "#fbbf24";
@@ -1548,6 +1588,147 @@
       }
       var qlRefreshBtn = document.getElementById("qlRefresh");
       if (qlRefreshBtn) qlRefreshBtn.addEventListener("click", renderQuotaLogs);
+
+      /* ===== 通用管理 API 调用（申诉/举报/额度分发，走 CloudBase） ===== */
+      function modCall(path, body, method) {
+        var h = { "Content-Type": "application/json" };
+        var t = authToken();
+        if (t) h.Authorization = "Bearer " + t;
+        return fetch(API_BASE + path, {
+          method: method || "POST", headers: h,
+          body: method === "GET" ? undefined : JSON.stringify(body || {}),
+        }).then(function (r) { return r.json(); });
+      }
+      function esc(s) {
+        return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
+      function admTime(t) {
+        var d = new Date(t);
+        if (isNaN(d.getTime())) return "—";
+        var p = function (n) { return n < 10 ? "0" + n : "" + n; };
+        return (d.getMonth() + 1) + "/" + d.getDate() + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+      }
+
+      /* ===== 额度分发 ===== */
+      function qFmt2(n) { n = Number(n) || 0; return n >= 1e8 ? (n / 1e8).toFixed(2) + "亿" : n >= 1e4 ? (n / 1e4).toFixed(1) + "万" : String(n); }
+      function loadQuotaGrant() {
+        var box = document.getElementById("qBody2");
+        if (!box) return;
+        box.innerHTML = '<p style="color:var(--muted);font-size:.82rem;">加载中…</p>';
+        quotaCall({ action: "list" }).then(function (res) {
+          if (!res.ok) { box.innerHTML = '<p style="color:#ff6b6b;font-size:.82rem;">' + esc(res.msg || "加载失败") + "</p>"; return; }
+          var list = res.users || [];
+          document.getElementById("qCount2").textContent = list.length;
+          if (!list.length) { box.innerHTML = '<p style="color:var(--muted);font-size:.82rem;">暂无账号</p>'; return; }
+          box.innerHTML = list.map(function (u) {
+            var adm = u.email === ADMIN_EMAIL;
+            return '<div class="admin-row"><div class="r-main">'
+              + '<div><b style="color:var(--accent2);">' + esc(u.email) + "</b>" + (u.banned ? ' <span style="color:#ff6b6b;">(封禁)</span>' : "") + (adm ? ' <span style="color:#f5b301;">(管理员·无限)</span>' : "") + "</div>"
+              + '<div class="r-email">总额 ' + qFmt2(u.quota) + " · 已用 " + qFmt2(u.used) + " · 剩余 " + qFmt2(u.left) + "</div></div>"
+              + (adm ? '<div class="r-ops"><span style="color:#f5b301;font-size:.78rem;">额度无限</span></div>'
+                : '<div class="r-ops"><input class="auth-input" type="number" min="0" placeholder="token 数" data-qe="' + esc(u.email) + '" style="width:96px;margin:0;padding:.3rem .5rem;font-size:.78rem;">'
+                + '<select class="auth-input" data-qm="' + esc(u.email) + '" style="width:auto;margin:0 0 0 .3rem;padding:.3rem;font-size:.78rem;"><option value="set">设为</option><option value="add">增加</option><option value="deduct">扣减</option><option value="reset">重置</option></select>'
+                + '<button class="side-link" data-qb="' + esc(u.email) + '" style="width:auto;padding:.3rem .6rem;font-size:.78rem;margin-left:.3rem;">分发</button></div>')
+              + "</div>";
+          }).join("");
+          box.querySelectorAll("[data-qb]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+              var email = btn.getAttribute("data-qb");
+              var n = Number(box.querySelector('[data-qe="' + email + '"]').value);
+              var mode = box.querySelector('[data-qm="' + email + '"]').value;
+              if (!isFinite(n) || n < 0) { alert("请输入合法额度"); return; }
+              btn.disabled = true;
+              quotaCall({ action: "grant", email: email, quota: n, mode: mode }).then(function (r) {
+                if (!r.ok) { alert(r.msg || "分发失败"); btn.disabled = false; return; }
+                loadQuotaGrant();
+              }).catch(function () { btn.disabled = false; alert("网络异常"); });
+            });
+          });
+        }).catch(function () { box.innerHTML = '<p style="color:#ff6b6b;font-size:.82rem;">网络异常</p>'; });
+      }
+      document.getElementById("qReload2").addEventListener("click", loadQuotaGrant);
+
+      /* ===== 违规申诉 ===== */
+      var KIND = { forum: "论坛帖子", note: "笔记", chat: "聊天消息", discover: "作品发布" };
+      function loadAppeals() {
+        var box = document.getElementById("apList2");
+        if (!box) return;
+        box.innerHTML = '<p style="color:var(--muted);font-size:.82rem;">加载中…</p>';
+        modCall("/api/appeal", null, "GET").then(function (res) {
+          if (!res.ok) { box.innerHTML = '<p style="color:#ff6b6b;font-size:.82rem;">' + esc(res.msg || "读取失败") + "</p>"; return; }
+          var items = res.items || [];
+          document.getElementById("apPending2").textContent = items.filter(function (a) { return a.status === "pending"; }).length;
+          if (!items.length) { box.innerHTML = '<p style="color:var(--muted);font-size:.82rem;">没有申诉记录</p>'; return; }
+          box.innerHTML = items.map(function (a) {
+            var done = a.status !== "pending";
+            var detail = "AI 理由：" + esc(a.aiReason || "无") + " · 申诉人：" + esc(a.who || "匿名") + " · " + admTime(a.t)
+              + (done ? " · 结果：" + esc(a.outcome || "—") : "");
+            var ops = done ? '<span style="color:#34d399;font-size:.78rem;">已处理</span>'
+              : '<button class="side-link" data-ap="ok" data-id="' + esc(a.id) + '" style="width:auto;padding:.3rem .6rem;font-size:.78rem;">误判放行</button>'
+                + '<button class="side-link" data-ap="no" data-id="' + esc(a.id) + '" style="width:auto;padding:.3rem .6rem;font-size:.78rem;margin-left:.3rem;">维持判定</button>';
+            return '<div class="admin-row"><div class="r-main"><div><b style="color:var(--accent2);">' + esc(KIND[a.kind] || a.kind || "内容") + "</b> "
+              + (done ? '<span style="color:#34d399;font-size:.78rem;">已处理</span>' : '<span style="color:#f5b301;font-size:.78rem;">待处理</span>') + "</div>"
+              + '<div class="r-email">' + esc(a.content || "") + "</div>"
+              + '<div class="r-email" style="font-size:.74rem;">' + detail + "</div></div>"
+              + '<div class="r-ops">' + ops + "</div></div>";
+          }).join("");
+          box.querySelectorAll("[data-ap]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+              var id = btn.getAttribute("data-id");
+              var outcome = btn.getAttribute("data-ap") === "ok" ? "误判放行" : "维持判定";
+              btn.disabled = true;
+              modCall("/api/appeal", { action: "resolve", id: id, outcome: outcome }).then(function (r) {
+                if (!r.ok) { alert(r.msg || "处理失败"); return; }
+                loadAppeals();
+              }).catch(function () { alert("网络异常"); });
+            });
+          });
+        }).catch(function () { box.innerHTML = '<p style="color:#ff6b6b;font-size:.82rem;">网络异常</p>'; });
+      }
+      document.getElementById("apReload2").addEventListener("click", loadAppeals);
+
+      /* ===== 内容举报 ===== */
+      function loadReports() {
+        var box = document.getElementById("rpList2");
+        if (!box) return;
+        box.innerHTML = '<p style="color:var(--muted);font-size:.82rem;">加载中…</p>';
+        modCall("/api/report", null, "GET").then(function (res) {
+          if (!res.ok) { box.innerHTML = '<p style="color:#ff6b6b;font-size:.82rem;">' + esc(res.msg || "读取失败") + "</p>"; return; }
+          var items = res.items || [];
+          document.getElementById("rpPending2").textContent = items.filter(function (a) { return a.status === "pending"; }).length;
+          if (!items.length) { box.innerHTML = '<p style="color:var(--muted);font-size:.82rem;">没有举报记录</p>'; return; }
+          box.innerHTML = items.map(function (a) {
+            var done = a.status !== "pending";
+            var ai = a.ai || {};
+            var aiTag = a.aiSkipped ? "跳过初判" : (ai.violates ? "疑似违规" : "未见违规");
+            var detail = "AI 初判：" + aiTag + "（" + esc(ai.reason || "无") + "） · 举报理由：" + esc(a.reportReason || "无")
+              + " · 举报人：" + esc(a.who || "匿名") + " · " + admTime(a.t)
+              + (done ? " · 判定：" + esc(a.outcome || "—") : "");
+            var ops = done ? '<span style="color:#34d399;font-size:.78rem;">已判定</span>'
+              : '<button class="side-link" data-rp="ok" data-id="' + esc(a.id) + '" style="width:auto;padding:.3rem .6rem;font-size:.78rem;">举报成立</button>'
+                + '<button class="side-link" data-rp="no" data-id="' + esc(a.id) + '" style="width:auto;padding:.3rem .6rem;font-size:.78rem;margin-left:.3rem;">驳回</button>';
+            return '<div class="admin-row"><div class="r-main"><div><b style="color:var(--accent2);">' + esc(KIND[a.kind] || a.kind || "内容") + "</b> "
+              + (done ? '<span style="color:#34d399;font-size:.78rem;">已判定</span>' : '<span style="color:#f5b301;font-size:.78rem;">待判定</span>') + "</div>"
+              + '<div class="r-email">' + esc(a.content || "") + "</div>"
+              + '<div class="r-email" style="font-size:.74rem;">' + detail + "</div></div>"
+              + '<div class="r-ops">' + ops + "</div></div>";
+          }).join("");
+          box.querySelectorAll("[data-rp]").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+              var id = btn.getAttribute("data-id");
+              var outcome = btn.getAttribute("data-rp") === "ok" ? "举报成立（建议删除内容）" : "驳回举报";
+              btn.disabled = true;
+              modCall("/api/report", { action: "resolve", id: id, outcome: outcome }).then(function (r) {
+                if (!r.ok) { alert(r.msg || "判定失败"); return; }
+                loadReports();
+              }).catch(function () { alert("网络异常"); });
+            });
+          });
+        }).catch(function () { box.innerHTML = '<p style="color:#ff6b6b;font-size:.82rem;">网络异常</p>'; });
+      }
+      document.getElementById("rpReload2").addEventListener("click", loadReports);
 
       regSubmitBtn.addEventListener("click", function () { tryAuth("register"); });
       loginSubmitBtn.addEventListener("click", function () { tryAuth("login"); });

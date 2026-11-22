@@ -27,7 +27,7 @@
 (function (global) {
   "use strict";
 
-  var BASE = "https://blueprintstudio-mail.netlify.app";
+  var BASE = "https://blueprintstudio-d5f6u80sab2de6b7-1538470672.ap-shanghai.app.tcloudbase.com/api";
   var KIND_NAME = { forum: "论坛帖子", note: "笔记", chat: "聊天消息", discover: "作品发布" };
 
   function call(path, body, token, method) {

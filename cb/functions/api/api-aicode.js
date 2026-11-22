@@ -12,7 +12,7 @@
    环境变量：GLM_API_KEY（已配置）
 */
 import { json, preflight, clientIP, rateLimit, verifyToken, getUsersRaw, putUsersRaw,
-  getStore, PAID_MODELS, quotaLeft } from "./_lib.js";
+  getStore, PAID_MODELS, quotaLeft, ADMIN_EMAIL } from "./_lib.js";
 import { GLM_URL } from "./_glm.js";
 import { getPool, shuffled, shouldSwitch } from "./_glmkey.js";
 
@@ -78,6 +78,7 @@ export default async (req) => {
   if (!authRec) return json({ ok: false, msg: "账号不存在，请重新登录", loginRequired: true }, 401);
   if (authRec.banned) return json({ ok: false, msg: "该账号已被封禁，无法使用 AI 功能", banned: true }, 403);
   const userEmail = tok.email;
+  const isAdmin = userEmail === ADMIN_EMAIL;   /* 管理员：AI 额度无限，不校验不扣费 */
 
   let body;
   try { body = await req.json(); } catch (e) { return json({ ok: false, msg: "JSON 解析失败" }, 400); }
@@ -90,7 +91,7 @@ export default async (req) => {
   /* ---------- 付费模型：token 额度校验（登录已在入口统一校验） ---------- */
   const requestedModel = clamp(body.model, 40);
   const paid = PAID_MODELS[requestedModel];
-  if (paid) {
+  if (paid && !isAdmin) {
     if (quotaLeft(authRec) <= 0) {
       return json({ ok: false, quotaEmpty: true,
         msg: "你的 token 额度已用完，请联系管理员充值后再使用付费模型" }, 403);
@@ -298,6 +299,15 @@ export default async (req) => {
        强制停止：按余额算出本次可生成的 token 上限，模型到达即停，绝不超额 */
     if (paid) {
       const email = userEmail;
+
+      /* 管理员：额度无限，满量生成、不扣费、不记流水 */
+      if (isAdmin) {
+        const res = await callPaid(MAX_OUTPUT);
+        if (!res.text) throw new Error(paid.name + " 返回为空");
+        return json({ ok: true, text: res.text.slice(0, 8000), model: paid.name, paid: true,
+          adminFree: true, usedTokens: res.tokens, mult: paid.mult, cost: 0, quotaLeft: "∞" });
+      }
+
       const db0 = await getUsersRaw();
       const leftBefore = quotaLeft((db0.users || {})[email]);
 
