@@ -139,11 +139,17 @@ export default async (req) => {
     const raw = Number(body.quota);
     if (!isFinite(raw) || raw < 0) return bad("额度不合法");
     const n = Math.floor(raw);
-    const mode = ["set", "add", "deduct"].indexOf(body.mode) === -1 ? "set" : body.mode;
+    const mode = ["set", "add", "deduct", "reset"].indexOf(body.mode) === -1 ? "set" : body.mode;
     const cur = getQuota(users[email]).quota;
     let next = n;
     if (mode === "add") next = cur + n;
     if (mode === "deduct") next = Math.max(0, cur - n);
+    if (mode === "reset") {           // 重置：设为指定额度并清零已用（修复被打穿的账号）
+      users[email].tokenQuota = n;
+      users[email].tokenUsed = 0;
+      await putUsersRaw(db);
+      return json({ ok: true, email: email, quota: n, used: 0, left: n });
+    }
     users[email].tokenQuota = next;
     await putUsersRaw(db);
     return json({ ok: true, email: email, quota: next });

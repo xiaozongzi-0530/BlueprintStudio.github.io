@@ -249,23 +249,31 @@ export default async (req) => {
   }
 
   /* 调用成功后扣减额度并记流水 */
+  /* 调用成功后扣减额度并记流水
+     防打穿：实际扣费不超过调用前的剩余额度，tokenUsed 永不超过 tokenQuota。
+     用量按真实 tokens×mult 记到流水的 realCost，扣费记到 cost（ capped ）。 */
   async function deductQuota(email, modelName, mult, tokens, leftBefore) {
-    const cost = Math.ceil(tokens * mult);
+    const realCost = Math.ceil(tokens * mult);
     const db = await getUsersRaw();
     const rec = (db.users || {})[email];
-    if (!rec) return { cost: cost, left: 0 };
-    const used = (Number(rec.tokenUsed) || 0) + cost;
+    if (!rec) return { cost: 0, realCost: realCost, left: 0 };
+    const quota = Number(rec.tokenQuota) || 0;
+    const usedBefore = Number(rec.tokenUsed) || 0;
+    const avail = Math.max(0, quota - usedBefore);
+    const cost = Math.min(realCost, avail);
+    const used = Math.min(quota, usedBefore + cost);
     rec.tokenUsed = used;
-    const left = Math.max(0, (Number(rec.tokenQuota) || 0) - used);
+    const left = Math.max(0, quota - used);
     await putUsersRaw(db);
     try {
       const meta = getStore("meta");
       const logs = JSON.parse((await meta.get("__quota_logs")) || "[]");
-      logs.push({ t: Date.now(), email: email, model: modelName, tokens: tokens, mult: mult, cost: cost, left: left });
+      logs.push({ t: Date.now(), email: email, model: modelName, tokens: tokens, mult: mult,
+        cost: cost, realCost: realCost, left: left });
       if (logs.length > 200) logs.splice(0, logs.length - 200);
       await meta.set("__quota_logs", JSON.stringify(logs));
     } catch (e) {}
-    return { cost: cost, left: left };
+    return { cost: cost, realCost: realCost, left: left };
   }
 
   try {
