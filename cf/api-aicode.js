@@ -70,6 +70,15 @@ export default async (req) => {
     return json({ ok: false, msg: "生成太频繁，请一分钟后再试" }, 429);
   }
 
+  /* ---------- 全站 AI 强制登录：免费模型 / 付费模型 / 充值兑换一律先登录 ---------- */
+  const tok = await verifyToken(req);
+  if (!tok) return json({ ok: false, msg: "请先登录后再使用 AI 功能", loginRequired: true }, 401);
+  const dbAuth = await getUsersRaw();
+  const authRec = (dbAuth.users || {})[tok.email];
+  if (!authRec) return json({ ok: false, msg: "账号不存在，请重新登录", loginRequired: true }, 401);
+  if (authRec.banned) return json({ ok: false, msg: "该账号已被封禁，无法使用 AI 功能", banned: true }, 403);
+  const userEmail = tok.email;
+
   let body;
   try { body = await req.json(); } catch (e) { return json({ ok: false, msg: "JSON 解析失败" }, 400); }
 
@@ -78,15 +87,11 @@ export default async (req) => {
   const lang = clamp(body.lang, 20);
   const mode = clamp(body.mode, 10) || "generate";
 
-  /* ---------- 付费模型：登录 + token 额度校验 ---------- */
+  /* ---------- 付费模型：token 额度校验（登录已在入口统一校验） ---------- */
   const requestedModel = clamp(body.model, 40);
   const paid = PAID_MODELS[requestedModel];
   if (paid) {
-    const tok = await verifyToken(req);
-    if (!tok) return json({ ok: false, msg: "付费模型需先登录", loginRequired: true }, 401);
-    const db = await getUsersRaw();
-    const rec = (db.users || {})[tok.email];
-    if (quotaLeft(rec) <= 0) {
+    if (quotaLeft(authRec) <= 0) {
       return json({ ok: false, quotaEmpty: true,
         msg: "你的 token 额度已用完，请联系管理员充值后再使用付费模型" }, 403);
     }
@@ -293,8 +298,7 @@ export default async (req) => {
     /* 付费模型：单独调用 + 扣额度，不走 GLM 降级链
        强制停止：按余额算出本次可生成的 token 上限，模型到达即停，绝不超额 */
     if (paid) {
-      const tok = await verifyToken(req);
-      const email = tok.email;
+      const email = userEmail;
       const db0 = await getUsersRaw();
       const leftBefore = quotaLeft((db0.users || {})[email]);
 

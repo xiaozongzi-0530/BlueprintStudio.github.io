@@ -562,7 +562,7 @@
     };
     $("prompt").placeholder = ph[mode] || ph.chat;
     $("goBtn").textContent = GEN_MODES[mode] ? "🚀 生成" : "🚀 发送";
-    $("loginTip").style.display = (GEN_MODES[mode] && !isLogged) ? "" : "none";
+    $("loginTip").style.display = isLogged ? "none" : "";
   });
 
   /* ---------- 发送 ---------- */
@@ -571,9 +571,8 @@
     var status = $("status");
     var prompt = $("prompt").value.trim();
     if (!prompt) { status.textContent = "请先输入内容"; status.className = "status err"; return; }
-    var needLogin = GEN_MODES[mode] || PAID_MODELS[$("model").value];
-    if (needLogin && !isLogged) {
-      status.textContent = (PAID_MODELS[$("model").value] ? "付费模型需先登录" : "请先登录后再使用生成功能");
+    if (!isLogged) {
+      status.textContent = "请先登录后再使用 AI 功能（免费和付费模型均需登录）";
       status.className = "status err";
       $("loginTip").style.display = ""; return;
     }
