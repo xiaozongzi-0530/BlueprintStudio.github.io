@@ -1,0 +1,9 @@
+{
+  "tasks": {
+    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi --unstable-kv --unstable-cron worker.js"
+  },
+  "imports": {},
+  "compilerOptions": {
+    "lib": ["deno.window", "dom"]
+  }
+}

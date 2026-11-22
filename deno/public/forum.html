@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script>location.replace("maintenance.html");</script>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>论坛 · BlueprintStudio</title>
+<script src="logger.js"></script>
+<style>
+  :root { --bg:#0a1128; --accent:#2e52b4; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; }
+  .grid-bg {
+  pointer-events: none;
+    position:fixed; inset:0; z-index:0;
+    background-image:
+      linear-gradient(rgba(40,72,168,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(40,72,168,.07) 1px, transparent 1px);
+    background-size:40px 40px;
+  }
+  header {
+    position:sticky; top:0; z-index:10;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:1rem 2rem;
+    background:rgba(11,16,32,.85); backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(40,72,168,.15);
+  }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav a { color:var(--muted); text-decoration:none; margin-left:1.5rem; font-size:.95rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+  main { position:relative; z-index:1; max-width:800px; margin:0 auto; padding:2.5rem 1.5rem; }
+  h1 { font-size:1.7rem; margin-bottom:.4rem; }
+  h1 em {
+    font-style:normal;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .sub { color:var(--muted); font-size:.92rem; margin-bottom:1.8rem; }
+  .card {
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(40,72,168,.25);
+    border-radius:16px; padding:1.5rem; margin-bottom:1.2rem;
+  }
+  textarea, input[type="text"] {
+    width:100%;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(40,72,168,.3);
+    border-radius:10px; color:var(--text);
+    padding:.7rem .9rem; font-size:.95rem;
+    outline:none; font-family:inherit;
+  }
+  textarea { min-height:90px; resize:vertical; margin-bottom:.8rem; }
+  textarea:focus, input:focus { border-color:var(--accent2); }
+  .btn {
+    display:inline-block; text-decoration:none; border:none; cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    color:#fff; padding:.6rem 1.5rem; border-radius:10px;
+    font-size:.92rem; font-weight:600;
+  }
+  .btn.ghost { background:transparent; border:1px solid rgba(40,72,168,.5); color:var(--accent2); }
+  .file-label {
+    display:inline-block; cursor:pointer;
+    border:1px dashed rgba(40,72,168,.5); color:var(--accent2);
+    padding:.45rem 1rem; border-radius:10px; font-size:.85rem; margin-right:.8rem;
+  }
+  input[type="file"] { display:none; }
+  .file-hint { color:var(--muted); font-size:.8rem; margin-top:.5rem; }
+  .post-head { display:flex; align-items:center; gap:.6rem; margin-bottom:.7rem; flex-wrap:wrap; }
+  .post-head .nick { font-weight:700; }
+  .badge-title, .badge-admin {
+    background:#f5b301; color:#1a1a1a;
+    font-size:.68rem; font-weight:700;
+    padding:.15rem .5rem; border-radius:999px;
+  }
+  .badge-guest {
+    background:rgba(139,147,168,.85); color:#0b1020;
+    font-size:.68rem; font-weight:700;
+    padding:.15rem .5rem; border-radius:999px;
+  }
+  .post-head .time { color:var(--muted); font-size:.8rem; margin-left:auto; }
+  .post-body { color:var(--text); font-size:.95rem; line-height:1.9; white-space:pre-wrap; word-break:break-word; }
+  .post-files { margin-top:.8rem; display:flex; flex-wrap:wrap; gap:.6rem; }
+  .post-files a {
+    color:var(--accent2); text-decoration:none; font-size:.85rem;
+    border:1px solid rgba(40,72,168,.4);
+    padding:.35rem .8rem; border-radius:8px;
+  }
+  .post-foot { margin-top:.8rem; display:flex; gap:1.2rem; align-items:center; }
+  .post-foot a { color:var(--muted); font-size:.8rem; text-decoration:none; cursor:pointer; }
+  .post-foot a:hover { color:#ff6b6b; }
+  .report-badge { color:#ff6b6b; font-size:.8rem; }
+  .del-btn { color:#ff6b6b; }
+  .cmt-area { margin-top:.8rem; border-top:1px solid rgba(255,255,255,.1); padding-top:.8rem; display:none; }
+  .cmt-area.open { display:block; }
+  .cmt { font-size:.88rem; line-height:1.8; padding:.4rem 0; border-bottom:1px solid rgba(255,255,255,.06); }
+  .cmt .who { color:var(--accent2); font-weight:600; }
+  .cmt .t { color:var(--muted); font-size:.75rem; margin-left:.5rem; }
+  .cmt-row { display:flex; gap:.6rem; margin-top:.7rem; }
+  .cmt-row input { flex:1; }
+  .cmt-send { border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; padding:.5rem 1.1rem; border-radius:10px; font-size:.85rem; }
+  .empty { color:var(--muted); text-align:center; padding:2rem; }
+  @keyframes flashNew {
+    0%, 100% { box-shadow:0 0 0 0 rgba(34,211,238,0); }
+    25% { box-shadow:0 0 0 3px rgba(34,211,238,.65); }
+    60% { box-shadow:0 0 0 3px rgba(34,211,238,.25); }
+  }
+  .card.flash { animation:flashNew 2.2s ease; }
+  .tip { color:var(--muted); font-size:.85rem; margin-bottom:1.5rem; line-height:1.8; }
+  .tip a { color:var(--accent2); }
+  footer { position:relative; z-index:1; text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; border-top:1px solid rgba(40,72,168,.12); }
+</style>
+</head>
+<body>
+
+
+
+  <div class="grid-bg"></div>
+  <header>
+    <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="forum.html" class="active">论坛</a>
+      <a href="forum-new.html">发帖</a>
+      <a href="chat.html">聊天</a>
+      <a href="notes.html">笔记</a>
+      <a href="discover.html">发现</a>
+      <a href="ai-code.html">AI 工作台</a>
+      <a href="ann.html">公告</a>
+      <a href="join.html">联系我们</a>
+    </nav>
+  </header>
+  <main>
+    <h1>工作坊<em>论坛</em></h1>
+    <p class="sub">分享作品、交流想法、发布文件。违规内容可举报，管理员会处理。</p>
+
+    <div class="tip" id="loginTip">
+      ⚠️ 发帖前请先 <a href="index.html">登录 / 注册</a>（首页右上角），或在首页用「游客模式」进入。
+    </div>
+
+    <div class="card" style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:1.2rem;">
+      <span class="tip" style="margin:0; flex:1;">浏览全部帖子，点「发帖」写下你的想法。</span>
+      <a class="btn" id="writeBtn" href="forum-new.html" style="text-decoration:none; white-space:nowrap;">✎ 发帖</a>
+    </div>
+
+    <div id="postList"></div>
+  </main>
+  <footer>© 2026 BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+
+  <script src="crypto.js"></script>
+  <script src="ratelimit.js"></script>
+  <script src="p2p-file.js"></script>
+  <script src="mod.js"></script>
+  <script>
+    (function () {
+      
+      /* ===== 服务端数据层（私有 Blobs，替代 textdb 公开库） ===== */
+      var API_BASE = "https://blueprintstudio-mail.netlify.app";
+      var DB_KEY = "blueprintstudio-forum-2026";
+      function authTok() {
+        try { var s = JSON.parse(localStorage.getItem("bs_auth") || "null"); if (s && s.token) return s.token; } catch (e) {}
+        try { return localStorage.getItem("bs_token_v1") || ""; } catch (e) { return ""; }
+      }
+      function dbWrite(obj) {
+        var h = { "Content-Type": "application/json" };
+        var t = authTok();
+        if (t) h.Authorization = "Bearer " + t;
+        return fetch(API_BASE + "/api/data", { method: "POST", headers: h, body: JSON.stringify({ key: DB_KEY, data: JSON.stringify(obj) }) })
+          .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+      }
+      function userListFetch() {
+        return fetch(API_BASE + "/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "list" }) })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { return { users: (j && j.db && j.db.users) || {} }; });
+      }
+var DB = API_BASE + "/api/data?key=blueprintstudio-forum-2026";
+      var KEY = "bs_auth";
+      var ADMIN_EMAIL = "zhouxinyuan0530@qq.com";
+      var me = null, myInfo = null;
+      /* 游客模式：gs_mode=1 且 gs_uid 为 10 位数字 */
+      var gUID = localStorage.getItem("gs_uid") || "";
+      var isGuest = localStorage.getItem("gs_mode") === "1" && /^\d{10}$/.test(gUID);
+
+      try { myInfo = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
+      if (myInfo && myInfo.email) {
+        me = myInfo.email;
+        document.getElementById("loginTip").style.display = "none";
+      } else if (isGuest) {
+        /* 游客：以 guest:<uid> 作为作者标识，和注册邮箱不冲突 */
+        me = "guest:" + gUID;
+        document.getElementById("loginTip").style.display = "none";
+      }
+
+      /* 4 秒内复用同一份数据：首屏渲染和昵称刷新会各自调一次 render，
+         没有这层缓存就要跨境拉两遍帖子库 */
+      var _c = null, _cAt = 0, _cP = null, CACHE_MS = 4000;
+      function getDB(force) {
+        var now = Date.now();
+        if (!force && _c && now - _cAt < CACHE_MS) return Promise.resolve(_c);
+        if (_cP) return _cP;
+        _cP = fetch(DB + "?t=" + now).then(function (r) { return r.json(); })
+          .catch(function () { return { posts: [], _fail: true }; })
+          .then(function (d) {
+            /* 读失败的结果绝不入缓存：否则 4 秒内会拿空库去覆盖真实数据 */
+            if (!d._fail) { _c = d; _cAt = Date.now(); }
+            _cP = null;
+            return d;
+          });
+        return _cP;
+      }
+      function saveDB(db) {
+        return dbWrite(db)
+          .then(function (r) { _cAt = 0; return r; });
+      }
+      function esc(t) {
+        return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+      function fmtTime(iso) {
+        try { return new Date(iso).toLocaleString("zh-CN", { hour12: false }); } catch (e) { return iso; }
+      }
+
+      /* 从发帖页跳回来时（?new=<id>），定位并高亮刚发布的帖子 */
+      var justNewId = (new URLSearchParams(location.search)).get("new") || "";
+      if (justNewId) history.replaceState({}, "", location.pathname);
+      function flashNew() {
+        if (!justNewId) return;
+        var el = document.getElementById("post-" + justNewId);
+        if (!el) return;
+        el.classList.add("flash");
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(function () { el.classList.remove("flash"); }, 2400);
+        justNewId = "";
+      }
+
+      /* ===== 渲染帖子 ===== */
+      function render() {
+        getDB().then(function (db) {
+          var box = document.getElementById("postList");
+          var isAdmin = me === ADMIN_EMAIL;
+          var list = (db.posts || []);
+          if (!list.length) {
+            box.innerHTML = '<div class="card empty">还没有帖子，来发第一帖吧！</div>'
+              + '<div style="text-align:center; margin-top:1.2rem;">'
+              + '<a class="btn" href="forum-new.html" style="text-decoration:none;">✎ 发第一帖</a></div>';
+            return;
+          }
+          box.innerHTML = list.map(function (p) {
+            var badge = "";
+            if (p.author === ADMIN_EMAIL) badge = '<span class="badge-admin">官方管理员</span>';
+            else if (p.guest || (p.author && String(p.author).indexOf("guest:") === 0)) badge = '<span class="badge-guest">游客</span>';
+            else if (p.title) badge = '<span class="badge-title">' + esc(p.title) + "</span>";
+            var files = (p.files || []).map(function (f) {
+              var tag = P2PFile.isP2P(f) ? " 📡" : "";
+              return '<a ' + P2PFile.attrs(f) + '>📎 ' + esc(f.name) + tag + "</a>";
+            }).join("");
+            var reportN = (p.reports || []).length;
+            var repTxt = isAdmin && reportN ? '<span class="report-badge">被举报 ' + reportN + ' 次</span>' : "";
+            var del = isAdmin ? '<a class="del-btn" data-del="' + p.id + '">删除</a>' : "";
+            return '<div class="card" id="post-' + p.id + '">'
+              + '<div class="post-head"><span class="nick">' + esc(p.nick) + "</span>" + badge
+              + '<span class="time">' + fmtTime(p.time) + "</span></div>"
+              + '<div class="post-body">' + esc(p.content) + "</div>"
+              + (files ? '<div class="post-files">' + files + "</div>" : "")
+              + '<div class="post-foot">'
+              + '<a data-cmt="' + p.id + '">💬 评论（' + (p.comments || []).length + '）</a>'
+              + '<a data-report="' + p.id + '">举报</a>' + repTxt + del
+              + "</div>"
+              + '<div class="cmt-area" id="cmt-' + p.id + '">'
+              + (p.comments || []).map(function (c) {
+                  return '<div class="cmt"><span class="who">' + esc(c.nick) + '</span>' + esc(c.text) + '<span class="t">' + fmtTime(c.time) + "</span></div>";
+                }).join("")
+              + '<div class="cmt-row"><input type="text" placeholder="写评论…（输入 @昵称 可回复某人）" maxlength="500" data-cmtinput="' + p.id + '"><button class="cmt-send" data-cmtsend="' + p.id + '">发送</button></div>'
+              + "</div></div>";
+          }).join("");
+          flashNew();
+        });
+      }
+      document.getElementById("postList").addEventListener("click", function (e) {
+        var cmtT = e.target.getAttribute("data-cmt");
+        if (cmtT) {
+          var area = document.getElementById("cmt-" + cmtT);
+          area.classList.toggle("open");
+          return;
+        }
+        var cmtSend = e.target.getAttribute("data-cmtsend");
+        if (cmtSend) {
+          var input = document.querySelector('[data-cmtinput="' + cmtSend + '"]');
+          var text = input.value.trim();
+          if (!text) { alert("评论不能为空"); return; }
+          /* 防刷：游客 5 分钟 8 条，注册用户 1 分钟 10 条 */
+          var crl = isGuest
+            ? RLT.hit("cmt:guest", 5 * 60 * 1000, 8, 3000)
+            : RLT.hit("cmt:user", 60 * 1000, 10, 1500);
+          if (!crl.ok) { alert(crl.msg); return; }
+          var csc = RLT.sameContent("cmt", text, 45000);
+          if (!csc.ok) { alert(csc.msg); return; }
+          var nick = me ? (localStorage.getItem("bs_nick") || me.split("@")[0]) : (localStorage.getItem("bs_guest_nick") || (function () {
+            var n = prompt("游客请输入昵称："); if (n) localStorage.setItem("bs_guest_nick", n); return n;
+          })());
+          if (!nick) return;
+          getDB().then(function (db) {
+            var p = (db.posts || []).find(function (x) { return x.id === cmtSend; });
+            if (!p) return;
+            p.comments = p.comments || [];
+            p.comments.push({ nick: nick, author: me ? me : "", text: text.slice(0, 500), time: new Date().toISOString() });
+            return saveDB(db).then(render);
+          });
+          return;
+        }
+        var rep = e.target.getAttribute("data-report");
+        var del = e.target.getAttribute("data-del");
+        if (rep) {
+          if (!me) { alert("请先登录再举报"); return; }
+          var reason = prompt("举报理由（将先由 AI 初判，再交管理员人工复核）：");
+          if (reason === null) return;
+          getDB().then(function (db) {
+            var p = (db.posts || []).find(function (x) { return x.id === rep; });
+            if (!p) return;
+            p.reports = p.reports || [];
+            if (p.reports.indexOf(me) !== -1) { alert("你已举报过该帖"); return Promise.reject("dup"); }
+            p.reports.push(me + ": " + (reason || "无"));
+            /* AI 初判 + 管理员人工复核：结果存在服务端私有库，不进公开帖子库 */
+            return BPMod.report({
+              kind: "forum",
+              content: p.content,
+              reportReason: reason,
+              who: me,
+              target: p.author || "",
+              targetId: p.id || "",
+            }).then(function (r) {
+              if (r && r.ok) {
+                var ai = (r.ai || {});
+                alert((r.msg || "举报已提交")
+                  + (r.aiSkipped ? "" : "\n\n🤖 AI 初判：" + (ai.violates ? "疑似违规" : "未发现明显违规")
+                  + "\n理由：" + (ai.reason || "—"))
+                  + "\n\n管理员将人工复核。如对处理结果有异议，可通过首页「联系我们」或邮件 blueprintstudio@yeah.net 提交申诉。");
+              } else {
+                alert((r && r.msg) || "举报已记录，AI 初判暂不可用");
+              }
+              return saveDB(db).then(render);
+            });
+          }).catch(function (e) { if (e !== "dup") console.warn(e); });
+        }
+        if (del) {
+          if (!confirm("确定删除该帖？")) return;
+          getDB().then(function (db) {
+            db.posts = (db.posts || []).filter(function (x) { return x.id !== del; });
+            return saveDB(db).then(render);
+          });
+        }
+      });
+
+      /* 登录用户昵称/头衔从云端刷新，用于帖子署名（游客不查云端，直接用本地值） */
+      if (me && !isGuest) {
+        render();   /* 先用本地昵称渲染首屏，不让页面干等跨境请求（单次 1~4 秒） */
+        /* 用户库统一到 users-v2：昵称/头衔是 AES 密文，取到后先解密 */
+        userListFetch()
+          .then(function (db) {
+            var raw = db.users && db.users[me];
+            if (!raw) return null;
+            return window.BPCrypto.decryptFields(raw, ["nick", "title"], "user|" + me);
+          })
+          .then(function (u) {
+            if (u) {
+              localStorage.setItem("bs_nick", u.nick || "");
+              localStorage.setItem("bs_uid", u.uid || "");
+              localStorage.setItem("bs_title", u.title || "");
+              if (u.banned) { location.href = "ban.html?email=" + encodeURIComponent(me); return; }
+            }
+            render();
+          }).catch(function () {});
+      } else {
+        if (isGuest) {
+          /* 用游客昵称覆盖 bs_nick，保证发帖署名一致 */
+          myInfo = { email: me };
+        }
+        render();
+      }
+    })();
+  </script>
+</body>
+</html>

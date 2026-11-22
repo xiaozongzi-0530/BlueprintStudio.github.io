@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网站维护中 · BlueprintStudio</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { min-height: 100%; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
+    background:
+      radial-gradient(circle at 50% 30%, rgba(34,211,238,.10), transparent 55%),
+      #060a1a;
+    color: #e6ebf5;
+  }
+  .card {
+    position: relative; width: min(560px, 100%); text-align: center;
+    padding: 52px 32px 40px; border-radius: 18px; overflow: hidden;
+    background: linear-gradient(160deg, rgba(16,26,58,.96), rgba(9,14,34,.96));
+    border: 1px solid rgba(34,211,238,.35);
+    box-shadow: 0 0 0 1px rgba(46,82,180,.25), 0 20px 60px rgba(0,0,0,.6), 0 0 60px rgba(34,211,238,.12);
+  }
+  .card::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(34,211,238,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34,211,238,.05) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .card > * { position: relative; }
+  .icon {
+    width: 78px; height: 78px; margin: 0 auto 22px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; background: rgba(34,211,238,.08);
+    border: 1px solid rgba(34,211,238,.4); box-shadow: 0 0 28px rgba(34,211,238,.25);
+  }
+  .badge {
+    display: inline-block; margin-bottom: 14px; padding: 5px 14px;
+    border-radius: 999px; background: rgba(34,211,238,.1);
+    border: 1px solid rgba(34,211,238,.3); color: #22d3ee;
+    font-size: 12px; letter-spacing: .18em;
+  }
+  h1 { margin: 0 0 10px; font-size: clamp(26px, 6vw, 36px); letter-spacing: .06em; }
+  .sub { margin: 0 0 6px; font-size: clamp(16px, 4vw, 19px); color: #22d3ee; font-weight: 600; }
+  .desc { margin: 16px auto 0; max-width: 400px; font-size: 14px; line-height: 1.8; color: #8a93a8; }
+  .join {
+    display: inline-block; margin-top: 28px; padding: 12px 30px; border-radius: 10px;
+    background: linear-gradient(135deg, #2e52b4, #22d3ee); color: #04121c;
+    font-size: 14px; font-weight: 700; letter-spacing: .04em; text-decoration: none;
+    box-shadow: 0 6px 24px rgba(34,211,238,.3); transition: transform .2s, box-shadow .2s;
+  }
+  .join:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(34,211,238,.45); }
+  .brand { margin: 22px 0 0; font-size: 11px; letter-spacing: .1em; color: #43506e; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+    </div>
+    <span class="badge">SYSTEM MAINTENANCE</span>
+    <h1>网站维护中</h1>
+    <p class="sub">预计下个月重新开放</p>
+    <p class="desc">我们正在进行系统升级与服务器迁移，期间站点暂时无法提供完整服务。感谢你的耐心等待，我们很快回来。</p>
+    <a class="join" href="join.html">加入我们 →</a>
+    <p class="brand">BLUEPRINTSTUDIO · 蓝图交流平台</p>
+  </div>
+</body>
+</html>
