@@ -154,3 +154,23 @@ export async function issueToken(email, rec) {
     exp: Date.now() + 7 * 24 * 3600 * 1000,
   });
 }
+
+
+/* ---------- 会员（VIP）配置：服务端权威 ----------
+   - 会员模型：只有 vip 用户可选，其余模型游客/登录用户均可用
+   - 激活码：存服务端，前端看不到；兑换后写进用户记录 vip 字段
+   - 管理员改下面两个数组即可增删模型 / 激活码 */
+export const VIP_MODELS = new Set([
+  "gpt-6.2-astra",
+  "deepseek-v4.1-flash",
+]);
+export const VIP_CODES = [
+  "BS-VIP-2026",
+];
+/* 用户是否开通会员：兼容 vip=true 或 vipUntil 未过期 */
+export function isVipUser(rec) {
+  if (!rec) return false;
+  if (rec.vip === true) return true;
+  if (rec.vipUntil && Date.now() < Number(rec.vipUntil)) return true;
+  return false;
+}

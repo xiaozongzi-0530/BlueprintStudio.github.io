@@ -320,28 +320,45 @@
   };
   var GEN_MODES = { image: 1, video: 1, file: 1 };
 
-  /* ---------- 会员模型门槛（前端软校验） ----------
-     管理员可修改 VIP_CODES 列表分发激活码；激活状态存本机 localStorage。
-     注意：这是前端校验，仅防误用；真正鉴权应放服务端（后端就绪后迁移）。 */
-  var VIP_MODELS = { "gpt-6.2-astra": 1, "deepseek-v4.1-flash": 1 };
-  var VIP_CODES = ["BS-VIP-2026"];   /* ← 管理员在此维护有效激活码，可加多个 */
-  var VIP_KEY = "bs_aicode_vip_v1";
-  function isVip() { try { return localStorage.getItem(VIP_KEY) === "1"; } catch (e) { return false; } }
+  /* ---------- 会员（服务端权威） ----------
+     会员状态只认后端 /api/vip；前端不存任何可信标记。
+     真正的模型拦截在后端 api-aicode，这里仅用于展示徽章/友好提示。 */
+  var vipState = false;   // 由后端 status 刷新
   function refreshVipBadge() {
     var b = $("memberBadge"); if (!b) return;
-    b.style.display = isVip() ? "" : "none";
+    b.style.display = vipState ? "" : "none";
   }
-  refreshVipBadge();
+  function loadVipStatus() {
+    if (!token()) { vipState = false; refreshVipBadge(); return; }
+    fetch(BASE + "/api/vip", {
+      method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
+      body: JSON.stringify({ action: "status" }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.ok) { vipState = !!res.vip; refreshVipBadge(); }
+    }).catch(function () {});
+  }
+  loadVipStatus();
   $("vipBtn").onclick = function () {
-    var code = ($("vipCode").value || "").trim().toUpperCase();
     var st = $("vipStatus");
-    if (!code) { st.textContent = "请输入激活码"; st.className = "ast status err"; return; }
-    if (VIP_CODES.map(function (c) { return c.toUpperCase(); }).indexOf(code) === -1) {
-      st.textContent = "激活码无效，请联系管理员"; st.className = "ast status err"; return;
+    if (!token()) {
+      st.textContent = "请先登录后再开通会员"; st.className = "ast status err";
+      window.location.href = "index.html"; return;
     }
-    try { localStorage.setItem(VIP_KEY, "1"); } catch (e) {}
-    st.textContent = "✅ 会员已开通，现在可以使用 GPT / DeepSeek 模型"; st.className = "ast status ok";
-    $("vipCode").value = ""; refreshVipBadge();
+    var code = ($("vipCode").value || "").trim();
+    if (!code) { st.textContent = "请输入激活码"; st.className = "ast status err"; return; }
+    st.textContent = "正在验证…"; st.className = "ast status";
+    fetch(BASE + "/api/vip", {
+      method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
+      body: JSON.stringify({ action: "redeem", code: code }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.msg || "开通失败");
+      vipState = true; refreshVipBadge();
+      st.textContent = "✅ " + (res.msg || "会员开通成功") + "，现在可以使用 GPT / DeepSeek 模型";
+      st.className = "ast status ok";
+      $("vipCode").value = "";
+    }).catch(function (e) {
+      st.textContent = e.message || "网络异常，请稍后再试"; st.className = "ast status err";
+    });
   };
 
   /* ---------- 附件（仅代码模式用） ---------- */
@@ -563,22 +580,20 @@
   /* ---- 代码/对话（原逻辑） ---- */
   function sendCode(prompt) {
     var status = $("status"), t = cur();
-    /* 会员模型门槛：未开通则引导开通，不发起请求 */
-    if (VIP_MODELS[$("model").value] && !isVip()) {
-      status.textContent = "🔒 GPT / DeepSeek 为会员专享模型，请在上方付款获取激活码开通（2 元 = 1M token）";
-      status.className = "status err";
-      $("priceBanner").scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
     busy = true; $("goBtn").disabled = true; status.className = "status";
     status.innerHTML = '<span class="loading">🤖 AI 正在思考</span>';
     var history = t.msgs.slice(-8).map(function (m) { return { role: m.role, content: m.content }; });
     var payload = { prompt: prompt, lang: $("lang").value, mode: mode, model: $("model").value, history: history };
     if (attach) payload.attach = [attach];
     fetch(BASE + "/api/aicode", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()), body: JSON.stringify(payload),
     }).then(function (r) { return r.json(); }).then(function (res) {
-      if (!res.ok) throw new Error(res.msg || "生成失败");
+      if (!res.ok) {
+        if (res.vipRequired) {
+          $("priceBanner").scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+        throw new Error(res.msg || "生成失败");
+      }
       status.className = "status ok";
       status.textContent = "完成" + (res.geoFallback ? "（已自动切换通用模式）" : (res.fallback ? "（已切换备用模型）" : ""));
       t.msgs.push({ role: "user", content: prompt + (attach ? "\n\n📎 附件：" + attach.name : "") });
