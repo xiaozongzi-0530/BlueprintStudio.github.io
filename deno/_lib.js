@@ -155,4 +155,20 @@ export async function issueToken(email, rec) {
   });
 }
 
+/* ---------- 付费模型 & token 额度 ----------
+   管理员给用户分发 token 额度(tokenQuota)，付费模型按用量×倍率扣(tokenUsed)。
+   环境变量配 key/接口地址，不进仓库；GLM 免费，不扣额度。 */
+export const PAID_MODELS = {
+  "gpt-6.2-astra": { name: "GPT-6.2 Astra", mult: 5, env: "GPT" },
+  "deepseek-v4.1-flash": { name: "DeepSeek V4.1", mult: 3, env: "DEEPSEEK" },
+};
+export function getQuota(rec) {
+  return { quota: Number(rec && rec.tokenQuota) || 0, used: Number(rec && rec.tokenUsed) || 0 };
+}
+export function quotaLeft(rec) {
+  const q = getQuota(rec);
+  return Math.max(0, q.quota - q.used);
+}
+
+
 

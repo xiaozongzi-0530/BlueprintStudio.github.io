@@ -68,6 +68,15 @@
   .login-tip { background:rgba(34,211,238,.08); border:1px solid rgba(34,211,238,.3); color:var(--accent2); border-radius:10px; padding:.7rem 1rem; font-size:.85rem; margin-bottom:.9rem; }
   .login-tip a { color:#fff; text-decoration:underline; }
 
+  /* token 额度条 */
+  .quota-bar { display:flex; align-items:center; gap:.8rem; flex-wrap:wrap; background:linear-gradient(135deg,rgba(46,82,180,.18),rgba(34,211,238,.08)); border:1px solid rgba(34,211,238,.3); border-radius:12px; padding:.7rem 1rem; margin-bottom:1rem; font-size:.84rem; }
+  .quota-bar .qb-label { color:var(--accent2); font-weight:600; }
+  .quota-bar .qb-num { color:var(--text); font-weight:700; }
+  .quota-bar .qb-track { flex:1; min-width:120px; height:7px; border-radius:99px; background:rgba(0,0,0,.35); overflow:hidden; }
+  .quota-bar .qb-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:99px; transition:width .4s; }
+  .quota-bar .qb-tip { color:var(--muted); font-size:.78rem; }
+  .quota-bar .qb-tip a { color:var(--accent2); }
+
   /* 资产预览 */
   .asset-box { margin-top:.5rem; border:1px solid var(--line); border-radius:12px; padding:.8rem; background:rgba(0,0,0,.18); }
   .asset-box img { max-width:100%; border-radius:8px; display:block; }
@@ -125,6 +134,15 @@
       <h1 style="font-size:1.6rem; margin-bottom:.4rem;">AI <em style="font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;">工作台</em></h1>
       <p id="viewDesc" style="color:var(--muted); font-size:.9rem; margin-bottom:1.2rem;">写代码 / 生图 / 生视频 / 生成文件，一个工作台搞定。多任务多轮对话。</p>
 
+      <!-- token 额度条 -->
+      <div class="quota-bar" id="quotaBar">
+        <span class="qb-label">💠 付费额度</span>
+        <span class="qb-num" id="quotaLeft">--</span>
+        <span class="qb-tip" id="quotaTotal"></span>
+        <div class="qb-track"><div class="qb-fill" id="quotaFill" style="width:0%;"></div></div>
+        <span class="qb-tip" id="quotaHint">GLM 系列免费，付费模型按 token×倍率扣减</span>
+      </div>
+
       <!-- 对话/生成视图 -->
       <div id="chatView">
         <div id="loginTip" class="login-tip" style="display:none;">
@@ -153,6 +171,10 @@
                 <option value="glm-4.1v-thinking-flash">GLM-4.1V-Thinking-Flash</option>
                 <option value="glm-z1-flash">GLM-Z1-Flash</option>
                 <option value="glm-4-flash-250414">GLM-4-Flash</option>
+              </optgroup>
+              <optgroup label="付费模型（消耗 token 额度）">
+                <option value="gpt-6.2-astra">🐋 GPT-6.2 Astra（5×）</option>
+                <option value="deepseek-v4.1-flash">🐟 DeepSeek V4.1（3× · 蓝色大肥鱼）</option>
               </optgroup>
             </select>
             <label style="color:var(--muted); font-size:.85rem;">语言</label>
@@ -241,8 +263,31 @@
     "glm-4.7-flash": "GLM-4.7-Flash", "glm-4.6v-flash": "GLM-4.6V-Flash",
     "glm-4.1v-thinking-flash": "GLM-4.1V-Thinking-Flash", "glm-z1-flash": "GLM-Z1-Flash",
     "glm-4-flash-250414": "GLM-4-Flash",
+    "gpt-6.2-astra": "GPT-6.2 Astra（5×）", "deepseek-v4.1-flash": "DeepSeek V4.1（3×）",
   };
   var GEN_MODES = { image: 1, video: 1, file: 1 };
+
+  /* ---------- token 额度 ---------- */
+  var PAID_MODELS = { "gpt-6.2-astra": 1, "deepseek-v4.1-flash": 1 };
+  function fmtNum(n) { n = Number(n) || 0; return n >= 1e8 ? (n/1e8).toFixed(2)+" 亿" : n >= 1e4 ? (n/1e4).toFixed(1)+" 万" : String(n); }
+  function loadQuota() {
+    var left = $("quotaLeft"), total = $("quotaTotal"), fill = $("quotaFill"), hint = $("quotaHint");
+    if (!isLogged) {
+      left.textContent = "登录后可查看"; total.textContent = ""; fill.style.width = "0%";
+      hint.innerHTML = 'GLM 系列免费，付费模型需登录并联系管理员获取额度'; return;
+    }
+    fetch(BASE + "/api/quota", {
+      method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
+      body: JSON.stringify({ action: "self" }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.msg || "查询失败");
+      left.textContent = fmtNum(res.left) + " token";
+      total.textContent = res.quota ? "（总额 " + fmtNum(res.quota) + " · 已用 " + fmtNum(res.used) + "）" : "（未分配额度）";
+      fill.style.width = (res.quota ? Math.min(100, res.left / res.quota * 100) : 0) + "%";
+      hint.innerHTML = res.left > 0 ? 'GLM 免费，付费模型按 token×倍率扣减' : '额度已用完，请联系管理员充值';
+    }).catch(function () { left.textContent = "查询失败"; });
+  }
+  loadQuota();
 
   /* ---------- 附件（仅代码模式用） ---------- */
   var attach = null;
@@ -452,8 +497,10 @@
     var status = $("status");
     var prompt = $("prompt").value.trim();
     if (!prompt) { status.textContent = "请先输入内容"; status.className = "status err"; return; }
-    if (GEN_MODES[mode] && !isLogged) {
-      status.textContent = "请先登录后再使用生成功能"; status.className = "status err";
+    var needLogin = GEN_MODES[mode] || PAID_MODELS[$("model").value];
+    if (needLogin && !isLogged) {
+      status.textContent = (PAID_MODELS[$("model").value] ? "付费模型需先登录" : "请先登录后再使用生成功能");
+      status.className = "status err";
       $("loginTip").style.display = ""; return;
     }
     if (GEN_MODES[mode]) return sendGen(prompt);
@@ -469,11 +516,17 @@
     var payload = { prompt: prompt, lang: $("lang").value, mode: mode, model: $("model").value, history: history };
     if (attach) payload.attach = [attach];
     fetch(BASE + "/api/aicode", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()), body: JSON.stringify(payload),
     }).then(function (r) { return r.json(); }).then(function (res) {
-      if (!res.ok) throw new Error(res.msg || "生成失败");
+      if (!res.ok) {
+        if (res.loginRequired || res.quotaEmpty) $("loginTip").style.display = "";
+        throw new Error(res.msg || "生成失败");
+      }
       status.className = "status ok";
-      status.textContent = "完成" + (res.geoFallback ? "（已自动切换通用模式）" : (res.fallback ? "（已切换备用模型）" : ""));
+      status.textContent = "完成"
+        + (res.paid ? "（本次消耗 " + fmtNum(res.usedTokens) + " token × " + res.mult + " = " + fmtNum(res.cost) + "，剩余 " + fmtNum(res.quotaLeft) + "）" : "")
+        + (res.geoFallback ? "（已自动切换通用模式）" : (res.fallback ? "（已切换备用模型）" : ""));
+      if (res.paid) loadQuota();
       t.msgs.push({ role: "user", content: prompt + (attach ? "\n\n📎 附件：" + attach.name : "") });
       t.msgs.push({ role: "assistant", content: res.text, model: MODEL_NAME[$("model").value] || "GLM" });
       save(); $("prompt").value = "";

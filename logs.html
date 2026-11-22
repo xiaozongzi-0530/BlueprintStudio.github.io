@@ -118,6 +118,17 @@
   .tag.info { background:rgba(34,211,238,.14); color:var(--info); }
   .tag.src { background:rgba(40,72,168,.14); color:var(--accent2); font-weight:500; }
   .log-msg { font-size:.92rem; line-height:1.7; word-break:break-word; }
+  /* token 额度分发表 */
+  .qtable { width:100%; border-collapse:collapse; font-size:.84rem; }
+  .qtable th, .qtable td { text-align:left; padding:.55rem .5rem; border-bottom:1px solid var(--line); }
+  .qtable th { color:var(--muted); font-weight:600; font-size:.78rem; }
+  .qtable td.qnum { color:var(--accent2); font-weight:600; white-space:nowrap; }
+  .qtable tr:hover td { background:rgba(255,255,255,.03); }
+  .qgrant { display:flex; gap:.4rem; align-items:center; flex-wrap:wrap; }
+  .qgrant input { width:110px; }
+  .qgrant select { width:auto; min-width:80px; }
+  .qmsg { font-size:.8rem; min-height:1.1em; margin-top:.5rem; }
+  @media (max-width:640px){ .qtable th:nth-child(2),.qtable td:nth-child(2){display:none;} }
   .log-meta { font-size:.76rem; color:var(--muted); margin-top:.4rem; line-height:1.7; word-break:break-all; }
   details { margin-top:.5rem; }
   summary {
@@ -237,6 +248,27 @@
       <div class="log-list" id="rpList"></div>
       <div class="empty hidden" id="rpEmpty"><span class="ico">✅</span>没有举报记录。</div>
       <p class="hint" id="rpTokenHint" style="margin-top:.8rem;"></p>
+    </div>
+
+    <!-- 付费模型 token 额度分发 -->
+    <div id="quotaWrap" class="hidden" style="margin-top:2.2rem;">
+      <h2 style="font-size:1.15rem; margin-bottom:.4rem;">💠 付费模型 token 额度分发</h2>
+      <p class="sub" style="margin-bottom:1rem;">
+        给指定账号分配付费模型的 token 额度。GPT 按实际用量 <b style="color:var(--accent2);">×5</b>、DeepSeek <b style="color:var(--accent2);">×3</b> 扣减；GLM 系列免费，不扣额度。
+      </p>
+      <div class="toolbar">
+        <span style="color:var(--muted); font-size:.85rem;">共 <b id="qCount" style="color:var(--accent2);">0</b> 个账号</span>
+        <span class="spacer" style="flex:1;"></span>
+        <button class="btn ghost" id="qReload">刷新额度</button>
+      </div>
+      <div style="overflow-x:auto; margin-top:.8rem;">
+        <table class="qtable">
+          <thead><tr><th>账号</th><th>总额度</th><th>已用</th><th>剩余</th><th>分发</th></tr></thead>
+          <tbody id="qBody"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="qTokenHint" style="margin-top:.8rem;"></p>
+      <p class="qmsg" id="qMsg"></p>
     </div>
 
     <div class="panel lock hidden" id="errBox">
@@ -627,14 +659,72 @@
 
   $("rpReload").addEventListener("click", loadReports);
 
+  /* ---------- 付费模型 token 额度分发 ---------- */
+  function qFetch(payload) {
+    var a = null; try { a = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
+    return fetch(API_BASE + "/api/quota", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (a && a.token || "") },
+      body: JSON.stringify(payload),
+    }).then(function (r) { return r.json(); });
+  }
+  function qFmt(n) { n = Number(n) || 0; return n >= 1e8 ? (n/1e8).toFixed(2)+"亿" : n >= 1e4 ? (n/1e4).toFixed(1)+"万" : String(n); }
+  function loadQuotas() {
+    var body = $("qBody"), msg = $("qMsg");
+    body.innerHTML = '<tr><td colspan="5" style="color:var(--muted);">加载中…</td></tr>';
+    qFetch({ action: "list" }).then(function (res) {
+      if (!res.ok) throw new Error(res.msg || "加载失败");
+      var list = res.users || [];
+      $("qCount").textContent = list.length;
+      body.innerHTML = "";
+      if (!list.length) { body.innerHTML = '<tr><td colspan="5" style="color:var(--muted);">暂无账号</td></tr>'; return; }
+      list.forEach(function (u) {
+        var tr = document.createElement("tr");
+        var td1 = document.createElement("td"); td1.textContent = u.email + (u.banned ? " (封禁)" : "");
+        var td2 = document.createElement("td"); td2.className = "qnum"; td2.textContent = qFmt(u.quota);
+        var td3 = document.createElement("td"); td3.textContent = qFmt(u.used);
+        var td4 = document.createElement("td"); td4.className = "qnum"; td4.textContent = qFmt(u.left);
+        var td5 = document.createElement("td");
+        var box = document.createElement("div"); box.className = "qgrant";
+        var input = document.createElement("input"); input.type = "number"; input.min = "0"; input.placeholder = "token 数";
+        var mode = document.createElement("select");
+        [["set","设为"],["add","增加"],["deduct","扣减"]].forEach(function (o) {
+          var op = document.createElement("option"); op.value = o[0]; op.textContent = o[1]; mode.appendChild(op);
+        });
+        var btn = document.createElement("button"); btn.className = "btn ghost"; btn.textContent = "分发";
+        btn.style.padding = ".3rem .8rem";
+        btn.onclick = function () {
+          var n = Number(input.value);
+          if (!isFinite(n) || n < 0) { msg.textContent = "请输入合法额度"; msg.style.color = "var(--err)"; return; }
+          btn.disabled = true; msg.textContent = "处理中…"; msg.style.color = "var(--muted)";
+          qFetch({ action: "grant", email: u.email, quota: n, mode: mode.value }).then(function (r) {
+            if (!r.ok) throw new Error(r.msg || "分发失败");
+            msg.textContent = "✅ 已为 " + u.email + " " + (mode.value === "set" ? "设为" : mode.value === "add" ? "增加" : "扣减") + " " + qFmt(n) + " token（现为 " + qFmt(r.quota) + "）";
+            msg.style.color = "var(--ok)";
+            input.value = ""; loadQuotas();
+          }).catch(function (e) { msg.textContent = e.message || "网络异常"; msg.style.color = "var(--err)"; })
+            .then(function () { btn.disabled = false; });
+        };
+        box.appendChild(input); box.appendChild(mode); box.appendChild(btn); td5.appendChild(box);
+        tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4); tr.appendChild(td5);
+        body.appendChild(tr);
+      });
+    }).catch(function (e) {
+      body.innerHTML = '<tr><td colspan="5" style="color:var(--err);">加载失败：' + (e.message || "网络异常") + '</td></tr>';
+    });
+  }
+  $("qReload").addEventListener("click", loadQuotas);
+
   /* ---------- 启动 ---------- */
   checkAdmin().then(function (r) {
     if (!r.ok) { showLock(r.reason); return; }
     $("appealWrap").classList.remove("hidden");
     $("reportWrap").classList.remove("hidden");
+    $("quotaWrap").classList.remove("hidden");
     loadLogs();
     loadAppeals();
     loadReports();
+    loadQuotas();
   });
 })();
 </script>

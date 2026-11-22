@@ -11,7 +11,8 @@
 
    环境变量：GLM_API_KEY（已配置）
 */
-import { json, preflight, clientIP, rateLimit } from "./_lib.js";
+import { json, preflight, clientIP, rateLimit, verifyToken, getUsersRaw, putUsersRaw,
+  getStore, PAID_MODELS, quotaLeft } from "./_lib.js";
 import { GLM_URL } from "./_glm.js";
 
 export const config = { path: "/api/aicode" };
@@ -75,12 +76,39 @@ export default async (req) => {
   if (!prompt) return json({ ok: false, msg: "需求描述不能为空" }, 400);
   const lang = clamp(body.lang, 20);
   const mode = clamp(body.mode, 10) || "generate";
-  /* 模型路由：不在白名单一律回退默认模型 */
-  const modelKey = MODELS[clamp(body.model, 40)] ? clamp(body.model, 40) : DEFAULT_MODEL;
+
+  /* ---------- 付费模型：登录 + token 额度校验 ---------- */
+  const requestedModel = clamp(body.model, 40);
+  const paid = PAID_MODELS[requestedModel];
+  if (paid) {
+    const tok = await verifyToken(req);
+    if (!tok) return json({ ok: false, msg: "付费模型需先登录", loginRequired: true }, 401);
+    const db = await getUsersRaw();
+    const rec = (db.users || {})[tok.email];
+    if (quotaLeft(rec) <= 0) {
+      return json({ ok: false, quotaEmpty: true,
+        msg: "你的 token 额度已用完，请联系管理员充值后再使用付费模型" }, 403);
+    }
+  }
+
+  /* 模型路由：付费模型走自己的通道；免费模型不在白名单一律回退默认 */
+  const modelKey = MODELS[requestedModel] ? requestedModel : DEFAULT_MODEL;
   const mc = MODELS[modelKey];
 
+  /* 付费模型的环境变量：GPT_BASE_URL / GPT_API_KEY / GPT_MODEL
+     DEEPSEEK_BASE_URL / DEEPSEEK_API_KEY / DEEPSEEK_MODEL */
+  let paidCfg = null;
+  if (paid) {
+    const p = process.env[paid.env];
+    const baseUrl = process.env[paid.env + "_BASE_URL"];
+    const key = process.env[paid.env + "_API_KEY"];
+    const realModel = process.env[paid.env + "_MODEL"];
+    if (!baseUrl || !key) return json({ ok: false, msg: paid.name + " 服务未配置，请联系管理员" }, 503);
+    paidCfg = { baseUrl: baseUrl.replace(/\/+$/, ""), key, realModel: realModel || requestedModel };
+  }
+
   const apiKey = process.env.GLM_API_KEY;
-  if (!apiKey) return json({ ok: false, msg: "AI 服务未配置，请联系管理员" }, 503);
+  if (!paid && !apiKey) return json({ ok: false, msg: "AI 服务未配置，请联系管理员" }, 503);
 
   let userMsg;
   if (mode === "explain") {
@@ -169,6 +197,56 @@ export default async (req) => {
     return (msg.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   }
 
+  /* 付费模型调用（OpenAI 兼容接口）：返回正文 + 实际消耗 token */
+  async function callPaid() {
+    const url = paidCfg.baseUrl + "/chat/completions";
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + paidCfg.key },
+      body: JSON.stringify({
+        model: paidCfg.realModel,
+        messages: messages,
+        temperature: 0.4,
+        max_tokens: MAX_OUTPUT,
+      }),
+      signal: ctrl.signal,
+    });
+    if (!r.ok) {
+      let detail = "HTTP " + r.status;
+      try { const e = await r.json(); if (e && e.error) detail += " " + clamp(String(e.error.message || e.error), 100); } catch (x) {}
+      throw new Error(paid.name + " " + detail);
+    }
+    const data = await r.json();
+    const msg = data && data.choices && data.choices[0] && data.choices[0].message || {};
+    const usage = data && data.usage || {};
+    const total = Number(usage.total_tokens) ||
+      (Number(usage.prompt_tokens) || 0) + (Number(usage.completion_tokens) || 0);
+    return {
+      text: (msg.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim(),
+      tokens: total,
+    };
+  }
+
+  /* 调用成功后扣减额度并记流水 */
+  async function deductQuota(email, modelName, mult, tokens, leftBefore) {
+    const cost = Math.ceil(tokens * mult);
+    const db = await getUsersRaw();
+    const rec = (db.users || {})[email];
+    if (!rec) return { cost: cost, left: 0 };
+    const used = (Number(rec.tokenUsed) || 0) + cost;
+    rec.tokenUsed = used;
+    const left = Math.max(0, (Number(rec.tokenQuota) || 0) - used);
+    await putUsersRaw(db);
+    try {
+      const meta = getStore("meta");
+      const logs = JSON.parse((await meta.get("__quota_logs")) || "[]");
+      logs.push({ t: Date.now(), email: email, model: modelName, tokens: tokens, mult: mult, cost: cost, left: left });
+      if (logs.length > 200) logs.splice(0, logs.length - 200);
+      await meta.set("__quota_logs", JSON.stringify(logs));
+    } catch (e) {}
+    return { cost: cost, left: left };
+  }
+
   try {
     let text, usedModel = effModelKey, fellBack = false, geoFallback = false;
 
@@ -181,7 +259,21 @@ export default async (req) => {
       : "glm-4-flash-250414";
 
     let lastErr = null;
-    /* 第一跳：主模型 */
+
+    /* 付费模型：单独调用 + 扣额度，不走 GLM 降级链 */
+    if (paid) {
+      const tok = await verifyToken(req);
+      const email = tok.email;
+      const db0 = await getUsersRaw();
+      const leftBefore = quotaLeft((db0.users || {})[email]);
+      const res = await callPaid();
+      if (!res.text) throw new Error(paid.name + " 返回为空");
+      const d = await deductQuota(email, paid.name, paid.mult, res.tokens, leftBefore);
+      return json({ ok: true, text: res.text.slice(0, 8000), model: paid.name, paid: true,
+        usedTokens: res.tokens, mult: paid.mult, cost: d.cost, quotaLeft: d.left });
+    }
+
+    /* 第一跳：主模型（免费 GLM） */
     try {
       text = await callOnce(effModelKey, effMc.temp);
     } catch (e) {

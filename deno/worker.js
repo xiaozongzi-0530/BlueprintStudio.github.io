@@ -12,6 +12,7 @@ import apiModerate from "./api-moderate.js";
 import apiReport from "./api-report.js";
 import apiAppeal from "./api-appeal.js";
 import apiAicode from "./api-aicode.js";
+import apiQuota from "./api-quota.js";
 import apiAi from "./api-ai.js";
 import apiAiclean from "./api-aiclean.js";
 import apiFile from "./api-file.js";
@@ -25,6 +26,7 @@ const ROUTES = {
   "/api/report": apiReport,
   "/api/appeal": apiAppeal,
   "/api/aicode": apiAicode,
+  "/api/quota": apiQuota,
   "/api/ai": apiAi,
   "/api/aiclean": apiAiclean,
   "/api/file": apiFile,
