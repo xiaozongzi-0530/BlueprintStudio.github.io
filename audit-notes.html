@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<script>location.replace("maintenance.html");</script>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>审核笔记 · BlueprintStudio</title>
@@ -87,7 +85,7 @@
   "use strict";
   
       /* ===== 服务端数据层（私有 Blobs，替代 textdb 公开库） ===== */
-      var API_BASE = "https://blueprintstudio-mail.netlify.app";
+      var API_BASE = "https://blueprintstudio-d5f6u80sab2de6b7-1538470672.ap-shanghai.app.tcloudbase.com";
       var DB_KEY = "blueprintstudio-notes-2026";
       function authTok() {
         try { var s = JSON.parse(localStorage.getItem("bs_auth") || "null"); if (s && s.token) return s.token; } catch (e) {}
