@@ -68,7 +68,12 @@
   .loading::after { content:""; animation:dots 1.2s steps(4,end) infinite; }
   @keyframes dots { 0%{content:"";} 25%{content:"·";} 50%{content:"··";} 75%{content:"···";} }
   .hint { color:var(--muted); font-size:.78rem; line-height:1.9; margin-top:1rem; }
-  .empty-tip { color:var(--muted); text-align:center; padding:2rem 0; font-size:.9rem; }
+  .empty-tip { color:var(--muted); text-align:center; padding:2rem 0; font-size:.9rem; line-height:1.8; }
+  .quick-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.7rem;margin-top:1.2rem;}
+  .quick{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:.75rem .9rem;cursor:pointer;text-align:left;transition:.15s;}
+  .quick:hover{border-color:var(--accent2);transform:translateY(-2px);}
+  .quick .qt{font-weight:600;font-size:.86rem;color:var(--text);}
+  .quick .qd{font-size:.74rem;color:var(--muted);margin-top:.25rem;line-height:1.5;}
   .login-tip { background:rgba(34,211,238,.08); border:1px solid rgba(34,211,238,.3); color:var(--accent2); border-radius:10px; padding:.7rem 1rem; font-size:.85rem; margin-bottom:.9rem; }
   .login-tip a { color:#fff; text-decoration:underline; }
 
@@ -146,7 +151,7 @@
 
     <div id="work">
       <h1 style="font-size:1.6rem; margin-bottom:.4rem;">AI <em style="font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;">工作台</em></h1>
-      <p id="viewDesc" style="color:var(--muted); font-size:.9rem; margin-bottom:1.2rem;">写代码 / 生图 / 生视频 / 生成文件，一个工作台搞定。多任务多轮对话。</p>
+      <p id="viewDesc" style="color:var(--muted); font-size:.9rem; margin-bottom:1.2rem;">AI 聊天 / 写代码 / 生图 / 生视频 / 生成文件，一个工作台搞定。多任务多轮对话。</p>
 
       <!-- token 额度条 -->
       <div class="quota-bar" id="quotaBar">
@@ -176,7 +181,7 @@
         </div>
         <div class="card">
           <div class="mode-tabs" id="modeTabs">
-            <button data-mode="chat" class="on">💬 连续对话</button>
+            <button data-mode="chat" class="on">💬 AI 聊天</button>
             <button data-mode="generate">✨ 写代码</button>
             <button data-mode="explain">📖 解释代码</button>
             <button data-mode="fix">🐛 排查 Bug</button>
@@ -203,6 +208,7 @@
                 <option value="deepseek-v4.1-flash">🐟 DeepSeek V4.1（3× · 蓝色大肥鱼）</option>
               </optgroup>
             </select>
+            <span id="langWrap" style="display:none;">
             <label style="color:var(--muted); font-size:.85rem;">语言</label>
             <select id="lang">
               <option value="">自动选择</option>
@@ -216,6 +222,7 @@
               <option value="SQL">SQL</option>
               <option value="Shell">Shell</option>
             </select>
+            </span>
             <button class="btn ghost" id="clearMsgs" title="清空当前任务的对话记录">🧹 清空对话</button>
             <span style="flex:1;"></span>
             <button class="btn ghost" id="attachBtn" title="附加截图或代码文件（图片≤1.5MB 自动交给视觉模型，文本≤40KB）">📎 附件</button>
@@ -476,18 +483,57 @@
     return h;
   }
 
+  /* ---------- 通用聊天：快捷提示词 / 复制 / 下载 ---------- */
+  var QUICK = [
+    ["✍️","写文章","帮我写一篇关于「坚持」的演讲稿，约 600 字，语气真诚有力量"],
+    ["🌍","翻译","把下面这段话翻译成英文，并保持语气自然：\n\n"],
+    ["📝","总结提炼","请总结下面文字的核心要点，用 5 条以内列出来：\n\n"],
+    ["💡","头脑风暴","我想做一个校园二手交易平台，帮我头脑风暴 8 个有创意的功能点"],
+    ["💬","陪我聊聊","今天有点累，陪我聊会儿吧"],
+    ["📚","学习辅导","用通俗的话解释一下什么是「区块链」，举生活中的例子"],
+  ];
+  var QUICK_HTML = QUICK.map(function (q, i) {
+    return '<div class="quick" data-qi="' + i + '"><div class="qt">' + q[0] + ' ' + q[1] + '</div><div class="qd">' + esc(q[2].slice(0, 22)) + '…</div></div>';
+  }).join("");
+  function bindQuick(scope) {
+    Array.prototype.forEach.call(scope.querySelectorAll(".quick"), function (el) {
+      el.onclick = function () { $("prompt").value = QUICK[+el.getAttribute("data-qi")][2]; $("prompt").focus(); };
+    });
+  }
+  function copyTextAll(text, btn) {
+    var old = btn.textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+      .then(function () { btn.textContent = "✅ 已复制"; })
+      .catch(function () {
+        var ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); btn.textContent = "✅ 已复制"; } catch (e) { alert("复制失败"); }
+        ta.remove();
+      })
+      .then(function () { setTimeout(function () { btn.textContent = old; }, 1500); });
+  }
+  function downloadText(name, text) {
+    var blob = new Blob([text], { type: "text/plain;charset=utf-8" }), url = URL.createObjectURL(blob);
+    var a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
   /* ---------- 对话流渲染 ---------- */
   function renderChat() {
     var t = cur(), box = $("chat"); box.innerHTML = "";
     if (!t.msgs.length) {
-      box.innerHTML = '<div class="empty-tip">还没有内容。描述你的需求开始吧 —— AI 会记住本任务的上下文，可连续追问。</div>';
+      if (mode === "chat") {
+        box.innerHTML = '<div class="empty-tip">我是「小蓝」，写作、翻译、总结、问答、闲聊都能帮上忙 —— 对话会记住上下文，内容仅你可见。<div class="quick-grid">' + QUICK_HTML + '</div></div>';
+        bindQuick(box);
+      } else {
+        box.innerHTML = '<div class="empty-tip">还没有内容。描述你的需求开始吧 —— AI 会记住本任务的上下文，可连续追问。</div>';
+      }
       return;
     }
     t.msgs.forEach(function (m) {
       var div = document.createElement("div");
       div.className = "chat-msg " + (m.role === "user" ? "me" : "ai");
       var who = document.createElement("div"); who.className = "who";
-      who.innerHTML = "<b>" + (m.role === "user" ? "🧑 我" : "🤖 " + esc(m.model || "GLM")) + "</b>";
+      who.innerHTML = "<b>" + (m.role === "user" ? "🧑 我" : "🤖 " + (mode === "chat" ? "小蓝" : esc(m.model || "GLM"))) + "</b>";
       div.appendChild(who);
       if (m.role === "user") {
         var p = document.createElement("div"); p.className = "prose"; p.textContent = m.content;
@@ -499,11 +545,22 @@
         var wrap2 = document.createElement("div"); wrap2.innerHTML = renderMarkdown(m.content);
         while (wrap2.firstChild) div.appendChild(wrap2.firstChild);
         var head = document.createElement("div"); head.className = "code-head";
-        var cp = document.createElement("button"); cp.className = "btn ghost"; cp.textContent = "📋 复制代码";
-        cp.style.padding = ".3rem .8rem"; cp.style.fontSize = ".78rem";
-        cp.onclick = function () { copyLastPre(div); };
         var b = document.createElement("b"); b.textContent = "输出";
-        head.appendChild(b); head.appendChild(cp);
+        head.appendChild(b);
+        if (mode === "chat") {
+          var cp2 = document.createElement("button"); cp2.className = "btn ghost"; cp2.textContent = "📋 复制";
+          cp2.style.padding = ".3rem .8rem"; cp2.style.fontSize = ".78rem";
+          cp2.onclick = function () { copyTextAll(m.content, cp2); };
+          var dl2 = document.createElement("button"); dl2.className = "btn ghost"; dl2.textContent = "⬇ 下载";
+          dl2.style.padding = ".3rem .8rem"; dl2.style.fontSize = ".78rem";
+          dl2.onclick = function () { downloadText("小蓝的回复.md", m.content); };
+          head.appendChild(cp2); head.appendChild(dl2);
+        } else {
+          var cp = document.createElement("button"); cp.className = "btn ghost"; cp.textContent = "📋 复制代码";
+          cp.style.padding = ".3rem .8rem"; cp.style.fontSize = ".78rem";
+          cp.onclick = function () { copyLastPre(div); };
+          head.appendChild(cp);
+        }
         div.insertBefore(head, who.nextSibling);
       }
       box.appendChild(div);
@@ -536,7 +593,7 @@
     $("myWorksBtn").classList.toggle("on", v === "works");
     $("viewDesc").textContent = v === "works"
       ? "你生成的图片 / 视频 / 文件，保留 3 天，到期自动删除。"
-      : "写代码 / 生图 / 生视频 / 生成文件，一个工作台搞定。多任务多轮对话。";
+      : "AI 聊天 / 写代码 / 生图 / 生视频 / 生成文件，一个工作台搞定。多任务多轮对话。";
     if (v === "works") loadWorks();
   }
   $("myWorksBtn").onclick = function () { switchView("works"); };
@@ -552,8 +609,9 @@
     $("rowVideo").style.display = mode === "video" ? "" : "none";
     $("rowFile").style.display = mode === "file" ? "" : "none";
     $("attachBtn").style.display = GEN_MODES[mode] ? "none" : "";
+    $("langWrap").style.display = mode === "chat" ? "none" : "";
     var ph = {
-      chat: "描述需求、粘贴代码或继续追问，Ctrl+Enter 发送",
+      chat: "和我聊聊吧：写作、翻译、总结、问答、闲聊都行…（Ctrl+Enter 发送）",
       generate: "描述你想实现的功能，例如「写一个支持断点续传的下载器」",
       explain: "粘贴要解释的代码", fix: "粘贴有 bug 的代码和报错信息",
       image: "描述画面，例如「赛博朋克风格的城市夜景，霓虹灯，下雨」，越具体越好",
@@ -563,6 +621,7 @@
     $("prompt").placeholder = ph[mode] || ph.chat;
     $("goBtn").textContent = GEN_MODES[mode] ? "🚀 生成" : "🚀 发送";
     $("loginTip").style.display = isLogged ? "none" : "";
+    renderChat();
   });
 
   /* ---------- 发送 ---------- */
@@ -695,6 +754,9 @@
   });
 
   load(); renderTasks(); renderChat();
+  /* 默认即「AI 聊天」模式：初始化 placeholder 与语言选择器状态 */
+  $("prompt").placeholder = "和我聊聊吧：写作、翻译、总结、问答、闲聊都行…（Ctrl+Enter 发送）";
+  $("langWrap").style.display = "none";
   if (!isLogged) $("loginTip").style.display = "";
 })();
 </script>
