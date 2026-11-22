@@ -15,6 +15,7 @@
 */
 import { json, preflight, clientIP, rateLimit, verifyToken } from "./_lib.js";
 import { GLM_URL } from "./_glm.js";
+import { getPool, shuffled, shouldSwitch } from "./_glmkey.js";
 import {
   ASSET_TTL, newAssetId, putAsset, getAsset, delAsset, listAssets,
   stashRemote, readFile,
@@ -55,6 +56,20 @@ async function glmFetch(apiKey, body, timeoutMs) {
   } finally { clearTimeout(timer); }
 }
 
+/* 带 key 池的生成调用：逐把尝试，限流/报错自动切下一把 */
+async function glmFetchPool(body, timeoutMs, keyPool) {
+  let lastErr = null;
+  for (const key of keyPool) {
+    try { return await glmFetch(key, body, timeoutMs); }
+    catch (e) {
+      lastErr = e;
+      const m = String(e.message || "");
+      if (m.indexOf("401") === -1 && m.indexOf("403") === -1 && !shouldSwitch(e)) throw e;
+    }
+  }
+  throw lastErr || new Error("所有 key 均不可用");
+}
+
 /* 判断 GLM 400 是否为地域/模型不支持，给出友好提示 */
 function friendly(e) {
   const m = String(e && e.message || e);
@@ -82,12 +97,12 @@ export default async (req) => {
       const a = await getAsset(id);
       if (!a || a.uid !== uid) return json({ ok: false, msg: "资产不存在" }, 404);
       if (a.status === "ready" || a.status === "failed") return json({ ok: true, asset: publicAsset(a) });
-      /* pending：推进视频任务 */
-      const apiKey = process.env.GLM_API_KEY;
-      if (!apiKey) return json({ ok: true, asset: publicAsset(a) });
+      /* pending：推进视频任务（池里取一把查询；同账号下任意 key 均可查） */
+      const statusPool = getPool();
+      if (!statusPool.length) return json({ ok: true, asset: publicAsset(a) });
       try {
         const r = await fetch(ASYNC_RESULT + encodeURIComponent(a.taskId), {
-          headers: { "Authorization": "Bearer " + apiKey },
+          headers: { "Authorization": "Bearer " + statusPool[0] },
         });
         const d = await r.json();
         const st = d && d.task_status;
@@ -158,8 +173,8 @@ export default async (req) => {
   const prompt = clamp(body.prompt, PROMPT_MAX).trim();
   if (!prompt) return json({ ok: false, msg: "描述不能为空" }, 400);
 
-  const apiKey = process.env.GLM_API_KEY;
-  if (!apiKey) return json({ ok: false, msg: "AI 生成服务未配置，请联系管理员" }, 503);
+  const genPool = shuffled(getPool());
+  if (!genPool.length) return json({ ok: false, msg: "AI 生成服务未配置，请联系管理员" }, 503);
 
   const asset = {
     id: newAssetId(),
@@ -177,7 +192,7 @@ export default async (req) => {
       const size = ["1024x1024", "768x1344", "864x1152", "1344x768", "1152x864", "1440x720", "720x1440"].indexOf(body.size) !== -1
         ? body.size : "1024x1024";
       asset.size = size;
-      const d = await glmFetch(apiKey, { model: IMAGE_MODEL, prompt, size, user_id: clamp(uid, 6, 128) }, 40000);
+      const d = await glmFetchPool({ model: IMAGE_MODEL, prompt, size, user_id: clamp(uid, 6, 128) }, 40000, genPool);
       const url = d && d.data && d.data[0] && d.data[0].url;
       if (!url) throw new Error("未返回图片");
       await stashRemote(asset, url, 50000);   // 同步转存 → ready
@@ -190,7 +205,7 @@ export default async (req) => {
          这里仅接受公开可访问的图片 URL；一般走纯文生视频） */
       const reqBody = { model: VIDEO_MODEL, prompt };
       if (body.imageUrl && /^https?:\/\//.test(body.imageUrl)) reqBody.image_url = clamp(body.imageUrl, 500);
-      const d = await glmFetch(apiKey, reqBody, 30000);
+      const d = await glmFetchPool(reqBody, 30000, genPool);
       const taskId = d && d.id;
       if (!taskId) throw new Error("未返回任务ID");
       asset.taskId = taskId;
@@ -207,12 +222,12 @@ export default async (req) => {
     const sys = format === "code"
       ? "你是编程助手。按用户需求直接产出完整代码，不要多余解释。代码用纯文本输出。"
       : "你是写作助手。按用户需求直接产出完整内容（Markdown 格式），不要寒暄和额外解释。";
-    const d = await glmFetch(apiKey, {
+    const d = await glmFetchPool({
       model: TEXT_MODEL,
       messages: [{ role: "system", content: sys }, { role: "user", content: prompt }],
       temperature: 0.3,
       max_tokens: 4000,
-    }, 40000);
+    }, 40000, genPool);
     let text = d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content || "";
     text = String(text).replace(/<think>[\s\S]*?<\/think>/g, "").trim();
     if (!text) throw new Error("生成内容为空");

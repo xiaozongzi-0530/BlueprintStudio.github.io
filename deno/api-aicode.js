@@ -14,6 +14,7 @@
 import { json, preflight, clientIP, rateLimit, verifyToken, getUsersRaw, putUsersRaw,
   getStore, PAID_MODELS, quotaLeft } from "./_lib.js";
 import { GLM_URL } from "./_glm.js";
+import { getPool, shuffled, shouldSwitch } from "./_glmkey.js";
 
 export const config = { path: "/api/aicode" };
 
@@ -107,8 +108,9 @@ export default async (req) => {
     paidCfg = { baseUrl: baseUrl.replace(/\/+$/, ""), key, realModel: realModel || requestedModel };
   }
 
-  const apiKey = process.env.GLM_API_KEY;
-  if (!paid && !apiKey) return json({ ok: false, msg: "AI 服务未配置，请联系管理员" }, 503);
+  /* 写代码 key 池：随机洗牌分散负载；审核用独立的 GLM_MODERATE_KEY，不在此列 */
+  const keyPool = paid ? [] : shuffled(getPool());
+  if (!paid && !keyPool.length) return json({ ok: false, msg: "AI 服务未配置，请联系管理员" }, 503);
 
   let userMsg;
   if (mode === "explain") {
@@ -168,7 +170,7 @@ export default async (req) => {
   const timer = setTimeout(() => ctrl.abort(), 55000);   // 代码生成比审核慢，放宽到 55 秒
 
   /* 单次调用；模型过载（429/1305）时抛出可识别错误 */
-  async function callOnce(modelKey, temp, textOnly) {
+  async function callOnceRaw(apiKey, modelKey, temp, textOnly) {
     const r = await fetch(GLM_URL, {
       method: "POST",
       headers: {
@@ -195,6 +197,25 @@ export default async (req) => {
     const msg = data && data.choices && data.choices[0] && data.choices[0].message || {};
     /* 不展示思考过程：剥掉 <think>...</think>（z1 系列把思考嵌在正文里），只留正文 */
     return (msg.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+  }
+
+  /* 带 key 池的调用：按洗牌顺序逐把尝试，限流/报错自动切下一把。
+     返回 { text, keysTried }；全部失败时抛出最后一把的错误。 */
+  async function callOnce(modelKey, temp, textOnly) {
+    let lastErr = null, tried = 0;
+    for (const key of keyPool) {
+      tried++;
+      try {
+        const text = await callOnceRaw(key, modelKey, temp, textOnly);
+        return { text: text, keysTried: tried };
+      } catch (e) {
+        lastErr = e;
+        /* 401/403 是 key 无效，立即换；其它按 shouldSwitch 判断 */
+        const m = String(e.message || "");
+        if (m.indexOf("401") === -1 && m.indexOf("403") === -1 && !shouldSwitch(e)) throw e;
+      }
+    }
+    throw lastErr || new Error("所有 key 均不可用");
   }
 
   /* 付费模型调用（OpenAI 兼容接口）：返回正文 + 实际消耗 token */
@@ -273,25 +294,30 @@ export default async (req) => {
         usedTokens: res.tokens, mult: paid.mult, cost: d.cost, quotaLeft: d.left });
     }
 
-    /* 第一跳：主模型（免费 GLM） */
+    /* 第一跳：主模型（免费 GLM）—— callOnce 内部已遍历整个 key 池 */
+    let keysTried = 0;
     try {
-      text = await callOnce(effModelKey, effMc.temp);
+      const r1 = await callOnce(effModelKey, effMc.temp);
+      text = r1.text; keysTried = r1.keysTried;
     } catch (e) {
       lastErr = e;
       const over = e.message.indexOf("429") !== -1 || e.message.indexOf("1305") !== -1;
       const bad400 = e.message.indexOf("400") !== -1;
       /* 400 多为海外节点对新模型的地域限制 → 直接跳到 SAFE_MODEL */
       if (bad400) {
-        text = await callOnce(SAFE_MODEL, MODELS[SAFE_MODEL].temp, true);
+        const r = await callOnce(SAFE_MODEL, MODELS[SAFE_MODEL].temp, true);
+        text = r.text; keysTried = r.keysTried;
         usedModel = SAFE_MODEL; fellBack = true; geoFallback = true;
       } else if (over && sameKindFb !== effModelKey) {
         /* 过载 → 先试同类备用 */
         try {
-          text = await callOnce(sameKindFb, MODELS[sameKindFb].temp);
+          const r = await callOnce(sameKindFb, MODELS[sameKindFb].temp);
+          text = r.text; keysTried = r.keysTried;
           usedModel = sameKindFb; fellBack = true;
         } catch (e2) {
           /* 同类备用也失败 → SAFE_MODEL 兜底 */
-          text = await callOnce(SAFE_MODEL, MODELS[SAFE_MODEL].temp, true);
+          const r = await callOnce(SAFE_MODEL, MODELS[SAFE_MODEL].temp, true);
+          text = r.text; keysTried = r.keysTried;
           usedModel = SAFE_MODEL; fellBack = true; geoFallback = true;
         }
       } else {
@@ -300,7 +326,7 @@ export default async (req) => {
     }
     if (!text.trim()) throw new Error("GLM 返回为空");
     return json({ ok: true, text: text.slice(0, 8000), model: MODELS[usedModel].name,
-      fallback: fellBack, geoFallback: geoFallback });
+      fallback: fellBack, geoFallback: geoFallback, keysTried: keysTried, keyPoolSize: keyPool.length });
   } catch (e) {
     const over = e.message.indexOf("1305") !== -1 || e.message.indexOf("429") !== -1;
     return json({ ok: false, msg: over ? "所选模型当前访问量过大，请稍后再试或换个模型" : "AI 生成失败：" + clamp(e.message, 100) }, 502);
