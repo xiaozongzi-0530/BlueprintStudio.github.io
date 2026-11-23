@@ -242,8 +242,11 @@ export default async (req) => {
     }
     const data = await r.json();
     const msg = data && data.choices && data.choices[0] && data.choices[0].message || {};
+    const usage = data && data.usage || {};
+    const tokens = Number(usage.total_tokens) ||
+      (Number(usage.prompt_tokens) || 0) + (Number(usage.completion_tokens) || 0);
     /* 不展示思考过程：剥掉 <think>...</think>（z1 系列把思考嵌在正文里），只留正文 */
-    return (msg.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    return { text: (msg.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim(), tokens: tokens };
   }
 
   /* 带 key 池的调用：按洗牌顺序逐把尝试，限流/报错自动切下一把。
@@ -253,8 +256,8 @@ export default async (req) => {
     for (const key of keyPool) {
       tried++;
       try {
-        const text = await callOnceRaw(key, modelKey, temp, textOnly);
-        return { text: text, keysTried: tried };
+        const res = await callOnceRaw(key, modelKey, temp, textOnly);
+        return { text: res.text, tokens: res.tokens, keysTried: tried };
       } catch (e) {
         lastErr = e;
         /* 401/403 是 key 无效，立即换；其它按 shouldSwitch 判断 */
@@ -325,7 +328,7 @@ export default async (req) => {
   }
 
   try {
-    let text, usedModel = effModelKey, fellBack = false, geoFallback = false;
+    let text, usedTokens = 0, usedModel = effModelKey, fellBack = false, geoFallback = false;
 
     /* 候选降级链：
        1) 主模型（用户所选 / 图片自动切视觉模型）
@@ -391,7 +394,7 @@ export default async (req) => {
     let keysTried = 0;
     try {
       const r1 = await callOnce(effModelKey, effMc.temp);
-      text = r1.text; keysTried = r1.keysTried;
+      text = r1.text; usedTokens = r1.tokens || 0; keysTried = r1.keysTried;
     } catch (e) {
       lastErr = e;
       const over = e.message.indexOf("429") !== -1 || e.message.indexOf("1305") !== -1;
@@ -399,18 +402,18 @@ export default async (req) => {
       /* 400 多为海外节点对新模型的地域限制 → 直接跳到 SAFE_MODEL */
       if (bad400) {
         const r = await callOnce(SAFE_MODEL, MODELS[SAFE_MODEL].temp, true);
-        text = r.text; keysTried = r.keysTried;
+        text = r.text; usedTokens = r.tokens || 0; keysTried = r.keysTried;
         usedModel = SAFE_MODEL; fellBack = true; geoFallback = true;
       } else if (over && sameKindFb !== effModelKey) {
         /* 过载 → 先试同类备用 */
         try {
           const r = await callOnce(sameKindFb, MODELS[sameKindFb].temp);
-          text = r.text; keysTried = r.keysTried;
+          text = r.text; usedTokens = r.tokens || 0; keysTried = r.keysTried;
           usedModel = sameKindFb; fellBack = true;
         } catch (e2) {
           /* 同类备用也失败 → SAFE_MODEL 兜底 */
           const r = await callOnce(SAFE_MODEL, MODELS[SAFE_MODEL].temp, true);
-          text = r.text; keysTried = r.keysTried;
+          text = r.text; usedTokens = r.tokens || 0; keysTried = r.keysTried;
           usedModel = SAFE_MODEL; fellBack = true; geoFallback = true;
         }
       } else {
@@ -419,6 +422,7 @@ export default async (req) => {
     }
     if (!text.trim()) throw new Error("GLM 返回为空");
     return json({ ok: true, text: text.slice(0, 8000), model: MODELS[usedModel].name,
+      free: true, usedTokens: usedTokens,
       fallback: fellBack, geoFallback: geoFallback, keysTried: keysTried, keyPoolSize: keyPool.length });
   } catch (e) {
     const over = e.message.indexOf("1305") !== -1 || e.message.indexOf("429") !== -1;

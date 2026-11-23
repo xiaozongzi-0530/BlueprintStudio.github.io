@@ -748,7 +748,8 @@
       }
       status.className = "status ok";
       status.textContent = "完成"
-        + (res.paid ? "（本次消耗 " + fmtNum(res.usedTokens) + " token × " + res.mult + " = " + fmtNum(res.cost) + "，剩余 " + fmtNum(res.quotaLeft) + "）" : "")
+        + (res.paid ? "（本次消耗 " + fmtNum(res.usedTokens) + " token × " + res.mult + " = " + fmtNum(res.cost) + "，剩余 " + fmtNum(res.quotaLeft) + "）"
+          : (res.free && res.usedTokens ? "（免费模型本次使用 " + fmtNum(res.usedTokens) + " token，不计额度）" : ""))
         + (res.geoFallback ? "（已自动切换通用模式）" : (res.fallback ? "（已切换备用模型）" : ""));
       if (res.paid) loadQuota();
       t.msgs.push({ role: "user", content: prompt + (attach ? "\n\n📎 附件：" + attach.name : "") });
