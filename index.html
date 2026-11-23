@@ -1574,8 +1574,10 @@
             var isRedeem = model === "兑换码";
             var paid = mult > 1;
             var costLabel, costColor;
+            var isFree = !!l.free;
             if (isRedeem) { costLabel = "+" + cost.toLocaleString(); costColor = "#34d399"; }
             else if (paid) { costLabel = "×" + mult + " 扣 " + cost.toLocaleString(); costColor = "#fbbf24"; }
+            else if (isFree) { costLabel = "免费 " + Number(l.tokens || 0).toLocaleString() + " token"; costColor = "#22d3ee"; }
             else { costLabel = "免费"; costColor = "#34d399"; }
             return '<div class="admin-row"><div class="r-main">'
               + '<div><b style="color:var(--accent2);">' + model + "</b> · "

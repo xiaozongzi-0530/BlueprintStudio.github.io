@@ -422,6 +422,15 @@ export default async (req) => {
       }
     }
     if (!text.trim()) throw new Error("GLM 返回为空");
+    /* GLM 免费调用也记入流水（仅统计用量，不扣额度）：让"额度流水"里能看到免费模型用了多少 token */
+    try {
+      const fmeta = getStore("meta");
+      const flogs = JSON.parse((await fmeta.get("__quota_logs")) || "[]");
+      flogs.push({ t: Date.now(), email: userEmail, model: MODELS[usedModel].name,
+        tokens: usedTokens, mult: 1, cost: 0, free: true, left: quotaLeft(authRec) });
+      if (flogs.length > 200) flogs.splice(0, flogs.length - 200);
+      await fmeta.set("__quota_logs", JSON.stringify(flogs));
+    } catch (e) {}
     return json({ ok: true, text: text.slice(0, 8000), model: MODELS[usedModel].name,
       free: true, usedTokens: usedTokens,
       fallback: fellBack, geoFallback: geoFallback, keysTried: keysTried, keyPoolSize: keyPool.length });
