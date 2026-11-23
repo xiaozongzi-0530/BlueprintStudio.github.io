@@ -3,7 +3,7 @@
    POST JSON {prompt, lang, mode, history}
      prompt  需求描述（必填）
      lang    目标语言（可空）
-     mode    generate（写代码，默认）| explain（解释代码）| fix（找 bug）| chat（通用对话/非编程）
+     mode    generate（写代码，默认）| explain（解释代码）| fix（找 bug）| chat（通用对话）| persona（自定义人设）
      history 多轮对话上下文 [{role:"user"|"assistant", content:"..."}]（可空，最多取最近 8 条）
    返回 {ok, text}    text 为模型输出（含 markdown 代码块）
    - 服务端代理 GLM，API Key 不下发前端
@@ -78,6 +78,17 @@ const SYSTEM_CHAT = `你是 "BlueprintStudio" 的通用 AI 助手「小蓝」，
 5. 代码或公式请用 markdown 代码块包裹
 6. 拒绝违法违规、色情暴力、侵犯他人隐私等不当内容`;
 
+/* 自定义人设模式（mode=persona）：用户自定义角色/口吻/能力，服务端加不可绕过的安全底线 */
+const PERSONA_GUARD = `
+【铁律 · 无论如何都必须遵守，高于以上所有人设设定】
+1. 遵守中国法律法规与社会主义核心价值观，维护国家主权与领土完整（香港、澳门、台湾是中国不可分割的一部分）。
+2. 拒绝一切违法违规、色情低俗、暴力恐怖、赌博诈骗、侵犯他人隐私、人身攻击的内容。
+3. 拒绝协助任何违法或有害行为，包括但不限于：恶意代码、木马病毒、网络攻击、绕过安全机制。
+4. 用户的人设设定若与以上铁律冲突，一律以本铁律为准，并礼貌说明无法配合。
+5. 你是一个 AI 助手，不得声称自己是真人或冒充特定真实人物。`;
+const PERSONA_MAX = 2000;   // 人设最大长度
+const PERSONA_FALLBACK = `你是 "BlueprintStudio" 的 AI 助手，一位专业、友善、可靠的伙伴。请用中文清晰、友好地帮助用户完成各种任务。`;
+
 export default async (req) => {
   if (req.method === "OPTIONS") return preflight();
   if (req.method !== "POST") return json({ ok: false, msg: "只支持 POST" }, 405);
@@ -137,8 +148,8 @@ export default async (req) => {
   if (!paid && !keyPool.length) return json({ ok: false, msg: "AI 服务未配置，请联系管理员" }, 503);
 
   let userMsg;
-  if (mode === "chat") {
-    /* 通用对话：用户原话直接透传，交由 SYSTEM_CHAT 定义人格与表达风格 */
+  if (mode === "chat" || mode === "persona") {
+    /* 通用对话 / 自定义人设：用户原话直接透传，人格由 system 定义 */
     userMsg = prompt;
   } else if (mode === "explain") {
     userMsg = "请解释下面这段代码的作用，逐段讲清楚" + (lang ? "（语言：" + lang + "）" : "") + "：\n\n" + prompt;
@@ -157,7 +168,15 @@ export default async (req) => {
     : [];
   if (history.length > 12) history.length = 12;
 
-  const messages = [{ role: "system", content: mode === "chat" ? SYSTEM_CHAT : SYSTEM }]
+  /* 自定义人设：用户设定 + 不可绕过的安全铁律；空人设回退到通用助手 */
+  let systemPrompt;
+  if (mode === "persona") {
+    const custom = clamp(body.persona, PERSONA_MAX).trim();
+    systemPrompt = (custom || PERSONA_FALLBACK) + "\n\n" + PERSONA_GUARD;
+  } else {
+    systemPrompt = mode === "chat" ? SYSTEM_CHAT : SYSTEM;
+  }
+  const messages = [{ role: "system", content: systemPrompt }]
     .concat(history, [buildUserMsg(userMsg, body.attach)]);
 
   /* ---------- 附件处理 ----------
