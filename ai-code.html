@@ -119,6 +119,22 @@
     .layout { flex-direction:column; }
     #side { position:static; flex:none; width:100%; max-height:none; }
   }
+  /* 就地回复区 */
+  .reply-box { margin-top:1rem; }
+  .reply-q { font-size:.86rem; color:var(--muted); background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:.5rem .8rem; margin-bottom:.7rem; white-space:pre-wrap; word-break:break-word; }
+  .reply-q b { color:var(--accent2); }
+  .reply-a { background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:.9rem 1rem; }
+  .reply-a .who { font-size:.8rem; color:var(--muted); margin-bottom:.5rem; }
+  .reply-a .who b { color:var(--accent); }
+  .reply-tools { display:flex; gap:.5rem; margin-top:.7rem; flex-wrap:wrap; }
+  .reply-tools button { background:transparent; border:1px solid var(--line); color:var(--muted); border-radius:8px; padding:.3rem .7rem; font-size:.76rem; cursor:pointer; font-family:inherit; }
+  .reply-tools button:hover { color:var(--accent2); border-color:var(--accent2); }
+
+  /* 侧边栏：小蓝人设 */
+  .persona-box { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:.7rem; }
+  .persona-box textarea { width:100%; min-height:92px; font-size:.8rem; line-height:1.6; padding:.5rem .6rem; }
+  .persona-box .pstat { font-size:.74rem; color:var(--muted); min-height:1.1em; margin-top:.3rem; }
+  .persona-box .pstat.ok { color:var(--ok); }
 </style>
 </head>
 <body>
@@ -147,6 +163,13 @@
       <div id="taskList"></div>
       <div class="side-sep"></div>
       <button class="side-link" id="myWorksBtn">🖼 我的作品（3 天）</button>
+      <div class="side-sep"></div>
+      <h3>🎭 小蓝人设</h3>
+      <div class="persona-box">
+        <textarea id="personaText" maxlength="2000" spellcheck="false"></textarea>
+        <div class="pstat" id="personaStat"></div>
+        <button class="btn ghost" id="personaSave" style="width:100%; padding:.4rem; font-size:.78rem; margin:.4rem 0 0;">💾 保存人设</button>
+      </div>
     </aside>
 
     <div id="work">
@@ -251,10 +274,7 @@
             <button class="btn" id="goBtn">🚀 开始生成</button>
           </div>
           <div class="status" id="status"></div>
-        </div>
-
-        <div class="card" id="chatCard">
-          <div id="chat"></div>
+          <div class="reply-box" id="replyBox"></div>
         </div>
 
         <p class="hint">
@@ -299,6 +319,22 @@
     "gpt-6.2-astra": "GPT-6.2 Astra（5×）", "deepseek-v4.1-flash": "DeepSeek V4.1（3×）",
   };
   var GEN_MODES = { image: 1, video: 1, file: 1 };
+
+  /* ---------- 小蓝人设（单一，可编辑，本地保存） ---------- */
+  var PERSONA_LS = "bs_aicode_xiaolan_persona_v1";
+  var PERSONA_DEFAULT = "你是「小蓝」，BlueprintStudio 的通用 AI 助手，一位友善、专业、可靠的智能伙伴。能力涵盖知识问答、写作润色、翻译总结、头脑风暴、学习辅导与日常闲聊。表达要求：默认用中文回复（用户用其他语言提问时用对方语言）；语气自然亲切，不说教不机械；善用标题、列表、加粗组织内容，层次分明易读；回答紧扣问题，复杂问题分点讲清、简单问题简明作答；代码或公式用 markdown 代码块包裹。";
+  function loadPersona() {
+    var v = null;
+    try { v = localStorage.getItem(PERSONA_LS); } catch (e) {}
+    $("personaText").value = v || PERSONA_DEFAULT;
+  }
+  $("personaSave").onclick = function () {
+    var v = $("personaText").value.trim();
+    if (!v) { $("personaStat").textContent = "人设内容不能为空"; $("personaStat").className = "pstat"; return; }
+    try { localStorage.setItem(PERSONA_LS, v); } catch (e) {}
+    $("personaStat").textContent = "✅ 已保存，下次对话生效"; $("personaStat").className = "pstat ok";
+    setTimeout(function () { $("personaStat").textContent = ""; $("personaStat").className = "pstat"; }, 2500);
+  };
 
   /* ---------- token 额度 ---------- */
   var PAID_MODELS = { "gpt-6.2-astra": 1, "deepseek-v4.1-flash": 1 };
@@ -517,55 +553,38 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
-  /* ---------- 对话流渲染 ---------- */
+  /* ---------- 就地渲染：只显示最新一轮问答 ---------- */
   function renderChat() {
-    var t = cur(), box = $("chat"); box.innerHTML = "";
+    var t = cur(), box = $("replyBox"); if (!box) return;
+    box.innerHTML = "";
     if (!t.msgs.length) {
       if (mode === "chat") {
-        box.innerHTML = '<div class="empty-tip">我是「小蓝」，写作、翻译、总结、问答、闲聊都能帮上忙 —— 对话会记住上下文，内容仅你可见。<div class="quick-grid">' + QUICK_HTML + '</div></div>';
+        box.innerHTML = '<div class="empty-tip">我是「小蓝」 —— 写作、翻译、总结、问答、闲聊都能帮上忙。<div class="quick-grid">' + QUICK_HTML + '</div></div>';
         bindQuick(box);
       } else {
-        box.innerHTML = '<div class="empty-tip">还没有内容。描述你的需求开始吧 —— AI 会记住本任务的上下文，可连续追问。</div>';
+        box.innerHTML = '<div class="empty-tip">还没有内容，开始吧。</div>';
       }
       return;
     }
-    t.msgs.forEach(function (m) {
-      var div = document.createElement("div");
-      div.className = "chat-msg " + (m.role === "user" ? "me" : "ai");
-      var who = document.createElement("div"); who.className = "who";
-      who.innerHTML = "<b>" + (m.role === "user" ? "🧑 我" : "🤖 " + (mode === "chat" ? "小蓝" : esc(m.model || "GLM"))) + "</b>";
-      div.appendChild(who);
-      if (m.role === "user") {
-        var p = document.createElement("div"); p.className = "prose"; p.textContent = m.content;
-        div.appendChild(p);
-      } else if (m.asset) {
-        var wrap = document.createElement("div"); wrap.innerHTML = assetPreview(m.asset);
-        while (wrap.firstChild) div.appendChild(wrap.firstChild);
-      } else {
-        var wrap2 = document.createElement("div"); wrap2.innerHTML = renderMarkdown(m.content);
-        while (wrap2.firstChild) div.appendChild(wrap2.firstChild);
-        var head = document.createElement("div"); head.className = "code-head";
-        var b = document.createElement("b"); b.textContent = "输出";
-        head.appendChild(b);
-        if (mode === "chat") {
-          var cp2 = document.createElement("button"); cp2.className = "btn ghost"; cp2.textContent = "📋 复制";
-          cp2.style.padding = ".3rem .8rem"; cp2.style.fontSize = ".78rem";
-          cp2.onclick = function () { copyTextAll(m.content, cp2); };
-          var dl2 = document.createElement("button"); dl2.className = "btn ghost"; dl2.textContent = "⬇ 下载";
-          dl2.style.padding = ".3rem .8rem"; dl2.style.fontSize = ".78rem";
-          dl2.onclick = function () { downloadText("小蓝的回复.md", m.content); };
-          head.appendChild(cp2); head.appendChild(dl2);
-        } else {
-          var cp = document.createElement("button"); cp.className = "btn ghost"; cp.textContent = "📋 复制代码";
-          cp.style.padding = ".3rem .8rem"; cp.style.fontSize = ".78rem";
-          cp.onclick = function () { copyLastPre(div); };
-          head.appendChild(cp);
-        }
-        div.insertBefore(head, who.nextSibling);
-      }
-      box.appendChild(div);
-    });
-    window.scrollTo(0, document.body.scrollHeight);
+    /* 取最后一组 用户问题 + AI 回复 */
+    var ai = null, qi = -1;
+    for (var i = t.msgs.length - 1; i >= 0; i--) { if (t.msgs[i].role === "assistant" && !t.msgs[i].asset) { ai = t.msgs[i]; qi = i - 1; break; } }
+    if (!ai) { box.innerHTML = '<div class="empty-tip">处理中…</div>'; return; }
+    var q = (qi >= 0 && t.msgs[qi] && t.msgs[qi].role === "user") ? t.msgs[qi] : null;
+    if (q) { var qd = document.createElement("div"); qd.className = "reply-q"; qd.innerHTML = "<b>🧑 我：</b>" + esc(q.content); box.appendChild(qd); }
+    var a = document.createElement("div"); a.className = "reply-a";
+    var who = document.createElement("div"); who.className = "who";
+    who.innerHTML = "<b>🤖 小蓝</b>";
+    a.appendChild(who);
+    var wrap = document.createElement("div"); wrap.className = "md"; wrap.innerHTML = renderMarkdown(ai.content);
+    a.appendChild(wrap);
+    var tools = document.createElement("div"); tools.className = "reply-tools";
+    var cp = document.createElement("button"); cp.textContent = "📋 复制";
+    cp.onclick = function () { copyTextAll(ai.content, cp); };
+    var dl = document.createElement("button"); dl.textContent = "⬇ 下载";
+    dl.onclick = function () { downloadText("小蓝的回复.md", ai.content); };
+    tools.appendChild(cp); tools.appendChild(dl); a.appendChild(tools);
+    box.appendChild(a);
   }
   function copyLastPre(scope) {
     var pres = scope.querySelectorAll("pre");
@@ -646,6 +665,10 @@
     status.innerHTML = '<span class="loading">🤖 AI 正在思考</span>';
     var history = t.msgs.slice(-8).map(function (m) { return { role: m.role, content: m.content }; });
     var payload = { prompt: prompt, lang: $("lang").value, mode: mode, model: $("model").value, history: history };
+    if (mode === "chat") {
+      payload.mode = "persona";
+      payload.persona = ($("personaText").value || "").trim() || PERSONA_DEFAULT;
+    }
     if (attach) payload.attach = [attach];
     fetch(BASE + "/api/aicode", {
       method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()), body: JSON.stringify(payload),
@@ -753,6 +776,7 @@
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); send(); }
   });
 
+  loadPersona();
   load(); renderTasks(); renderChat();
   /* 默认即「AI 聊天」模式：初始化 placeholder 与语言选择器状态 */
   $("prompt").placeholder = "和我聊聊吧：写作、翻译、总结、问答、闲聊都行…（Ctrl+Enter 发送）";
