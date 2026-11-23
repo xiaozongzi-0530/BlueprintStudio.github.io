@@ -69,11 +69,6 @@
   @keyframes dots { 0%{content:"";} 25%{content:"·";} 50%{content:"··";} 75%{content:"···";} }
   .hint { color:var(--muted); font-size:.78rem; line-height:1.9; margin-top:1rem; }
   .empty-tip { color:var(--muted); text-align:center; padding:2rem 0; font-size:.9rem; line-height:1.8; }
-  .quick-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.7rem;margin-top:1.2rem;}
-  .quick{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:.75rem .9rem;cursor:pointer;text-align:left;transition:.15s;}
-  .quick:hover{border-color:var(--accent2);transform:translateY(-2px);}
-  .quick .qt{font-weight:600;font-size:.86rem;color:var(--text);}
-  .quick .qd{font-size:.74rem;color:var(--muted);margin-top:.25rem;line-height:1.5;}
   .login-tip { background:rgba(34,211,238,.08); border:1px solid rgba(34,211,238,.3); color:var(--accent2); border-radius:10px; padding:.7rem 1rem; font-size:.85rem; margin-bottom:.9rem; }
   .login-tip a { color:#fff; text-decoration:underline; }
 
@@ -130,11 +125,34 @@
   .reply-tools button { background:transparent; border:1px solid var(--line); color:var(--muted); border-radius:8px; padding:.3rem .7rem; font-size:.76rem; cursor:pointer; font-family:inherit; }
   .reply-tools button:hover { color:var(--accent2); border-color:var(--accent2); }
 
-  /* 侧边栏：小蓝人设 */
-  .persona-box { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:.7rem; }
-  .persona-box textarea { width:100%; min-height:92px; font-size:.8rem; line-height:1.6; padding:.5rem .6rem; }
-  .persona-box .pstat { font-size:.74rem; color:var(--muted); min-height:1.1em; margin-top:.3rem; }
-  .persona-box .pstat.ok { color:var(--ok); }
+  /* 侧边栏：人设库 */
+  .persona-bar { display:flex; gap:.4rem; margin-bottom:.5rem; }
+  .persona-bar .btn { flex:1; padding:.38rem .5rem; font-size:.78rem; margin:0; }
+  .persona-cur { font-size:.78rem; color:var(--accent2); margin:.5rem 0 .3rem; line-height:1.5; }
+  .persona-item { display:flex; align-items:center; gap:.35rem; padding:.45rem .55rem; border-radius:9px; cursor:pointer; margin-bottom:.22rem; border:1px solid transparent; }
+  .persona-item:hover { background:var(--panel2); }
+  .persona-item.on { background:rgba(40,72,168,.18); border-color:var(--line); }
+  .persona-item .pname { flex:1; font-size:.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .persona-item .pico { font-size:.9rem; }
+  .persona-item .pbtn { border:none; background:none; color:var(--muted); cursor:pointer; font-size:.78rem; padding:0 .15rem; border-radius:5px; }
+  .persona-item .pbtn:hover { color:var(--accent2); }
+  .persona-item .pbtn.del:hover { color:var(--err); }
+  /* 人设编辑弹窗 */
+  .modal-mask { position:fixed; inset:0; z-index:50; background:rgba(5,9,20,.78); backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center; padding:1rem; }
+  .modal-mask.on { display:flex; }
+  .modal { width:100%; max-width:560px; background:#0d1730; border:1px solid var(--line); border-radius:16px; padding:1.4rem; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  .modal h3 { font-size:1.1rem; margin-bottom:.3rem; }
+  .modal .msub { color:var(--muted); font-size:.82rem; margin-bottom:1rem; line-height:1.6; }
+  .modal label { display:block; font-size:.82rem; color:var(--muted); margin:.8rem 0 .35rem; }
+  .modal input[type="text"], .modal textarea { width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:9px; color:var(--text); padding:.6rem .75rem; font-size:.9rem; outline:none; font-family:inherit; }
+  .modal textarea { min-height:180px; resize:vertical; line-height:1.7; }
+  .modal input:focus, .modal textarea:focus { border-color:var(--accent2); }
+  .modal .mcounter { font-size:.75rem; color:var(--muted); text-align:right; margin-top:.25rem; }
+  .modal .mbtns { display:flex; gap:.6rem; justify-content:flex-end; margin-top:1.1rem; }
+  .modal .mbtns .btn { padding:.5rem 1.1rem; font-size:.86rem; margin:0; }
+  .modal .preset-row { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.5rem; }
+  .modal .preset-row button { background:var(--panel2); border:1px solid var(--line); color:var(--muted); border-radius:999px; padding:.3rem .7rem; font-size:.76rem; cursor:pointer; font-family:inherit; }
+  .modal .preset-row button:hover { border-color:var(--accent2); color:var(--accent2); }
 </style>
 </head>
 <body>
@@ -164,12 +182,12 @@
       <div class="side-sep"></div>
       <button class="side-link" id="myWorksBtn">🖼 我的作品（3 天）</button>
       <div class="side-sep"></div>
-      <h3>🎭 小蓝人设</h3>
-      <div class="persona-box">
-        <textarea id="personaText" maxlength="2000" spellcheck="false"></textarea>
-        <div class="pstat" id="personaStat"></div>
-        <button class="btn ghost" id="personaSave" style="width:100%; padding:.4rem; font-size:.78rem; margin:.4rem 0 0;">💾 保存人设</button>
+      <h3>🎭 人设库</h3>
+      <div class="persona-bar">
+        <button class="btn ghost" id="personaNew" style="padding:.38rem .5rem; font-size:.78rem; margin:0;">＋ 新建人设</button>
       </div>
+      <div id="personaCur" class="persona-cur"></div>
+      <div id="personaList"></div>
     </aside>
 
     <div id="work">
@@ -293,6 +311,23 @@
       </div>
     </div>
   </div>
+  <!-- 人设编辑弹窗 -->
+  <div class="modal-mask" id="personaModal">
+    <div class="modal">
+      <h3 id="pmTitle">新建人设</h3>
+      <div class="msub">给 AI 设定身份、口吻和做事方式。人设会作为对话指令生效，但无法突破平台安全底线。可创建多个人设，随时切换。</div>
+      <label>人设名称</label>
+      <input type="text" id="pmName" maxlength="20" placeholder="例如：毒舌文案审稿人">
+      <label>人设内容（它会扮演这个角色）</label>
+      <textarea id="pmText" maxlength="2000" placeholder="例如：你是一位毒舌但专业的文案审稿人。每次审稿先指出 3 个问题，再给出改进版，语气犀利但不人身攻击。"></textarea>
+      <div class="mcounter"><span id="pmCount">0</span> / 2000</div>
+      <div class="preset-row" id="pmPresets"></div>
+      <div class="mbtns">
+        <button class="btn ghost" id="pmCancel">取消</button>
+        <button class="btn" id="pmSave">保存人设</button>
+      </div>
+    </div>
+  </div>
   <footer>© <span id="year"></span> BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
 
 <script src="mod.js"></script>
@@ -320,21 +355,101 @@
   };
   var GEN_MODES = { image: 1, video: 1, file: 1 };
 
-  /* ---------- 小蓝人设（单一，可编辑，本地保存） ---------- */
-  var PERSONA_LS = "bs_aicode_xiaolan_persona_v1";
+  /* ---------- 人设库（支持多个，本地持久化） ---------- */
+  var PERSONA_LS = "bs_aicode_personas_v1";
   var PERSONA_DEFAULT = "你是「小蓝」，BlueprintStudio 的通用 AI 助手，一位友善、专业、可靠的智能伙伴。能力涵盖知识问答、写作润色、翻译总结、头脑风暴、学习辅导与日常闲聊。表达要求：默认用中文回复（用户用其他语言提问时用对方语言）；语气自然亲切，不说教不机械；善用标题、列表、加粗组织内容，层次分明易读；回答紧扣问题，复杂问题分点讲清、简单问题简明作答；代码或公式用 markdown 代码块包裹。";
-  function loadPersona() {
-    var v = null;
-    try { v = localStorage.getItem(PERSONA_LS); } catch (e) {}
-    $("personaText").value = v || PERSONA_DEFAULT;
+  var PERSONA_PRESETS = [
+    { name: "小蓝（默认）", text: PERSONA_DEFAULT },
+    { name: "毒舌文案审稿人", text: "你是一位毒舌但专业的文案审稿人。每次审稿：先犀利指出 3 个具体问题，再给出改进版本。语气犀利、不留情面，但只针对作品不人身攻击。全程中文。" },
+    { name: "耐心的编程导师", text: "你是一位耐心的编程导师。讲解由浅入深，多用生活化比喻，每讲完一个概念给一个小练习。会主动追问用户是否理解，鼓励式语气。全程中文。" },
+    { name: "职场面试教练", text: "你是一位资深职场面试教练。以面试官身份提问，一问一答推进；每次回答后给出点评和改进建议。问题犀利、贴近真实面试。全程中文。" },
+    { name: "严谨的论文助手", text: "你是一位严谨的学术写作助手。帮助用户梳理论文结构、润色表达、规范引用；不编造文献和数据，不确定的地方明确标注。语气专业克制。全程中文。" },
+    { name: "创意脑暴伙伴", text: "你是一位创意无限的脑暴伙伴。对用户提出的任何主题，一次性给出 10 个天马行空又可行的点子，每个点子一句话说清。语气兴奋、有感染力。全程中文。" },
+    { name: "温柔的倾听者", text: "你是一位温柔的心理倾听者。先共情、再复述用户的感受确认理解，最后给出温和的建议。不评判、不说教、不敷衍。全程中文。" },
+  ];
+  var personas = [], curPersonaId = null, editingPersonaId = null;
+  function presetId(i) { return "preset_" + i; }
+  function loadPersonas() {
+    try { personas = JSON.parse(localStorage.getItem(PERSONA_LS)) || []; } catch (e) { personas = []; }
+    if (!localStorage.getItem(PERSONA_LS)) {
+      personas = PERSONA_PRESETS.map(function (p, i) {
+        return { id: presetId(i), name: p.name, text: p.text, builtin: true };
+      });
+      savePersonas();
+    }
+    curPersonaId = localStorage.getItem("bs_aicode_persona_cur") || (personas[0] && personas[0].id) || null;
   }
-  $("personaSave").onclick = function () {
-    var v = $("personaText").value.trim();
-    if (!v) { $("personaStat").textContent = "人设内容不能为空"; $("personaStat").className = "pstat"; return; }
-    try { localStorage.setItem(PERSONA_LS, v); } catch (e) {}
-    $("personaStat").textContent = "✅ 已保存，下次对话生效"; $("personaStat").className = "pstat ok";
-    setTimeout(function () { $("personaStat").textContent = ""; $("personaStat").className = "pstat"; }, 2500);
+  function savePersonas() { try { localStorage.setItem(PERSONA_LS, JSON.stringify(personas)); } catch (e) {} }
+  function curPersona() { for (var i = 0; i < personas.length; i++) if (personas[i].id === curPersonaId) return personas[i]; return personas[0] || null; }
+  function renderPersonas() {
+    var box = $("personaList"); if (!box) return; box.innerHTML = "";
+    personas.forEach(function (p) {
+      var d = document.createElement("div"); d.className = "persona-item" + (p.id === curPersonaId ? " on" : "");
+      var ico = document.createElement("span"); ico.className = "pico"; ico.textContent = "🎭";
+      var nm = document.createElement("span"); nm.className = "pname"; nm.textContent = p.name; nm.title = p.name + "（点击选用）";
+      var ed = document.createElement("button"); ed.className = "pbtn"; ed.textContent = "✎"; ed.title = "编辑";
+      ed.onclick = function (e) { e.stopPropagation(); openPersonaModal(p.id); };
+      var del = document.createElement("button"); del.className = "pbtn del"; del.textContent = "✕"; del.title = "删除";
+      del.onclick = function (e) {
+        e.stopPropagation();
+        if (!confirm("删除人设「" + p.name + "」？")) return;
+        personas = personas.filter(function (x) { return x.id !== p.id; });
+        if (curPersonaId === p.id) curPersonaId = personas[0] && personas[0].id;
+        try { localStorage.setItem("bs_aicode_persona_cur", curPersonaId || ""); } catch (e) {}
+        savePersonas(); renderPersonas(); updatePersonaCur();
+      };
+      d.appendChild(ico); d.appendChild(nm); d.appendChild(ed); d.appendChild(del);
+      d.onclick = function () {
+        curPersonaId = p.id;
+        try { localStorage.setItem("bs_aicode_persona_cur", p.id); } catch (e) {}
+        renderPersonas(); updatePersonaCur();
+      };
+      box.appendChild(d);
+    });
+    if (!personas.length) box.innerHTML = '<div style="font-size:.8rem;color:var(--muted);">还没有人设，点「＋ 新建人设」创建一个</div>';
+  }
+  function updatePersonaCur() {
+    var p = curPersona(), el = $("personaCur"); if (!el) return;
+    el.innerHTML = p ? '当前人设：<b style="color:var(--accent2)">' + esc(p.name) + "</b>" : "未选择人设（将用通用助手）";
+  }
+  function openPersonaModal(id) {
+    editingPersonaId = id || null;
+    var p = null;
+    if (id) { for (var i = 0; i < personas.length; i++) if (personas[i].id === id) { p = personas[i]; break; } }
+    $("pmTitle").textContent = p ? "编辑人设" : "新建人设";
+    $("pmName").value = p ? p.name : "";
+    $("pmText").value = p ? p.text : "";
+    $("pmCount").textContent = $("pmText").value.length;
+    $("personaModal").classList.add("on");
+    setTimeout(function () { $("pmName").focus(); }, 50);
+  }
+  function closePersonaModal() { $("personaModal").classList.remove("on"); }
+  $("personaNew").onclick = function () { openPersonaModal(null); };
+  $("pmCancel").onclick = closePersonaModal;
+  $("personaModal").onclick = function (e) { if (e.target === this) closePersonaModal(); };
+  $("pmText").addEventListener("input", function () { $("pmCount").textContent = this.value.length; });
+  $("pmSave").onclick = function () {
+    var name = $("pmName").value.trim(), text = $("pmText").value.trim();
+    if (!name) { alert("请填写人设名称"); return; }
+    if (!text) { alert("请填写人设内容"); return; }
+    if (editingPersonaId) {
+      personas.forEach(function (p) { if (p.id === editingPersonaId) { p.name = name; p.text = text; } });
+    } else {
+      var id = "custom_" + Date.now().toString(36);
+      personas.unshift({ id: id, name: name, text: text, builtin: false });
+      curPersonaId = id;
+      try { localStorage.setItem("bs_aicode_persona_cur", id); } catch (e) {}
+    }
+    savePersonas(); renderPersonas(); updatePersonaCur(); closePersonaModal();
   };
+  (function () {
+    var box = $("pmPresets");
+    PERSONA_PRESETS.forEach(function (p) {
+      var b = document.createElement("button"); b.type = "button"; b.textContent = p.name;
+      b.onclick = function () { $("pmName").value = p.name; $("pmText").value = p.text; $("pmCount").textContent = p.text.length; $("pmName").focus(); };
+      box.appendChild(b);
+    });
+  })();
 
   /* ---------- token 额度 ---------- */
   var PAID_MODELS = { "gpt-6.2-astra": 1, "deepseek-v4.1-flash": 1 };
@@ -519,23 +634,7 @@
     return h;
   }
 
-  /* ---------- 通用聊天：快捷提示词 / 复制 / 下载 ---------- */
-  var QUICK = [
-    ["✍️","写文章","帮我写一篇关于「坚持」的演讲稿，约 600 字，语气真诚有力量"],
-    ["🌍","翻译","把下面这段话翻译成英文，并保持语气自然：\n\n"],
-    ["📝","总结提炼","请总结下面文字的核心要点，用 5 条以内列出来：\n\n"],
-    ["💡","头脑风暴","我想做一个校园二手交易平台，帮我头脑风暴 8 个有创意的功能点"],
-    ["💬","陪我聊聊","今天有点累，陪我聊会儿吧"],
-    ["📚","学习辅导","用通俗的话解释一下什么是「区块链」，举生活中的例子"],
-  ];
-  var QUICK_HTML = QUICK.map(function (q, i) {
-    return '<div class="quick" data-qi="' + i + '"><div class="qt">' + q[0] + ' ' + q[1] + '</div><div class="qd">' + esc(q[2].slice(0, 22)) + '…</div></div>';
-  }).join("");
-  function bindQuick(scope) {
-    Array.prototype.forEach.call(scope.querySelectorAll(".quick"), function (el) {
-      el.onclick = function () { $("prompt").value = QUICK[+el.getAttribute("data-qi")][2]; $("prompt").focus(); };
-    });
-  }
+  /* ---------- 通用聊天：复制 / 下载 ---------- */
   function copyTextAll(text, btn) {
     var old = btn.textContent;
     (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
@@ -558,12 +657,7 @@
     var t = cur(), box = $("replyBox"); if (!box) return;
     box.innerHTML = "";
     if (!t.msgs.length) {
-      if (mode === "chat") {
-        box.innerHTML = '<div class="empty-tip">我是「小蓝」 —— 写作、翻译、总结、问答、闲聊都能帮上忙。<div class="quick-grid">' + QUICK_HTML + '</div></div>';
-        bindQuick(box);
-      } else {
-        box.innerHTML = '<div class="empty-tip">还没有内容，开始吧。</div>';
-      }
+      box.innerHTML = '<div class="empty-tip">输入内容，开始对话吧 —— AI 会记住本任务的上下文。</div>';
       return;
     }
     /* 取最后一组 用户问题 + AI 回复 */
@@ -574,7 +668,8 @@
     if (q) { var qd = document.createElement("div"); qd.className = "reply-q"; qd.innerHTML = "<b>🧑 我：</b>" + esc(q.content); box.appendChild(qd); }
     var a = document.createElement("div"); a.className = "reply-a";
     var who = document.createElement("div"); who.className = "who";
-    who.innerHTML = "<b>🤖 小蓝</b>";
+    var _pp = curPersona();
+    who.innerHTML = "<b>🤖 " + esc(_pp ? _pp.name : "小蓝") + "</b>";
     a.appendChild(who);
     var wrap = document.createElement("div"); wrap.className = "md"; wrap.innerHTML = renderMarkdown(ai.content);
     a.appendChild(wrap);
@@ -582,7 +677,7 @@
     var cp = document.createElement("button"); cp.textContent = "📋 复制";
     cp.onclick = function () { copyTextAll(ai.content, cp); };
     var dl = document.createElement("button"); dl.textContent = "⬇ 下载";
-    dl.onclick = function () { downloadText("小蓝的回复.md", ai.content); };
+    dl.onclick = function () { var _p = curPersona(); downloadText((_p ? _p.name : "小蓝") + "的回复.md", ai.content); };
     tools.appendChild(cp); tools.appendChild(dl); a.appendChild(tools);
     box.appendChild(a);
   }
@@ -667,7 +762,8 @@
     var payload = { prompt: prompt, lang: $("lang").value, mode: mode, model: $("model").value, history: history };
     if (mode === "chat") {
       payload.mode = "persona";
-      payload.persona = ($("personaText").value || "").trim() || PERSONA_DEFAULT;
+      var _sel = curPersona();
+      payload.persona = (_sel && _sel.text) ? _sel.text : PERSONA_DEFAULT;
     }
     if (attach) payload.attach = [attach];
     fetch(BASE + "/api/aicode", {
@@ -776,7 +872,7 @@
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); send(); }
   });
 
-  loadPersona();
+  loadPersonas(); renderPersonas(); updatePersonaCur();
   load(); renderTasks(); renderChat();
   /* 默认即「AI 聊天」模式：初始化 placeholder 与语言选择器状态 */
   $("prompt").placeholder = "和我聊聊吧：写作、翻译、总结、问答、闲聊都行…（Ctrl+Enter 发送）";
