@@ -59,7 +59,7 @@ export function getStore(storeName) {
     async delete(key) {
       await _kv.delete(k(storeName, key));
     },
-    async list(options) {
+    list(options) {   /* 返回 async generator，不能是 async（否则 for await 遍历到 Promise） */
       options = options || {};
       // 同步返回可 for-await 的异步迭代器，兼容 Netlify 的 paginate 用法
       const self = this;

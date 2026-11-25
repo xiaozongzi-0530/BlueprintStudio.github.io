@@ -85,7 +85,7 @@ export function getStore(storeName) {
     async delete(key) {
       await op(storeName, c => c.doc(String(key)).remove());
     },
-    async list(options) {
+    list(options) {   /* 返回 async generator，不能是 async（否则 for await 遍历到 Promise） */
       options = options || {};
       async function* gen() {
         // 云数据库单次最多 100 条；简单分页用 skip

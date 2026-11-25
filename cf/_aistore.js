@@ -56,9 +56,18 @@ export async function stashRemote(asset, url, timeoutMs) {
     const buf = await r.arrayBuffer();
     if (buf.byteLength > 95 * 1024 * 1024) throw new Error("文件超过 95MB 上限");
     let ct = r.headers.get("content-type") || "";
-    // 智谱偶尔返回 application/octet-stream，按类型兜底
-    if (!ct || ct.indexOf("octet-stream") !== -1) {
-      ct = asset.type === "video" ? "video/mp4" : "image/png";
+    // 智谱图片常"声称 image/png 实际返回 JPEG"，且偶发 octet-stream：按文件头 sniff 真实格式
+    const u8 = new Uint8Array(buf);
+    const jpeg = u8[0] === 0xff && u8[1] === 0xd8 && u8[2] === 0xff;
+    const png = u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4e && u8[3] === 0x47;
+    const webp = String.fromCharCode.apply(null, u8.subarray(0, 4)) === "RIFF"
+      && String.fromCharCode.apply(null, u8.subarray(8, 12)) === "WEBP";
+    if (asset.type === "image") {
+      ct = jpeg ? "image/jpeg" : png ? "image/png" : webp ? "image/webp" : "image/png";
+    } else if (asset.type === "video") {
+      if (!ct || ct.indexOf("octet-stream") !== -1) ct = "video/mp4";
+    } else if (!ct || ct.indexOf("octet-stream") !== -1) {
+      ct = "application/octet-stream";
     }
     await fileStore().set(asset.id, buf, { metadata: { contentType: ct } });
     asset.stored = true;

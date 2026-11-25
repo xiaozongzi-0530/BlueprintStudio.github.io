@@ -57,7 +57,7 @@ export function getStore(storeName) {
     async delete(key) {
       await _kv.delete(k(key));
     },
-    async list(options) {
+    list(options) {   /* 返回 async generator，不能是 async（否则 for await 遍历到 Promise） */
       options = options || {};
       const iter = _kv.list({ prefix: [storeName] });
       async function* gen() {

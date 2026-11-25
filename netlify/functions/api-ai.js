@@ -27,6 +27,8 @@ const IMAGE_MODEL = "cogview-3-flash";   // 免费生图
 const VIDEO_MODEL = "cogvideox-flash";   // 免费生视频
 const TEXT_MODEL = "glm-4-flash";        // 文本生成（文件）
 const ASYNC_RESULT = "https://open.bigmodel.cn/api/paas/v4/async-result/";
+const IMAGE_URL = "https://open.bigmodel.cn/api/paas/v4/images/generations";   // 生图专用接口
+const VIDEO_URL = "https://open.bigmodel.cn/api/paas/v4/videos/generations";   // 生视频专用接口
 const PROMPT_MAX = 1200;
 
 function clamp(s, n) { s = String(s == null ? "" : s); return s.length > n ? s.slice(0, n) : s; }
@@ -35,11 +37,11 @@ function clampInt(v, min, max, def) {
   return isNaN(n) ? def : Math.max(min, Math.min(max, n));
 }
 
-async function glmFetch(apiKey, body, timeoutMs) {
+async function glmFetch(apiKey, body, timeoutMs, url) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs || 40000);
   try {
-    const r = await fetch(GLM_URL, {
+    const r = await fetch(url || GLM_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
       body: JSON.stringify(body),
@@ -56,10 +58,10 @@ async function glmFetch(apiKey, body, timeoutMs) {
 }
 
 /* 带 key 池的生成调用：逐把尝试，限流/报错自动切下一把 */
-async function glmFetchPool(body, timeoutMs, keyPool) {
+async function glmFetchPool(body, timeoutMs, keyPool, url) {
   let lastErr = null;
   for (const key of keyPool) {
-    try { return await glmFetch(key, body, timeoutMs); }
+    try { return await glmFetch(key, body, timeoutMs, url); }
     catch (e) {
       lastErr = e;
       const m = String(e.message || "");
@@ -79,7 +81,9 @@ function friendly(e) {
 export default async (req) => {
   if (req.method === "OPTIONS") return preflight();
   const url = new URL(req.url);
-  const action = (req.method === "GET" ? url.searchParams.get("action") : (await safeBody(req)).action) || "";
+  /* 请求体只能读一次：提前读一次，action 与 POST 生成共用，避免二次读取得到空对象 */
+  const body = (req.method === "GET" || req.method === "HEAD") ? {} : (await safeBody(req));
+  const action = (req.method === "GET" ? url.searchParams.get("action") : body.action) || "";
 
   /* ---------- GET：状态 / 列表 / 下载 ---------- */
   if (req.method === "GET") {
@@ -140,7 +144,9 @@ export default async (req) => {
       const f = await readFile(a);
       if (!f) return json({ ok: false, msg: "文件尚未就绪或已清理" }, 404);
       const inline = action === "thumb";
-      const disp = (inline ? "inline" : "attachment") + '; filename="' + f.name.replace(/["\r\n]/g, "") + '"';
+      /* header 必须是 latin1：中文文件名会报错，用 ASCII 回退名 + RFC5987 filename* */
+      const asciiName = String(f.name || "file").replace(/[^\x20-\x7e]/g, "_").replace(/["\\;]/g, "_") || "file";
+      const disp = (inline ? "inline" : "attachment") + '; filename="' + asciiName + '"; filename*=UTF-8\'\'' + encodeURIComponent(f.name || "file");
       return new Response(f.body, {
         status: 200,
         headers: {
@@ -165,7 +171,7 @@ export default async (req) => {
   const ip = clientIP(req);
   if (!rateLimit("aigen", ip, 12, 60 * 1000)) return json({ ok: false, msg: "生成太频繁，请一分钟后再试" }, 429);
 
-  const body = await safeBody(req);
+  /* body 已在上方读取，此处直接复用（不要再次 await req.json()） */
   if (body.action && body.action !== "generate") return json({ ok: false, msg: "未知操作" }, 400);
   const kind = ["image", "video", "file"].indexOf(body.kind) !== -1 ? body.kind : "";
   if (!kind) return json({ ok: false, msg: "生成类型不合法" }, 400);
@@ -192,7 +198,7 @@ export default async (req) => {
       const size = ["1024x1024", "768x1344", "864x1152", "1344x768", "1152x864", "1440x720", "720x1440"].indexOf(body.size) !== -1
         ? body.size : "1024x1024";
       asset.size = size;
-      const d = await glmFetchPool({ model: IMAGE_MODEL, prompt, size, user_id: clamp(uid, 6, 128) }, 40000, genPool);
+      const d = await glmFetchPool({ model: IMAGE_MODEL, prompt, size, user_id: clamp(uid, 6, 128) }, 40000, genPool, IMAGE_URL);
       const url = d && d.data && d.data[0] && d.data[0].url;
       if (!url) throw new Error("未返回图片");
       await stashRemote(asset, url, 50000);   // 同步转存 → ready
@@ -205,7 +211,7 @@ export default async (req) => {
          这里仅接受公开可访问的图片 URL；一般走纯文生视频） */
       const reqBody = { model: VIDEO_MODEL, prompt };
       if (body.imageUrl && /^https?:\/\//.test(body.imageUrl)) reqBody.image_url = clamp(body.imageUrl, 500);
-      const d = await glmFetchPool(reqBody, 30000, genPool);
+      const d = await glmFetchPool(reqBody, 30000, genPool, VIDEO_URL);
       const taskId = d && d.id;
       if (!taskId) throw new Error("未返回任务ID");
       asset.taskId = taskId;

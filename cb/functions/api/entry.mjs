@@ -75,11 +75,12 @@ async function toResult(res) {
   const ct = (res.headers.get("content-type") || "").toLowerCase();
   const binary = /image\/|application\/octet-stream|video\//.test(ct);
   if (binary) {
+    /* CloudBase HTTP 网关约定：二进制放顶层 isBase64Encoded 字段，
+       不能塞进 headers（网关不认，会导致 body 丢失 / content-length 不匹配） */
     body = Buffer.from(buf).toString("base64");
-    headers["is-base64"] = "true";
-  } else {
-    body = Buffer.from(buf).toString("utf8");
+    return { statusCode: res.status, headers, body, isBase64Encoded: true };
   }
+  body = Buffer.from(buf).toString("utf8");
   return { statusCode: res.status, headers, body };
 }
 
