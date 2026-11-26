@@ -249,6 +249,12 @@
             <button class="btn ghost" id="attachBtn" title="附加截图或代码文件（图片≤1.5MB 自动交给视觉模型，文本≤40KB）">📎 附件</button>
           </div>
           <div class="row" id="rowImage" style="display:none;">
+            <label style="color:var(--muted); font-size:.85rem;">模型</label>
+            <select id="imgModel">
+              <option value="cogview-3-flash">CogView-3-Flash（免费）</option>
+              <option value="cogview-4">CogView-4（免费·高质量）</option>
+              <option value="glm-image">GLM-Image（免费·高质量）</option>
+            </select>
             <label style="color:var(--muted); font-size:.85rem;">尺寸</label>
             <select id="imgSize">
               <option value="1024x1024">1024 × 1024</option>
@@ -259,6 +265,19 @@
             </select>
           </div>
           <div class="row" id="rowFile" style="display:none;">
+            <label style="color:var(--muted); font-size:.85rem;">模型</label>
+            <select id="fileModel">
+              <optgroup label="GLM 系列（免费）">
+                <option value="glm-4-flash">GLM-4-Flash</option>
+                <option value="glm-4.7-flash">GLM-4.7-Flash</option>
+                <option value="glm-4-flash-250414">GLM-4-Flash（旧版）</option>
+                <option value="glm-z1-flash">GLM-Z1-Flash</option>
+              </optgroup>
+              <optgroup label="付费模型（消耗 token 额度）">
+                <option value="gpt-6.2-astra">🐋 GPT-6.2 Astra（5×）</option>
+                <option value="deepseek-v4.1-flash">🐟 DeepSeek V4.1（3×）</option>
+              </optgroup>
+            </select>
             <label style="color:var(--muted); font-size:.85rem;">类型</label>
             <select id="fileFormat">
               <option value="any">文档（.md）</option>
@@ -266,6 +285,11 @@
             </select>
           </div>
           <div class="row" id="rowVideo" style="display:none;">
+            <label style="color:var(--muted); font-size:.85rem;">模型</label>
+            <select id="videoModel">
+              <option value="cogvideox-flash">CogVideoX-Flash（免费）</option>
+              <option value="cogvideox-3">CogVideoX-3（免费·高质量）</option>
+            </select>
             <span style="color:var(--muted); font-size:.82rem;">🎬 视频约需 1–3 分钟，提交后可离开页面，在「我的作品」里查看进度与下载。</span>
           </div>
           <div class="row" style="margin-top:.6rem;">
@@ -329,8 +353,10 @@
   var MODEL_NAME = {
     "glm-4.7-flash": "GLM-4.7-Flash", "glm-4.6v-flash": "GLM-4.6V-Flash",
     "glm-4.1v-thinking-flash": "GLM-4.1V-Thinking-Flash", "glm-z1-flash": "GLM-Z1-Flash",
-    "glm-4-flash-250414": "GLM-4-Flash",
+    "glm-4-flash-250414": "GLM-4-Flash", "glm-4-flash": "GLM-4-Flash",
     "gpt-6.2-astra": "GPT-6.2 Astra（5×）", "deepseek-v4.1-flash": "DeepSeek V4.1（3×）",
+    "cogview-3-flash": "CogView-3-Flash", "cogview-4": "CogView-4", "glm-image": "GLM-Image",
+    "cogvideox-flash": "CogVideoX-Flash", "cogvideox-3": "CogVideoX-3",
   };
   var GEN_MODES = { image: 1, video: 1, file: 1 };
 
@@ -709,8 +735,11 @@
     busy = true; $("goBtn").disabled = true; status.className = "status";
     status.innerHTML = '<span class="loading">' + (kind === "video" ? "🎬 正在提交视频任务" : "🖼 正在生成") + '</span>';
     var payload = { action: "generate", kind: kind, prompt: prompt };
-    if (kind === "image") payload.size = $("imgSize").value;
-    if (kind === "file") payload.format = $("fileFormat").value;
+    var selModel = "";
+    if (kind === "image") { payload.size = $("imgSize").value; selModel = $("imgModel").value; }
+    if (kind === "file") { payload.format = $("fileFormat").value; selModel = $("fileModel").value; }
+    if (kind === "video") { selModel = $("videoModel").value; }
+    payload.model = selModel;
     var h = authHeaders(); h["Content-Type"] = "application/json";
     fetch(BASE + "/api/ai", { method: "POST", headers: h, body: JSON.stringify(payload) })
       .then(function (r) { return r.json(); }).then(function (res) {
@@ -719,7 +748,8 @@
         var label = kind === "image" ? "🖼 图片：" : kind === "video" ? "🎬 视频：" : "📄 文件：";
         t.msgs.push({ role: "user", content: label + prompt });
         var aiIdx = t.msgs.length;
-        t.msgs.push({ role: "assistant", content: "", model: "AI 生成", asset: a });
+        t.msgs.push({ role: "assistant", content: "", model: MODEL_NAME[selModel] || "AI 生成", asset: a });
+        if (res.paid) { loadQuota(); status.textContent = "本次消耗 " + fmtNum(res.cost) + " token，剩余 " + fmtNum(res.quotaLeft); }
         save(); $("prompt").value = ""; renderTasks(); renderChat();
         status.className = "status";
         status.textContent = kind === "video" ? "任务已提交，生成中（约 1–3 分钟）…" : "生成完成";
