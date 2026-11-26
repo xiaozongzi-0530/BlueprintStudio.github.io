@@ -25,10 +25,10 @@ import {
 export const config = { path: "/api/ai" };
 
 /* 各生成类型可用模型（白名单）。
-   - image/video：全部为智谱免费/普惠生成模型，不扣用户额度
+   - image/video：仅智谱官方免费模型，不扣用户额度；付费生成模型(cogview-4/glm-image/cogvideox-3)一律不开放，避免消耗管理员余额
    - file：GLM 系免费不扣；GPT/DeepSeek 付费，走 OpenAI 兼容接口按 token×倍率扣额度（管理员无限） */
-const IMAGE_MODELS = ["cogview-3-flash", "cogview-4", "glm-image"];
-const VIDEO_MODELS = ["cogvideox-flash", "cogvideox-3"];
+const IMAGE_MODELS = ["cogview-3-flash"];
+const VIDEO_MODELS = ["cogvideox-flash"];
 const FILE_FREE_MODELS = ["glm-4-flash", "glm-4.7-flash", "glm-4-flash-250414", "glm-z1-flash"];
 const DEFAULT_IMAGE = "cogview-3-flash";
 const DEFAULT_VIDEO = "cogvideox-flash";
