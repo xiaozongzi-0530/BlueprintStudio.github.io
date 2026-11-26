@@ -23,6 +23,10 @@
   .layout { position:relative; z-index:1; display:flex; max-width:1240px; margin:0 auto; padding:1.5rem 1rem 4rem; gap:1rem; align-items:flex-start; }
   #side { flex:0 0 240px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:.9rem; position:sticky; top:84px; max-height:calc(100vh - 110px); overflow-y:auto; }
   #side h3 { font-size:.85rem; color:var(--muted); font-weight:600; margin-bottom:.6rem; letter-spacing:.06em; }
+  /* 侧边栏功能入口（替代顶部导航） */
+  .quick-nav { display:grid; grid-template-columns:1fr 1fr; gap:.35rem; margin-bottom:.9rem; }
+  .quick-nav a { display:flex; align-items:center; gap:.35rem; padding:.45rem .5rem; border-radius:9px; background:var(--panel2); border:1px solid transparent; color:var(--muted); text-decoration:none; font-size:.8rem; white-space:nowrap; }
+  .quick-nav a:hover, .quick-nav a.active { color:var(--accent2); border-color:var(--line); background:rgba(40,72,168,.16); }
   .new-task { width:100%; margin-bottom:.7rem; }
   .side-sep { height:1px; background:var(--line); margin:.9rem 0; }
   .side-link { display:block; width:100%; text-align:left; border:none; background:none; color:var(--muted); font-size:.86rem; padding:.55rem .6rem; border-radius:9px; cursor:pointer; font-family:inherit; }
@@ -154,21 +158,22 @@
   <div class="grid-bg"></div>
   <header>
     <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
-    <nav>
-      <a href="index.html">首页</a>
-      <a href="forum.html">论坛</a>
-      <a href="chat.html">聊天</a>
-      <a href="notes.html">笔记</a>
-      <a href="discover.html">发现</a>
-      <a href="ai-code.html" class="active">AI 工作台</a>
-      <a href="recharge.html">充值</a>
-      <a href="ann.html">公告</a>
-      <a href="join.html">联系我们</a>
-    </nav>
   </header>
 
   <div class="layout">
     <aside id="side">
+      <h3>🧭 功能入口</h3>
+      <div class="quick-nav">
+        <a href="index.html">🏠 首页</a>
+        <a href="forum.html">💬 论坛</a>
+        <a href="chat.html">💬 聊天</a>
+        <a href="notes.html">📝 笔记</a>
+        <a href="discover.html">🔍 发现</a>
+        <a href="recharge.html">💠 充值</a>
+        <a href="ann.html">📢 公告</a>
+        <a href="join.html">📮 联系我们</a>
+      </div>
+      <div class="side-sep"></div>
       <h3>📁 我的任务</h3>
       <button class="btn new-task" id="newTask">＋ 新建任务</button>
       <div id="taskList"></div>
