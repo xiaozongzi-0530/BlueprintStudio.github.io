@@ -87,7 +87,16 @@ export default async (req) => {
 
   /* ---------- GET：状态 / 列表 / 下载 ---------- */
   if (req.method === "GET") {
-    const tok = await verifyToken(req);
+    /* 下载/预览是 <a>/<img> 裸请求，带不了 Authorization 头：
+       允许用 URL 参数 token 回退鉴权（与 header 同等校验） */
+    let tok = await verifyToken(req);
+    if (!tok) {
+      const qtok = url.searchParams.get("token");
+      if (qtok) {
+        const fake = new Request(req.url, { headers: { Authorization: "Bearer " + qtok } });
+        tok = await verifyToken(fake);
+      }
+    }
     if (!tok) return json({ ok: false, msg: "请先登录" }, 401);
     const uid = tok.uid || tok.email;
 
