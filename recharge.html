@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>充值 · BlueprintStudio</title>
+<script>
+  (function () { document.documentElement.setAttribute("data-theme", "dark"); })();
+</script>
+<style>
+  :root { color-scheme:dark; --bg:#0a1128; --panel:rgba(40,72,168,.12); --panel2:rgba(40,72,168,.16); --line:rgba(40,72,168,.25); --accent:#2e52b4; --accent2:#22d3ee; --text:#e6ebf5; --muted:#8a93a8; --err:#ff6b6b; --ok:#34d399; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif; min-height:100vh; }
+  .grid-bg { pointer-events:none; position:fixed; inset:0; z-index:0; background-image:linear-gradient(rgba(40,72,168,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(40,72,168,.07) 1px,transparent 1px); background-size:40px 40px; }
+  header { position:sticky; top:0; z-index:10; display:flex; justify-content:space-between; align-items:center; padding:1rem 2rem; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); flex-wrap:wrap; gap:.8rem; }
+  .brand { font-weight:700; letter-spacing:.05em; font-size:1.1rem; text-decoration:none; color:var(--text); }
+  .brand span { color:var(--accent2); }
+  nav { display:flex; gap:1.2rem; flex-wrap:wrap; }
+  nav a { color:var(--muted); text-decoration:none; font-size:.92rem; }
+  nav a:hover, nav a.active { color:var(--accent2); }
+
+  main { position:relative; z-index:1; max-width:880px; margin:0 auto; padding:2.5rem 1rem 5rem; }
+  .page-title { font-size:1.9rem; margin-bottom:.35rem; }
+  .page-title em { font-style:normal; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .page-sub { color:var(--muted); font-size:.92rem; margin-bottom:1.8rem; line-height:1.7; }
+
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:1.4rem 1.5rem; margin-bottom:1.2rem; }
+  .card h2 { font-size:1.05rem; margin-bottom:1rem; display:flex; align-items:center; gap:.5rem; }
+  .card h2 .step { display:inline-flex; width:1.5rem; height:1.5rem; align-items:center; justify-content:center; background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:50%; font-size:.8rem; color:#fff; }
+
+  /* 额度卡 */
+  .quota-hero { background:linear-gradient(135deg,rgba(46,82,180,.22),rgba(34,211,238,.08)); border:1px solid rgba(34,211,238,.3); }
+  .qh-top { display:flex; align-items:baseline; gap:.8rem; flex-wrap:wrap; }
+  .qh-num { font-size:2rem; font-weight:800; color:var(--accent2); }
+  .qh-unit { color:var(--muted); font-size:.9rem; }
+  .qh-total { color:var(--muted); font-size:.82rem; margin-left:auto; }
+  .qh-track { height:8px; border-radius:99px; background:rgba(0,0,0,.35); overflow:hidden; margin:1rem 0 .6rem; }
+  .qh-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:99px; transition:width .4s; }
+  .qh-tip { font-size:.82rem; color:var(--muted); line-height:1.7; }
+  .qh-tip b { color:var(--accent2); user-select:all; }
+  .login-inline { font-size:.85rem; color:var(--muted); }
+  .login-inline a { color:var(--accent2); text-decoration:underline; }
+
+  /* 微信充值 */
+  .wx-box { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; background:var(--panel2); border:1px dashed rgba(34,211,238,.4); border-radius:12px; padding:1.1rem 1.2rem; }
+  .wx-id { font-size:1.15rem; font-weight:700; color:var(--accent2); letter-spacing:1px; user-select:all; word-break:break-all; }
+  .wx-copy { margin-left:auto; }
+
+  /* 步骤列表 */
+  .steps { color:var(--muted); font-size:.88rem; line-height:2; padding-left:1.2rem; }
+  .steps li::marker { color:var(--accent2); }
+  .steps b { color:var(--text); }
+
+  /* 兑换码 */
+  .redeem-row { display:flex; gap:.6rem; flex-wrap:wrap; }
+  .redeem-row input { flex:1; min-width:180px; background:rgba(255,255,255,.06); border:1px solid rgba(40,72,168,.3); border-radius:10px; color:var(--text); padding:.7rem .9rem; font-size:1rem; text-transform:uppercase; letter-spacing:2px; font-family:inherit; }
+  .redeem-row input:focus { outline:none; border-color:var(--accent2); }
+  .redeem-msg { font-size:.85rem; margin-top:.7rem; min-height:1.2em; line-height:1.6; }
+
+  .btn { display:inline-block; border:none; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; padding:.7rem 1.6rem; border-radius:10px; font-size:.92rem; font-weight:600; font-family:inherit; }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn.ghost { background:transparent; border:1px solid rgba(34,211,238,.5); color:var(--accent2); font-weight:500; }
+
+  /* 倍率表 */
+  table { width:100%; border-collapse:collapse; font-size:.86rem; }
+  th, td { text-align:left; padding:.7rem .5rem; border-bottom:1px solid var(--line); }
+  th { color:var(--accent2); font-weight:600; }
+  td { color:var(--muted); }
+  td b { color:var(--text); }
+  .badge-free { color:var(--ok); }
+  .badge-paid { color:var(--accent2); }
+
+  .note { font-size:.8rem; color:var(--muted); line-height:1.8; margin-top:.9rem; }
+  footer { position:relative; z-index:1; text-align:center; color:var(--muted); font-size:.78rem; padding:1.5rem 1rem 2.5rem; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<header>
+  <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+  <nav>
+    <a href="index.html">首页</a>
+    <a href="forum.html">论坛</a>
+    <a href="chat.html">聊天</a>
+    <a href="notes.html">笔记</a>
+    <a href="discover.html">发现</a>
+    <a href="ai-code.html">AI 工作台</a>
+    <a href="recharge.html" class="active">充值</a>
+    <a href="ann.html">公告</a>
+    <a href="join.html">联系我们</a>
+  </nav>
+</header>
+
+<main>
+  <h1 class="page-title">💠 <em>额度充值</em></h1>
+  <p class="page-sub">GLM 系列模型完全免费，付费模型（GPT / DeepSeek）按 token 用量扣减额度。下面是查询额度、充值与兑换的入口。</p>
+
+  <!-- 1. 当前额度 -->
+  <section class="card quota-hero">
+    <h2><span class="step">1</span> 我的额度</h2>
+    <div class="qh-top">
+      <span class="qh-num" id="qhNum">--</span>
+      <span class="qh-unit">token 可用</span>
+      <span class="qh-total" id="qhTotal"></span>
+    </div>
+    <div class="qh-track"><div class="qh-fill" id="qhFill" style="width:0%;"></div></div>
+    <div class="qh-tip" id="qhTip">登录后查看你的付费额度。</div>
+  </section>
+
+  <!-- 2. 微信充值 -->
+  <section class="card">
+    <h2><span class="step">2</span> 微信充值</h2>
+    <div class="wx-box">
+      <div>
+        <div style="font-size:.82rem;color:var(--muted);margin-bottom:.35rem;">添加管理员微信，说明要充值的 token 数量：</div>
+        <div class="wx-id" id="wxId">wxid_wf77ouyorz1w12</div>
+      </div>
+      <button class="btn wx-copy" id="wxCopy" type="button">📋 一键复制</button>
+    </div>
+    <ul class="steps">
+      <li>复制上面的微信号，添加管理员为好友</li>
+      <li>发送你要充值的 <b>token 数量</b> 和你的 <b>注册邮箱</b></li>
+      <li>管理员收款后会把额度发到你的账号，或给你一个兑换码</li>
+      <li>回到本页用兑换码兑换，即刻到账</li>
+    </ul>
+  </section>
+
+  <!-- 3. 兑换码 -->
+  <section class="card">
+    <h2><span class="step">3</span> 兑换码兑换</h2>
+    <p class="qh-tip" style="margin-bottom:.9rem;">输入管理员发给你的兑换码（邮件里那串字符），到账后自动加到你的付费额度。兑换码有效期以管理员设置为准，过期请联系管理员重新生成。</p>
+    <div class="redeem-row">
+      <input type="text" id="redeemCode" placeholder="输入兑换码" maxlength="16" autocomplete="off">
+      <button class="btn" id="redeemBtn" type="button">兑换</button>
+    </div>
+    <div class="redeem-msg" id="redeemMsg"></div>
+  </section>
+
+  <!-- 4. 计费说明 -->
+  <section class="card">
+    <h2><span class="step">4</span> 模型与计费</h2>
+    <table>
+      <thead><tr><th>模型</th><th>类型</th><th>计费</th></tr></thead>
+      <tbody>
+        <tr><td><b>GLM 系列</b>（聊天 / 写代码 / 视觉）</td><td><span class="badge-free">免费</span></td><td>不扣额度</td></tr>
+        <tr><td><b>GPT-6.2 Astra</b></td><td><span class="badge-paid">付费</span></td><td>token × 5</td></tr>
+        <tr><td><b>DeepSeek V4.1</b></td><td><span class="badge-paid">付费</span></td><td>token × 3</td></tr>
+        <tr><td><b>生图 / 生视频 / 生成文件</b></td><td><span class="badge-free">免费</span></td><td>不扣额度</td></tr>
+      </tbody>
+    </table>
+    <p class="note">付费模型按实际消耗的 token 乘以倍率扣减额度；额度不足时会强制停止，不会超额扣费。GM 系列免费模型仅展示用量，不计入扣费。</p>
+  </section>
+</main>
+
+<footer>© BlueprintStudio · 非商业性质工作室 · 保留所有权利</footer>
+
+<script>
+(function () {
+  var BASE = "https://blueprintstudio-d5f6u80sab2de6b7-1538470672.ap-shanghai.app.tcloudbase.com";
+  var WX_ID = "wxid_wf77ouyorz1w12";
+  function $(id) { return document.getElementById(id); }
+  function token() { try { return localStorage.getItem("bs_token_v1") || ""; } catch (e) { return ""; } }
+  function authHeaders() { var t = token(); return t ? { "Authorization": "Bearer " + t } : {}; }
+  var isLogged = !!token();
+  function fmtNum(n) { n = Number(n) || 0; return n >= 1e8 ? (n/1e8).toFixed(2)+" 亿" : n >= 1e4 ? (n/1e4).toFixed(1)+" 万" : String(n); }
+
+  /* 额度展示 */
+  function loadQuota() {
+    var num = $("qhNum"), total = $("qhTotal"), fill = $("qhFill"), tip = $("qhTip");
+    if (!isLogged) {
+      num.textContent = "登录后可查看"; total.textContent = ""; fill.style.width = "0%";
+      tip.innerHTML = '<span class="login-inline">请先 <a href="index.html">登录 / 注册</a> 后查看额度并兑换。</span>'; return;
+    }
+    tip.textContent = "正在查询…";
+    fetch(BASE + "/api/quota", {
+      method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
+      body: JSON.stringify({ action: "self" }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) throw new Error(res.msg || "查询失败");
+      num.textContent = fmtNum(res.left);
+      total.textContent = res.quota ? "总额 " + fmtNum(res.quota) + " · 已用 " + fmtNum(res.used) : "（未分配额度）";
+      fill.style.width = (res.quota ? Math.min(100, res.left / res.quota * 100) : 0) + "%";
+      tip.innerHTML = res.left > 0
+        ? '额度充足。付费模型按 token×倍率扣减，GLM 免费。需要更多额度？<b>' + WX_ID + '</b> 充值。'
+        : '额度已用完，加微信 <b>' + WX_ID + '</b> 充值，或用兑换码兑换。';
+    }).catch(function () { num.textContent = "查询失败"; tip.textContent = "额度查询失败，请稍后重试或检查登录状态。"; });
+  }
+  loadQuota();
+
+  /* 复制微信 */
+  $("wxCopy").onclick = function () {
+    var btn = this, old = btn.textContent;
+    function done() { btn.textContent = "已复制 ✓"; setTimeout(function () { btn.textContent = old; }, 1800); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(WX_ID).then(done, fallback);
+    } else fallback();
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = WX_ID; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) { alert("充值微信号：" + WX_ID); }
+      document.body.removeChild(ta);
+    }
+  };
+
+  /* 兑换 */
+  $("redeemBtn").onclick = function () {
+    var code = ($("redeemCode").value || "").trim().toUpperCase();
+    var msg = $("redeemMsg");
+    if (!isLogged) {
+      msg.textContent = "请先登录后再兑换"; msg.style.color = "var(--err)";
+      window.location.href = "index.html"; return;
+    }
+    if (!code) { msg.textContent = "请输入兑换码"; msg.style.color = "var(--err)"; return; }
+    msg.textContent = "正在兑换…"; msg.style.color = "var(--accent2)";
+    var btn = this; btn.disabled = true;
+    fetch(BASE + "/api/quota", {
+      method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
+      body: JSON.stringify({ action: "redeem", code: code }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { msg.textContent = res.msg || "兑换失败"; msg.style.color = "var(--err)"; return; }
+      msg.textContent = "✅ 兑换成功！已到账 " + fmtNum(res.tokens) + " token，剩余 " + fmtNum(res.left) + " token";
+      msg.style.color = "var(--ok)";
+      $("redeemCode").value = "";
+      loadQuota();
+    }).catch(function (e) {
+      btn.disabled = false; msg.textContent = "网络异常：" + (e.message || ""); msg.style.color = "var(--err)";
+    });
+  };
+})();
+</script>
+</body>
+</html>
