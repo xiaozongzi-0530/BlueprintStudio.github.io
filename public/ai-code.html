@@ -23,10 +23,6 @@
   .layout { position:relative; z-index:1; display:flex; max-width:1240px; margin:0 auto; padding:1.5rem 1rem 4rem; gap:1rem; align-items:flex-start; }
   #side { flex:0 0 240px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:.9rem; position:sticky; top:84px; max-height:calc(100vh - 110px); overflow-y:auto; }
   #side h3 { font-size:.85rem; color:var(--muted); font-weight:600; margin-bottom:.6rem; letter-spacing:.06em; }
-  /* 侧边栏功能入口（替代顶部导航） */
-  .quick-nav { display:grid; grid-template-columns:1fr 1fr; gap:.35rem; margin-bottom:.9rem; }
-  .quick-nav a { display:flex; align-items:center; gap:.35rem; padding:.45rem .5rem; border-radius:9px; background:var(--panel2); border:1px solid transparent; color:var(--muted); text-decoration:none; font-size:.8rem; white-space:nowrap; }
-  .quick-nav a:hover, .quick-nav a.active { color:var(--accent2); border-color:var(--line); background:rgba(40,72,168,.16); }
   .new-task { width:100%; margin-bottom:.7rem; }
   .side-sep { height:1px; background:var(--line); margin:.9rem 0; }
   .side-link { display:block; width:100%; text-align:left; border:none; background:none; color:var(--muted); font-size:.86rem; padding:.55rem .6rem; border-radius:9px; cursor:pointer; font-family:inherit; }
@@ -158,22 +154,20 @@
   <div class="grid-bg"></div>
   <header>
     <a class="brand" href="index.html">Blueprint<span>Studio</span></a>
+    <nav>
+      <a href="index.html">首页</a>
+      <a href="forum.html">论坛</a>
+      <a href="chat.html">聊天</a>
+      <a href="notes.html">笔记</a>
+      <a href="discover.html">发现</a>
+      <a href="ai-code.html" class="active">AI 工作台</a>
+      <a href="ann.html">公告</a>
+      <a href="join.html">联系我们</a>
+    </nav>
   </header>
 
   <div class="layout">
     <aside id="side">
-      <h3>🧭 功能入口</h3>
-      <div class="quick-nav">
-        <a href="index.html">🏠 首页</a>
-        <a href="forum.html">💬 论坛</a>
-        <a href="chat.html">💬 聊天</a>
-        <a href="notes.html">📝 笔记</a>
-        <a href="discover.html">🔍 发现</a>
-        <a href="recharge.html">💠 充值</a>
-        <a href="ann.html">📢 公告</a>
-        <a href="join.html">📮 联系我们</a>
-      </div>
-      <div class="side-sep"></div>
       <h3>📁 我的任务</h3>
       <button class="btn new-task" id="newTask">＋ 新建任务</button>
       <div id="taskList"></div>
@@ -199,18 +193,6 @@
         <span class="qb-tip" id="quotaTotal"></span>
         <div class="qb-track"><div class="qb-fill" id="quotaFill" style="width:0%;"></div></div>
         <span class="qb-tip" id="quotaHint">GLM 系列免费，付费模型按 token×倍率扣减</span>
-        <button class="redeem-toggle" id="redeemToggle" type="button">有兑换码？点此兑换</button>
-        <button class="recharge-btn" id="rechargeBtn" type="button" title="点击复制微信号">充值加微信</button>
-      </div>
-
-      <!-- 兑换码 -->
-      <div class="redeem-box" id="redeemBox">
-        <div class="rt">输入管理员发给你的兑换码（邮件里那 8 位字符），到账后自动加到你的付费额度。兑换码有效期以邮件标注为准，过期请联系管理员重新生成。需要更多额度？加微信 <b style="color:#22d3ee;user-select:all;">wxid_wf77ouyorz1w12</b> 充值。</div>
-        <div class="redeem-row">
-          <input type="text" id="redeemCode" placeholder="输入兑换码" maxlength="12" autocomplete="off">
-          <button class="btn" id="redeemBtn" type="button">兑换</button>
-        </div>
-        <div class="redeem-msg" id="redeemMsg"></div>
       </div>
 
       <!-- 对话/生成视图 -->
@@ -431,7 +413,7 @@
     var left = $("quotaLeft"), total = $("quotaTotal"), fill = $("quotaFill"), hint = $("quotaHint");
     if (!isLogged) {
       left.textContent = "登录后可查看"; total.textContent = ""; fill.style.width = "0%";
-      hint.innerHTML = 'GLM 系列免费，付费模型需登录获取额度 · 充值加微信 <b style="color:#22d3ee;user-select:all;">wxid_wf77ouyorz1w12</b>'; return;
+      hint.textContent = 'GLM 系列免费，付费模型需登录获取额度'; return;
     }
     fetch(BASE + "/api/quota", {
       method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
@@ -441,58 +423,10 @@
       left.textContent = fmtNum(res.left) + " token";
       total.textContent = res.quota ? "（总额 " + fmtNum(res.quota) + " · 已用 " + fmtNum(res.used) + "）" : "（未分配额度）";
       fill.style.width = (res.quota ? Math.min(100, res.left / res.quota * 100) : 0) + "%";
-      hint.innerHTML = res.left > 0 ? 'GLM 免费，付费模型按 token×倍率扣减' : '额度已用完，加微信 <b style="color:#22d3ee;user-select:all;">wxid_wf77ouyorz1w12</b> 充值';
+      hint.textContent = res.left > 0 ? 'GLM 免费，付费模型按 token×倍率扣减' : '额度已用完，详见充值页';
     }).catch(function () { left.textContent = "查询失败"; });
   }
   loadQuota();
-
-  /* ---------- 充值：点击复制微信号 ---------- */
-  var WX_ID = "wxid_wf77ouyorz1w12";
-  $("rechargeBtn").onclick = function () {
-    var btn = this, old = btn.textContent;
-    function done() { btn.textContent = "已复制 ✓"; setTimeout(function () { btn.textContent = old; }, 1800); }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(WX_ID).then(done, fallback);
-    } else fallback();
-    function fallback() {
-      var ta = document.createElement("textarea");
-      ta.value = WX_ID; ta.style.position = "fixed"; ta.style.opacity = "0";
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); done(); } catch (e) { alert("充值微信号：" + WX_ID); }
-      document.body.removeChild(ta);
-    }
-  };
-
-  /* ---------- 兑换码 ---------- */
-  $("redeemToggle").onclick = function () {
-    var box = $("redeemBox");
-    box.classList.toggle("on");
-    if (box.classList.contains("on")) $("redeemCode").focus();
-  };
-  $("redeemBtn").onclick = function () {
-    var code = ($("redeemCode").value || "").trim().toUpperCase();
-    var msg = $("redeemMsg");
-    if (!isLogged) {
-      msg.textContent = "请先登录后再兑换"; msg.style.color = "var(--err)";
-      window.location.href = "index.html"; return;
-    }
-    if (!code) { msg.textContent = "请输入兑换码"; msg.style.color = "var(--err)"; return; }
-    msg.textContent = "正在兑换…"; msg.style.color = "var(--accent2)";
-    var btn = this; btn.disabled = true;
-    fetch(BASE + "/api/quota", {
-      method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
-      body: JSON.stringify({ action: "redeem", code: code }),
-    }).then(function (r) { return r.json(); }).then(function (res) {
-      btn.disabled = false;
-      if (!res.ok) { msg.textContent = res.msg || "兑换失败"; msg.style.color = "var(--err)"; return; }
-      msg.textContent = "✅ 兑换成功！已到账 " + fmtNum(res.tokens) + " token，剩余 " + fmtNum(res.left) + " token";
-      msg.style.color = "var(--ok)";
-      $("redeemCode").value = "";
-      loadQuota();
-    }).catch(function (e) {
-      btn.disabled = false; msg.textContent = "网络异常：" + (e.message || ""); msg.style.color = "var(--err)";
-    });
-  };
 
   /* ---------- 附件（仅代码模式用） ---------- */
   var attach = null;
