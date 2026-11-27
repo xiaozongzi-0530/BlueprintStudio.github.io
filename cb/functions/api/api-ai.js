@@ -13,8 +13,8 @@
 
    环境变量：GLM_API_KEY（智谱开放平台，与 GLM 对话共用同一把 key）
 */
-import { json, preflight, clientIP, rateLimit, verifyToken, getUsersRaw, putUsersRaw,
-  getStore, PAID_MODELS, quotaLeft, ADMIN_EMAIL } from "./_lib.js";
+import { json, preflight, clientIP, rateLimit, verifyToken, getUsersRaw,
+  getStore } from "./_lib.js";
 import { GLM_URL } from "./_glm.js";
 import { getPool, shuffled, shouldSwitch } from "./_glmkey.js";
 import {
@@ -24,9 +24,8 @@ import {
 
 export const config = { path: "/api/ai" };
 
-/* 各生成类型可用模型（白名单）。
-   - image/video：仅智谱官方免费模型，不扣用户额度；付费生成模型(cogview-4/glm-image/cogvideox-3)一律不开放，避免消耗管理员余额
-   - file：GLM 系免费不扣；GPT/DeepSeek 付费，走 OpenAI 兼容接口按 token×倍率扣额度（管理员无限） */
+/* 各生成类型可用模型（白名单）：生图 / 生视频 / 生成文件全部只使用智谱官方免费模型，不扣用户额度。
+   付费生成模型（cogview-4、glm-image、cogvideox-3、GPT、DeepSeek）一律不开放，避免消耗管理员余额 */
 const IMAGE_MODELS = ["cogview-3-flash"];
 const VIDEO_MODELS = ["cogvideox-flash"];
 const FILE_FREE_MODELS = ["glm-4-flash", "glm-4.7-flash", "glm-4-flash-250414", "glm-z1-flash"];
@@ -76,49 +75,6 @@ async function glmFetchPool(body, timeoutMs, keyPool, url) {
     }
   }
   throw lastErr || new Error("所有 key 均不可用");
-}
-
-/* 付费模型（OpenAI 兼容接口）：GPT_BASE_URL / DEEPSEEK_BASE_URL 等 */
-async function callPaid(cfg, messages, maxTokens) {
-  const r = await fetch(cfg.baseUrl + "/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.key },
-    body: JSON.stringify({ model: cfg.realModel, messages, temperature: 0.3, max_tokens: maxTokens || 4000 }),
-  });
-  if (!r.ok) {
-    let detail = "HTTP " + r.status;
-    try { const e = await r.json(); if (e && e.error) detail += " " + clamp(String(e.error.message || e.error), 100); } catch (x) {}
-    throw new Error(cfg.name + " " + detail);
-  }
-  const data = await r.json();
-  const msg = data && data.choices && data.choices[0] && data.choices[0].message || {};
-  const usage = data && data.usage || {};
-  const tokens = Number(usage.total_tokens) || (Number(usage.prompt_tokens) || 0) + (Number(usage.completion_tokens) || 0);
-  return { text: (msg.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim(), tokens: tokens };
-}
-
-/* 调用成功后扣额度并记流水（防打穿：不超过剩余额度，tokenUsed 不超 tokenQuota） */
-async function deductQuota(email, modelName, mult, tokens) {
-  const realCost = Math.ceil(tokens * mult);
-  const db = await getUsersRaw();
-  const rec = (db.users || {})[email];
-  if (!rec) return { cost: 0, realCost, left: 0 };
-  const quota = Number(rec.tokenQuota) || 0;
-  const usedBefore = Number(rec.tokenUsed) || 0;
-  const avail = Math.max(0, quota - usedBefore);
-  const cost = Math.min(realCost, avail);
-  const used = Math.min(quota, usedBefore + cost);
-  rec.tokenUsed = used;
-  await putUsersRaw(db);
-  const left = Math.max(0, quota - used);
-  try {
-    const meta = getStore("meta");
-    const logs = JSON.parse((await meta.get("__quota_logs")) || "[]");
-    logs.push({ t: Date.now(), email, model: modelName, tokens, mult, cost, realCost, left });
-    if (logs.length > 200) logs.splice(0, logs.length - 200);
-    await meta.set("__quota_logs", JSON.stringify(logs));
-  } catch (e) {}
-  return { cost, realCost, left };
 }
 
 /* 判断 GLM 400 是否为地域/模型不支持，给出友好提示 */
@@ -230,9 +186,6 @@ export default async (req) => {
   const authRec = (dbAuth.users || {})[tok.email];
   if (!authRec) return json({ ok: false, msg: "账号不存在，请重新登录", loginRequired: true }, 401);
   if (authRec.banned) return json({ ok: false, msg: "该账号已被封禁，无法使用 AI 功能", banned: true }, 403);
-  const userEmail = tok.email;
-  const isAdmin = userEmail === ADMIN_EMAIL;   /* 管理员：AI 额度无限，不校验不扣费 */
-
   const ip = clientIP(req);
   if (!rateLimit("aigen", ip, 12, 60 * 1000)) return json({ ok: false, msg: "生成太频繁，请一分钟后再试" }, 429);
 
@@ -244,36 +197,18 @@ export default async (req) => {
   if (!prompt) return json({ ok: false, msg: "描述不能为空" }, 400);
 
   const reqModel = clamp(body.model, 40);
-  let model, paid = null, paidCfg = null;
+  let model;
   if (kind === "image") {
     model = IMAGE_MODELS.indexOf(reqModel) !== -1 ? reqModel : DEFAULT_IMAGE;   // 生图全部免费
   } else if (kind === "video") {
     model = VIDEO_MODELS.indexOf(reqModel) !== -1 ? reqModel : DEFAULT_VIDEO;   // 生视频全部免费
   } else {
-    if (FILE_FREE_MODELS.indexOf(reqModel) !== -1) {
-      model = reqModel;
-    } else if (PAID_MODELS[reqModel]) {
-      model = reqModel; paid = PAID_MODELS[reqModel];
-    } else {
-      model = DEFAULT_FILE;
-    }
-    /* 付费文件模型：读取独立接口配置；额度预校验（管理员跳过） */
-    if (paid && !isAdmin) {
-      if (quotaLeft(authRec) <= 0) return json({ ok: false, quotaEmpty: true,
-        msg: "你的 token 额度已用完，请联系管理员充值后再使用付费模型" }, 403);
-    }
-    if (paid) {
-      const baseUrl = process.env[paid.env + "_BASE_URL"];
-      const key = process.env[paid.env + "_API_KEY"];
-      const realModel = process.env[paid.env + "_MODEL"];
-      if (!baseUrl || !key) return json({ ok: false, msg: paid.name + " 服务未配置，请联系管理员" }, 503);
-      paidCfg = { baseUrl: baseUrl.replace(/\/+$/, ""), key, realModel: realModel || reqModel, name: paid.name };
-    }
+    model = FILE_FREE_MODELS.indexOf(reqModel) !== -1 ? reqModel : DEFAULT_FILE;  // 生成文件全部免费
   }
 
-  /* 付费模型用自己的接口，无需 GLM key 池；免费模型需要 key 池 */
-  const genPool = paid ? [] : shuffled(getPool());
-  if (!paid && !genPool.length) return json({ ok: false, msg: "AI 生成服务未配置，请联系管理员" }, 503);
+  /* 全部使用 GLM key 池 */
+  const genPool = shuffled(getPool());
+  if (!genPool.length) return json({ ok: false, msg: "AI 生成服务未配置，请联系管理员" }, 503);
 
   const asset = {
     id: newAssetId(), uid: uid, email: tok.email || "", type: kind,
@@ -305,7 +240,7 @@ export default async (req) => {
       return json({ ok: true, asset: publicAsset(asset) });
     }
 
-    /* file：生成文本存成文件下载。免费 GLM 走 key 池；付费 GPT/DeepSeek 走独立接口按 token 扣额度 */
+    /* file：生成文本存成文件下载。全部使用免费 GLM，不扣额度 */
     const format = ["code", "doc", "any"].indexOf(body.format) !== -1 ? body.format : "any";
     asset.format = format;
     const ext = format === "code" ? "txt" : "md";
@@ -313,17 +248,10 @@ export default async (req) => {
       ? "你是编程助手。按用户需求直接产出完整代码，不要多余解释。代码用纯文本输出。"
       : "你是写作助手。按用户需求直接产出完整内容（Markdown 格式），不要寒暄和额外解释。";
     const messages = [{ role: "system", content: sys }, { role: "user", content: prompt }];
-    let text, tokens = 0, charge = null;
-    if (paid) {
-      const r = await callPaid(paidCfg, messages, 4000);
-      text = r.text; tokens = r.tokens;
-      if (!isAdmin) charge = await deductQuota(userEmail, paid.name + "（文件）", paid.mult, tokens);
-      else charge = { cost: 0, realCost: Math.ceil(tokens * paid.mult), left: 0 };
-    } else {
-      const d = await glmFetchPool({ model: model, messages, temperature: 0.3, max_tokens: 4000 }, 40000, genPool);
-      text = d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content || "";
-      tokens = (d && d.usage && d.usage.total_tokens) || 0;
-    }
+    let text, tokens = 0;
+    const d = await glmFetchPool({ model: model, messages, temperature: 0.3, max_tokens: 4000 }, 40000, genPool);
+    text = d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content || "";
+    tokens = (d && d.usage && d.usage.total_tokens) || 0;
     text = String(text).replace(/<think>[\s\S]*?<\/think>/g, "").trim();
     if (!text) throw new Error("生成内容为空");
     const enc = new TextEncoder().encode(text);
@@ -335,12 +263,7 @@ export default async (req) => {
     asset.size = enc.byteLength;
     asset.ext = ext;
     await putAsset(asset);
-    const resp = { ok: true, asset: publicAsset(asset) };
-    if (paid) {
-      resp.paid = true; resp.mult = paid.mult; resp.usedTokens = tokens;
-      resp.cost = charge.cost; resp.quotaLeft = isAdmin ? "∞" : charge.left;
-    }
-    return json(resp);
+    return json({ ok: true, asset: publicAsset(asset) });
   } catch (e) {
     return json({ ok: false, msg: friendly(e) }, 502);
   }
